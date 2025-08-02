@@ -21,13 +21,13 @@ class CommanderSpellbook:
 
     PAGE_SIZE = 100
 
-    def _get_variants_url(self, offset: int) -> str:
-        return f"https://backend.commanderspellbook.com/variants?ordering=-popularity%2Cidentity_count%2Ccard_count%2C-created&limit={self.PAGE_SIZE}&offset={offset}"
+    def _get_variants_url(self, max_cards_in_combo: int, offset: int) -> str:
+        return f"https://backend.commanderspellbook.com/variants?cards%3C={max_cards_in_combo + 1}&ordering=-popularity%2Cidentity_count%2Ccard_count%2C-created&limit={self.PAGE_SIZE}&offset={offset}"
 
-    async def get_variants(self, max_cards=3, max_pages=1) -> AsyncIterator[Variant]:
+    async def get_variants(self, max_cards_in_combo=3, max_pages=1) -> AsyncIterator[Variant]:
         async with aiohttp.ClientSession() as session:
             offset = 0
-            url = self._get_variants_url(offset)
+            url = self._get_variants_url(max_cards_in_combo, offset)
             while offset < max_pages * self.PAGE_SIZE:
                 async with session.get(url) as response:
                     text = await response.text()
@@ -39,5 +39,5 @@ class CommanderSpellbook:
                 if next is None:
                     break
                 offset += self.PAGE_SIZE
-                url = self._get_variants_url(offset)
+                url = self._get_variants_url(max_cards_in_combo, offset)
 
