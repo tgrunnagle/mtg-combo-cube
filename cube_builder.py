@@ -20,20 +20,22 @@ class CubeBuilder:
     async def _select_required_cards(self, variant_tracker: VariantTracker, count: int, top_cards: list[tuple[str, int]]) -> list[tuple[str, int]]:
         # TODO selection algorithm to pick the best cards from the pool
         req_cards = await variant_tracker.get_top_required_cards(count, exclude=[card[0] for card in top_cards])
+        logger.info(f"Found {variant_tracker.count_required_cards_from_cache()} required_cards")
         return req_cards
         
 
     async def build_cube(self, spellbook: CommanderSpellbook, cube_size: int, ratio_top_cards: float) -> list[str]:
-        count_top_cards = math.ceil(cube_size * ratio_top_cards)
         variant_tracker = VariantTracker()
-        async for variant in spellbook.get_variants(max_cards_in_combo=3, max_pages=100):
+        async for variant in spellbook.get_variants(max_cards_in_combo=3, max_pages=5):
             variant_tracker.process_variant(variant)
-            count_cards = variant_tracker.count_cards()
-            if count_cards >= count_top_cards * self.POOL_MULTIPLIER:
-                break
+        logger.info(f"Found {variant_tracker.count_variants()} variants")
+        logger.info(f"Found {variant_tracker.count_cards()} cards")
 
+        count_top_cards = math.ceil(cube_size * ratio_top_cards)
         top_cards = await self._select_top_cards(variant_tracker, count_top_cards)
+        logger.info(f"Selected {len(top_cards)} top cards")
         required_cards = await self._select_required_cards(variant_tracker, cube_size - count_top_cards, top_cards)
+        logger.info(f"Selected {len(required_cards)} required cards")
         return [
             card[0] for card in 
             # sort by popularity

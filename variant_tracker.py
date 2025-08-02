@@ -14,13 +14,23 @@ class VariantTracker:
         self._requirement_api_popularity = {}
         self._requirement_cards_cache = {}
 
-    REQUIRED_CARD_RANK_LIMIT = 3
+    REQUIRED_CARD_RANK_LIMIT = 10
 
     def _scale_popularity(self, popularity: int) -> float:
         return math.log(popularity)
 
     def count_cards(self) -> int:
         return len(self._card_popularity)
+
+    def count_variants(self) -> int:
+        return len(self._variants)
+
+    def count_required_cards_from_cache(self) -> int:
+        cards = set()
+        logger.info(f"Found {len(self._requirement_cards_cache)} requirement urls")
+        for _, card_names in self._requirement_cards_cache.items():
+            cards.update(card_names)
+        return len(cards)
 
     def process_variant(self, variant: Variant):
         self._variants[variant.id] = variant
@@ -38,7 +48,7 @@ class VariantTracker:
                 # limit=3 limits the number of cards returned to 3
                 # remove the 'require legal:commander' from the url
                 if requirement['template']['scryfallApi'] is None:
-                    logger.warning(f"No scryfall api for requirement\n{json.dumps(requirement, indent=2)}")
+                    #logger.warning(f"No scryfall api for requirement\n{json.dumps(requirement, indent=2)}")
                     continue
                 key = requirement['template']['scryfallApi'].replace('+legal%3Acommander', '') + f'&order=edhrec&limit={self.REQUIRED_CARD_RANK_LIMIT}'
                 if (sum_pop := self._requirement_api_popularity.get(key)) is None:
@@ -52,8 +62,8 @@ class VariantTracker:
     async def get_top_required_cards(self, n: int, exclude: list[str] = []) -> list[tuple[str, int]]:
         top = sorted(self._requirement_api_popularity.items(), key=lambda item: item[1], reverse=True)[:n]
         card_counts = {}
-        for id, req_count in top:
-            card_names = await self._get_requirement_card_names(id)
+        for api_url, req_count in top:
+            card_names = await self._get_requirement_card_names(api_url)
             for card_name in card_names:
                 if (count := card_counts.get(card_name)) is None:
                     card_counts[card_name] = req_count
@@ -64,7 +74,7 @@ class VariantTracker:
     async def _get_requirement_card_names(self, scryfall_api: str) -> list[str]:
         if (card_names := self._requirement_cards_cache.get(scryfall_api)) is None:
             async with aiohttp.ClientSession() as session:
-                logger.info(f"Fetching requirement card names for {scryfall_api}")
+                logger.debug(f"Fetching requirement card names for {scryfall_api}")
                 async with session.get(scryfall_api) as response:
                     text = await response.text()
                     data = json.loads(text)

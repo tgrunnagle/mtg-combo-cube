@@ -1,6 +1,10 @@
 import aiohttp
 import json
 from typing import AsyncIterator, Dict, Any
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Variant:
     def __init__(self, server_data: Dict[str, Any]):
@@ -29,6 +33,7 @@ class CommanderSpellbook:
             offset = 0
             url = self._get_variants_url(max_cards_in_combo, offset)
             while offset < max_pages * self.PAGE_SIZE:
+                logger.info(f"Fetching variants from {url}")
                 async with session.get(url) as response:
                     text = await response.text()
                     data = json.loads(text)
@@ -39,5 +44,5 @@ class CommanderSpellbook:
                 if next is None:
                     break
                 offset += self.PAGE_SIZE
-                url = self._get_variants_url(max_cards_in_combo, offset)
+                url = next
 
