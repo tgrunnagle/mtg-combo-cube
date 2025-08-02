@@ -2,6 +2,10 @@ from commander_spellbook import Variant
 import aiohttp
 import json
 import math
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class VariantTracker:
     def __init__(self):
@@ -33,6 +37,9 @@ class VariantTracker:
                 # order=edhrec ranks the cards by edhrec rank
                 # limit=3 limits the number of cards returned to 3
                 # remove the 'require legal:commander' from the url
+                if requirement['template']['scryfallApi'] is None:
+                    logger.warning(f"No scryfall api for requirement\n{json.dumps(requirement, indent=2)}")
+                    continue
                 key = requirement['template']['scryfallApi'].replace('+legal%3Acommander', '') + f'&order=edhrec&limit={self.REQUIRED_CARD_RANK_LIMIT}'
                 if (sum_pop := self._requirement_api_popularity.get(key)) is None:
                     self._requirement_api_popularity[key] = scaled_popularity
@@ -57,7 +64,7 @@ class VariantTracker:
     async def _get_requirement_card_names(self, scryfall_api: str) -> list[str]:
         if (card_names := self._requirement_cards_cache.get(scryfall_api)) is None:
             async with aiohttp.ClientSession() as session:
-                print("Fetching requirement card names for", scryfall_api)
+                logger.info(f"Fetching requirement card names for {scryfall_api}")
                 async with session.get(scryfall_api) as response:
                     text = await response.text()
                     data = json.loads(text)

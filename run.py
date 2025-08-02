@@ -4,20 +4,22 @@ from variant_tracker import VariantTracker
 from cube_builder import CubeBuilder
 import json
 import argparse
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 async def main(cube_size: int, ratio_top_cards: float):
     spellbook = CommanderSpellbook()
     variant_tracker = VariantTracker()
-    async for variant in spellbook.get_variants(max_cards_in_combo=3, max_pages=1):
+    async for variant in spellbook.get_variants(max_cards_in_combo=3, max_pages=10):
         variant_tracker.process_variant(variant)
     
-    print("Top cards:")
-    print(variant_tracker.get_top_cards(10))
-    print("Top required cards:")
-    print(await variant_tracker.get_top_required_cards(10))
     cube_builder = CubeBuilder()
     cube = await cube_builder.build_cube(spellbook, cube_size, ratio_top_cards)
-    print(json.dumps(cube, indent=2))
+    logger.info(f"Cube list:\n{json.dumps(cube, indent=2)}")
+    with open("cube.txt", "w") as f:
+        f.write("\n".join(cube))
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser()

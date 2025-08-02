@@ -1,6 +1,10 @@
 from commander_spellbook import CommanderSpellbook
 from variant_tracker import VariantTracker
 import math
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class CubeBuilder:
     def __init__(self):
