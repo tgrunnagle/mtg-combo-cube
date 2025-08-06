@@ -4,7 +4,6 @@ import json
 import math
 import logging
 
-logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class VariantTracker:
@@ -32,7 +31,6 @@ class VariantTracker:
 
             for requirement in variant.requires:
                 if requirement['template']['scryfallApi'] is None:
-                    #logger.warning(f"No scryfall api for requirement\n{json.dumps(requirement, indent=2)}")
                     continue
                 url = requirement['template']['scryfallApi'].replace('+legal%3Acommander', '') + f'&order=edhrec'
                 cards = await self._get_requirement_card_names(url)
@@ -48,7 +46,7 @@ class VariantTracker:
     async def _get_requirement_card_names(self, scryfall_api: str) -> list[str]:
         if (card_names := self._requirement_cards_cache.get(scryfall_api)) is None:
             async with aiohttp.ClientSession() as session:
-                logger.info(f"Fetching requirement card names for {scryfall_api}")
+                logger.debug(f"Fetching requirement card names for {scryfall_api}")
                 async with session.get(scryfall_api) as response:
                     text = await response.text()
                     data = json.loads(text)
@@ -57,5 +55,4 @@ class VariantTracker:
                     card_names = card_names[:min(self.REQUIRED_CARD_RANK_LIMIT, len(card_names))]
             self._requirement_cards_cache[scryfall_api] = card_names
         return card_names
-
         
