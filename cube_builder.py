@@ -16,38 +16,37 @@ class CubeBuilder:
         self._variant_tracker = VariantTracker()
         self._spellbook = spellbook
 
-    GOLDEN_RATIO = 1.1
+    GOLDEN_RATIO = 2.
 
     def _select_top_cards(self, count: int) -> list[tuple[str, int]]:
         # TODO selection algorithm to pick the best cards from the pool
         top_cards = self._variant_tracker.get_top_cards(count)
         return top_cards
         
-    async def build_cube(self) -> list[str]:
-        logger.info("Looking for top combos...")
-        async for variant in self._spellbook.get_variants(max_cards_in_combo=3):
+    async def build_cube(self, max_cards_in_combo: int = 4, golden_ratio: float = GOLDEN_RATIO) -> list[str]:
+        logger.debug("Looking for top combos...")
+        async for variant in self._spellbook.get_variants(max_cards_in_combo=max_cards_in_combo, max_variants=10000):
             await self._variant_tracker.process_variant(variant)
-        logger.info(f"Found {self._variant_tracker.count_cards()} cards in {self._variant_tracker.count_variants()} combos")
+        logger.debug(f"Found {self._variant_tracker.count_cards()} cards in {self._variant_tracker.count_variants()} combos")
 
-        select_count = math.ceil(self._cube_size / self.GOLDEN_RATIO)
-        top_cards = self._select_top_cards(select_count)
-        logger.info(f"Selected {len(top_cards)} top cards")
+        top_card_count = math.ceil(self._cube_size / golden_ratio)
+        top_cards = self._select_top_cards(top_card_count)
+        logger.debug(f"Selected {len(top_cards)} top cards")
         
         # Add cards that are almost included in the top cards
-        added_cards = []
+        almost_included_cards = Counter()
         existing_cards = [card[0] for card in top_cards]
-        async for variant in self._spellbook.get_almost_included(existing_cards=existing_cards):
+        async for variant in self._spellbook.get_almost_included(existing_cards=existing_cards, max_variants=5000):
             for card in variant.uses:
                 if card['card']['name'] not in existing_cards:
-                    added_cards.append(card['card']['name'])
-                if len(added_cards) + len(top_cards) == self._cube_size:
-                    break
-            if len(added_cards) + len(top_cards) == self._cube_size:
-                break
-        logger.info(f"Added {len(added_cards)} almost included cards")
+                    almost_included_cards[card['card']['name']] += 1
+        added_cards = [card for card, _ in almost_included_cards.most_common(self._cube_size - len(top_cards))]
+        
+        logger.debug(f"Added {len(added_cards)} almost included cards")
 
         self._combos_cache = []
         self._cube = [card[0] for card in top_cards] + added_cards
+        logger.debug(f"Built cube of size {len(self._cube)}")
         return self._cube
 
     def remove_cards(self, cards: list[str]):
@@ -66,7 +65,7 @@ class CubeBuilder:
                 combos.append(variant)
                 count += 1
                 if count % 100 == 0:
-                    logger.info(f"Fetched {count} variants")
+                    logger.debug(f"Fetched {count} variants")
             self._combos_cache = combos
         return combos
 
