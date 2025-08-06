@@ -7,12 +7,10 @@ A tool for building Magic: The Gathering combo cubes by analyzing card popularit
 ### Building a Cube
 
 ```bash
-run -c X -t
+run -c X -r Y
 ```
 
-Builds a cube of size `X` and checks the combo count of the result.
-
-The `-t` flag will check the combo count at different steps in the build process for tracking purposes.
+Builds a cube of size `X` and checks the combo count of the result. You can also specify a golden ratio `Y` (top cards to almost included cards) with the `-r` flag.
 
 ## How It Works
 
