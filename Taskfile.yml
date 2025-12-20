@@ -34,3 +34,8 @@ tasks:
       - lint
       - format
       - typecheck
+
+  run:
+    desc: Run the application
+    cmds:
+      - uv run python -m src.mtg_combo_cube
