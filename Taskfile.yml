@@ -1,0 +1,41 @@
+version: '3'
+
+tasks:
+  install:
+    desc: Install dependencies
+    cmds:
+      - uv sync --dev
+
+  lint:
+    desc: Run linting with ruff
+    cmds:
+      - uv run ruff check --select I --fix .
+      - uv run ruff check . --fix
+    deps:
+      - install
+
+  format:
+    desc: Fix linting issues and format code
+    cmds:
+      - uv run ruff format .
+    deps:
+      - install
+
+  typecheck:
+    desc: Run type checking with ty
+    cmds:
+      - uv run ty check .
+    deps:
+      - install
+
+  check:
+    desc: Run all checks (lint, typecheck, tests, and security)
+    deps:
+      - lint
+      - format
+      - typecheck
+
+  run:
+    desc: Run the application
+    cmds:
+      - uv run python -m src.mtg_combo_cube
