@@ -47,7 +47,7 @@ class CubeBuilder:
         # Add cards that are almost included in the top cards
         almost_included_cards = Counter()
         async for variant in self._spellbook.get_almost_included(
-            existing_cards=top_cards, max_variants=5000
+            existing_cards=top_cards, max_variants=2000
         ):
             for use in variant.uses:
                 if use.card.name not in top_cards:
