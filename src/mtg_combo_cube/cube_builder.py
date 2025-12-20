@@ -77,7 +77,9 @@ class CubeBuilder:
             if self._combos_cache:
                 return self._combos_cache
             combos: list[Variant] = []
-            async for variant in self._spellbook.get_included(self._cube, max_variants=10000):
+            async for variant in self._spellbook.get_included(
+                self._cube, max_variants=10000
+            ):
                 combos.append(variant)
             self._combos_cache = combos
         return combos

@@ -1,4 +1,3 @@
-import json
 import logging
 
 import aiohttp
@@ -6,6 +5,7 @@ import aiohttp
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)
+
 
 class VariantTracker:
     def __init__(self):
@@ -34,7 +34,10 @@ class VariantTracker:
         for requirement in variant.requires:
             if requirement.template.scryfall_api is None:
                 continue
-            url = requirement.template.scryfall_api.replace('+legal%3Acommander', '') + '&order=edhrec'
+            url = (
+                requirement.template.scryfall_api.replace("+legal%3Acommander", "")
+                + "&order=edhrec"
+            )
             cards = await self._get_requirement_card_names(url)
             for card in cards:
                 if (count := self._card_counts.get(card)) is None:
@@ -43,11 +46,18 @@ class VariantTracker:
                     self._card_counts[card] = count + 1
 
     def get_top_cards_by_count(self, n: int) -> list[str]:
-        return [count[0] for count in sorted(self._card_counts.items(), key=lambda item: item[1], reverse=True)[:n]]
-    
+        return [
+            count[0]
+            for count in sorted(
+                self._card_counts.items(), key=lambda item: item[1], reverse=True
+            )[:n]
+        ]
+
     def get_top_cards_by_popularity(self, n: int) -> list[str]:
         # TODO this does not handle required cards
-        variants_by_popularity: list[Variant] = sorted(self._variants.values(), key=lambda v: v.popularity, reverse=True)
+        variants_by_popularity: list[Variant] = sorted(
+            self._variants.values(), key=lambda v: v.popularity, reverse=True
+        )
         cards: set[str] = set()
         for variant in variants_by_popularity:
             for card in variant.uses:
@@ -62,8 +72,7 @@ class VariantTracker:
                 logger.debug(f"Fetching requirement card names for {scryfall_api}")
                 async with session.get(scryfall_api) as response:
                     data = await response.json()
-                    card_names = [card['name'] for card in data['data']]
-                    card_names = card_names[:self.REQUIRED_CARD_RANK_LIMIT]
+                    card_names = [card["name"] for card in data["data"]]
+                    card_names = card_names[: self.REQUIRED_CARD_RANK_LIMIT]
             self._requirement_cards_cache[scryfall_api] = card_names
         return card_names
-        

@@ -1,7 +1,7 @@
-import json
 import logging
 from typing import AsyncIterator
 from urllib.parse import urlencode
+
 import aiohttp
 
 from mtg_combo_cube.models import Variant
