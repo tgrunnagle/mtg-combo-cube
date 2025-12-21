@@ -35,7 +35,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 ```
 -c, --cube-size        Cube size (default: 300)
 -m, --method           Optimization method: greedy or ilp (default: greedy)
--o, --output-file      Output file path (default: cube.txt)
+-o, --output-file      Output file path (default: data/cube.txt)
 -r, --ratio            Golden ratio for greedy method (default: 1.2)
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 10000)
@@ -46,6 +46,8 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 ### Examples
 
 ```bash
+uv run python -m src.mtg_combo_cube --help
+
 # Two-phase ILP (balanced card utilization)
 uv run python -m src.mtg_combo_cube -c 300 --method ilp
 
@@ -61,8 +63,8 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 600
 
 ### Output Files
 
-- **cube.txt**: List of selected cards (one per line)
-- **cube_stats.json**: Utilization statistics and optimization metrics (ILP only)
+- **data/cube.txt**: List of selected cards (one per line)
+- **data/cube_stats.json**: Utilization statistics and optimization metrics (ILP only)
 
 ## Optimization Methods
 

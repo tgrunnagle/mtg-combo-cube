@@ -241,7 +241,7 @@ def write_utilization_stats(
     cube_size: int,
 ) -> None:
     """Write utilization statistics to JSON file."""
-    # Derive stats filename: cube.txt -> cube_stats.json
+    # Derive stats filename: data/cube.txt -> cube_stats.json
     output_path = Path(output_file)
     stats_file = output_path.with_stem(f"{output_path.stem}_stats").with_suffix(".json")
 
@@ -429,6 +429,6 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --single-phase
 
 # Output files
-# - cube.txt: Selected cards (one per line)
-# - cube_stats.json: Utilization comparison and improvement metrics
+# - data/cube.txt: Selected cards (one per line)
+# - data/cube_stats.json: Utilization comparison and improvement metrics
 ```

@@ -36,7 +36,7 @@ def write_utilization_stats(
     cube_size: int,
 ) -> None:
     """Write utilization statistics to JSON file."""
-    # Derive stats filename: cube.txt -> cube_stats.json
+    # Derive stats filename: data/cube.txt -> data/cube_stats.json
     output_path = Path(output_file)
     stats_file = output_path.with_stem(f"{output_path.stem}_stats").with_suffix(".json")
 

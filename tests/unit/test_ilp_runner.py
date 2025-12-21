@@ -16,8 +16,8 @@ class TestWriteUtilizationStats:
     def test_write_stats_single_phase(self):
         """Test writing stats for single-phase optimization."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = str(Path(tmpdir) / "cube.txt")
-            stats_file = str(Path(tmpdir) / "cube_stats.json")
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             result = OptimizationResult(
                 selected_cards=["Card A", "Card B", "Card C"],
@@ -62,8 +62,8 @@ class TestWriteUtilizationStats:
     def test_write_stats_two_phase(self):
         """Test writing stats for two-phase optimization."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = str(Path(tmpdir) / "cube.txt")
-            stats_file = str(Path(tmpdir) / "cube_stats.json")
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             p1_stats = UtilizationStats(
                 min_utilization=1,
@@ -128,8 +128,8 @@ class TestWriteUtilizationStats:
     def test_write_stats_top_bottom_cards(self):
         """Test that top and bottom utilized cards are recorded."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = str(Path(tmpdir) / "cube.txt")
-            stats_file = str(Path(tmpdir) / "cube_stats.json")
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             utilization = {f"Card {chr(65+i)}": i + 1 for i in range(15)}  # Card A=1, B=2, ..., O=15
 
@@ -184,8 +184,8 @@ class TestWriteUtilizationStats:
     def test_write_stats_zero_division_protection(self):
         """Test that zero division is handled in improvement calculation."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = str(Path(tmpdir) / "cube.txt")
-            stats_file = str(Path(tmpdir) / "cube_stats.json")
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             p1_stats = UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
             p2_stats = UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
@@ -218,8 +218,8 @@ class TestWriteUtilizationStats:
     def test_write_stats_contains_timestamp(self):
         """Test that stats file contains timestamp."""
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_file = str(Path(tmpdir) / "cube.txt")
-            stats_file = str(Path(tmpdir) / "cube_stats.json")
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             result = OptimizationResult(
                 selected_cards=[],

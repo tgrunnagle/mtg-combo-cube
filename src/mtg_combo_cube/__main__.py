@@ -12,7 +12,7 @@ if __name__ == "__main__":
     argparser.add_argument("-c", "--cube-size", type=int, default=300)
     argparser.add_argument("-r", "--ratio", type=float,
                           help="Golden ratio for greedy method (default: 1.2)")
-    argparser.add_argument("-o", "--output-file", type=str, default='cube.txt')
+    argparser.add_argument("-o", "--output-file", type=str, default='data/cube.txt')
     argparser.add_argument("-d", "--debug", action="store_true")
     argparser.add_argument(
         "-m", "--method",
