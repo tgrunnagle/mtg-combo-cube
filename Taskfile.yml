@@ -28,14 +28,75 @@ tasks:
     deps:
       - install
 
+  test:
+    desc: Run unit tests
+    cmds:
+      - uv run pytest tests/unit -v
+    deps:
+      - install
+
+  test:cov:
+    desc: Run unit tests with coverage report
+    cmds:
+      - uv run pytest tests/unit --cov=src --cov-report=term-missing --cov-report=html
+    deps:
+      - install
+
+  test:watch:
+    desc: Run tests in watch mode
+    cmds:
+      - uv run pytest tests/unit -v --tb=short -x
+    deps:
+      - install
+
   check:
-    desc: Run all checks (lint, typecheck, tests, and security)
+    desc: Run all checks (lint, format, typecheck, tests)
     deps:
       - lint
       - format
       - typecheck
+      - test
 
-  run:
-    desc: Run the application
+  build:greedy:
+    desc: Build a cube using the greedy method
     cmds:
-      - uv run python -m src.mtg_combo_cube
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method greedy -o {{.OUTPUT | default "data/cube.txt"}}
+    deps:
+      - install
+
+  build:ilp:
+    desc: Build a cube using ILP two-phase optimization (default)
+    cmds:
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "300"}}
+    deps:
+      - install
+
+  build:ilp-single:
+    desc: Build a cube using single-phase ILP (max combos only)
+    cmds:
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp --single-phase -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "300"}}
+    deps:
+      - install
+
+  build:compare:
+    desc: Build cubes with both single-phase and two-phase ILP for comparison
+    cmds:
+      - echo "Building single-phase ILP cube..."
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp --single-phase -o cube_single.txt -t {{.TIME_LIMIT | default "300"}}
+      - echo "Building two-phase ILP cube..."
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o cube_twophase.txt -t {{.TIME_LIMIT | default "300"}}
+      - echo "Comparison complete. Check cube_single_stats.json and cube_twophase_stats.json"
+    deps:
+      - install
+
+  clean:
+    desc: Remove generated files
+    cmds:
+      - rm -f cube*.txt cube*_stats.json
+      - rm -rf __pycache__ .pytest_cache .ruff_cache
+      - find . -type d -name "__pycache__" -exec rm -rf {} +
+
+  help:
+    desc: Show available tasks
+    cmds:
+      - task --list

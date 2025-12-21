@@ -24,6 +24,17 @@ class ComboData:
 
 
 @dataclass
+class UtilizationStats:
+    """Statistics about card utilization across completable combos."""
+    min_utilization: int
+    max_utilization: int
+    mean_utilization: float
+    std_deviation: float
+    total_absolute_deviation: int
+    median_utilization: float
+
+
+@dataclass
 class OptimizationResult:
     """Result from ILP optimization."""
 
@@ -33,3 +44,12 @@ class OptimizationResult:
     objective_value: float
     solve_time_seconds: float
     status: str  # "OPTIMAL", "FEASIBLE", "INFEASIBLE", "TIMEOUT"
+
+    # Multi-objective optimization fields (backward compatible)
+    utilization_per_card: dict[str, int] | None = None
+    phase1_utilization_stats: UtilizationStats | None = None
+    phase2_utilization_stats: UtilizationStats | None = None
+    phase1_solve_time: float | None = None
+    phase2_solve_time: float | None = None
+    phase2_status: str | None = None
+    is_multi_objective: bool = False

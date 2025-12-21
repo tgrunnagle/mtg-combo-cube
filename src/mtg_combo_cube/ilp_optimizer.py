@@ -6,7 +6,7 @@ import time
 
 from ortools.sat.python import cp_model
 
-from mtg_combo_cube.ilp_models import ComboData, OptimizationResult
+from mtg_combo_cube.ilp_models import ComboData, OptimizationResult, UtilizationStats
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ class ILPOptimizer:
         self.card_to_idx: dict[str, int] = {
             card: i for i, card in enumerate(self.all_cards)
         }
+        self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
         logger.info(
             f"ILP Optimizer initialized: {len(self.combos)} combos, "
@@ -55,6 +56,22 @@ class ILPOptimizer:
                 cards.update(opts)
         return sorted(cards)  # Sorted for deterministic ordering
 
+    def _build_participation_graph(self) -> dict[str, list[ComboData]]:
+        """Build mapping of cards to combos they participate in."""
+        from collections import defaultdict
+
+        participation: dict[str, list[ComboData]] = defaultdict(list)
+
+        for combo in self.combos:
+            for card in combo.required_cards:
+                participation[card].append(combo)
+            for opts in combo.requirement_options:
+                for card in opts:
+                    if combo not in participation[card]:
+                        participation[card].append(combo)
+
+        return {card: participation.get(card, []) for card in self.all_cards}
+
     def _compute_weight(self, popularity: int) -> int:
         """
         Compute integer weight for objective function.
@@ -66,6 +83,51 @@ class ILPOptimizer:
         """
         weight = 1.0 + self.tiebreak_epsilon * math.log1p(popularity)
         return int(weight * self.WEIGHT_SCALE)
+
+    def _calculate_utilization(
+        self,
+        selected_cards: list[str],
+        completable_combo_ids: list[str]
+    ) -> dict[str, int]:
+        """Calculate utilization for each selected card."""
+        completable_set = set(completable_combo_ids)
+        utilization: dict[str, int] = {}
+
+        for card in selected_cards:
+            count = sum(
+                1 for combo in self.card_to_combos[card]
+                if combo.id in completable_set
+            )
+            utilization[card] = count
+
+        return utilization
+
+    def _compute_utilization_stats(
+        self,
+        utilization: dict[str, int]
+    ) -> UtilizationStats:
+        """Compute statistical summary of card utilization."""
+        if not utilization:
+            return UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
+
+        values = list(utilization.values())
+        n = len(values)
+        mean = sum(values) / n
+        variance = sum((x - mean) ** 2 for x in values) / n
+        std_dev = variance ** 0.5
+        total_abs_dev = sum(abs(x - mean) for x in values)
+
+        sorted_values = sorted(values)
+        median = (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2 if n % 2 == 0 else float(sorted_values[n // 2])
+
+        return UtilizationStats(
+            min_utilization=min(values),
+            max_utilization=max(values),
+            mean_utilization=mean,
+            std_deviation=std_dev,
+            total_absolute_deviation=int(total_abs_dev),
+            median_utilization=median,
+        )
 
     def solve(self) -> OptimizationResult:
         """
@@ -157,6 +219,10 @@ class ILPOptimizer:
             ]
             objective = solver.objective_value
 
+            # Calculate utilization for this solution
+            utilization = self._calculate_utilization(selected, completed)
+            utilization_stats = self._compute_utilization_stats(utilization)
+
             logger.info(
                 f"ILP solved ({status_str}): {len(selected)} cards, "
                 f"{len(completed)} combos in {solve_time:.1f}s"
@@ -169,6 +235,10 @@ class ILPOptimizer:
                 objective_value=objective / self.WEIGHT_SCALE,
                 solve_time_seconds=solve_time,
                 status=status_str,
+                utilization_per_card=utilization,
+                phase1_utilization_stats=utilization_stats,
+                phase1_solve_time=solve_time,
+                is_multi_objective=False,
             )
         else:
             logger.warning(f"ILP solve failed: {status_str}")
@@ -180,6 +250,167 @@ class ILPOptimizer:
                 solve_time_seconds=solve_time,
                 status=status_str,
             )
+
+    def _solve_phase2(
+        self,
+        target_combo_count: int,
+        phase1_result: OptimizationResult,
+    ) -> OptimizationResult:
+        """
+        Phase 2: Minimize utilization variance while preserving combo count.
+
+        Key constraints:
+        - Fixed combo count from Phase 1
+        - Utilization variables: u[c] = sum of completed combos card c participates in
+        - MAD linearization: minimize sum(d_plus[c] + d_minus[c])
+
+        Falls back to Phase 1 result if Phase 2 fails.
+        """
+        logger.info(f"Starting Phase 2: balancing utilization (target: {target_combo_count} combos)")
+        start_time = time.time()
+
+        model = cp_model.CpModel()
+
+        # Decision variables (same as Phase 1)
+        x: dict[str, cp_model.IntVar] = {}
+        for card in self.all_cards:
+            x[card] = model.new_bool_var(f"card_{self.card_to_idx[card]}")
+
+        y: dict[str, cp_model.IntVar] = {}
+        for combo in self.combos:
+            y[combo.id] = model.new_bool_var(f"combo_{combo.id}")
+
+        # Base constraints (same as Phase 1)
+        model.add(sum(x[card] for card in self.all_cards) == self.cube_size)
+
+        for combo in self.combos:
+            for card in combo.required_cards:
+                model.add(y[combo.id] <= x[card])
+
+        for combo in self.combos:
+            for opts in combo.requirement_options:
+                model.add(y[combo.id] <= sum(x[card] for card in opts))
+
+        # NEW: Fix combo count to Phase 1 target
+        model.add(sum(y[combo.id] for combo in self.combos) == target_combo_count)
+
+        # Utilization variables: u[card] = count of completable combos card participates in
+        u: dict[str, cp_model.IntVar] = {}
+        for card in self.all_cards:
+            # Max possible utilization is the total number of combos
+            u[card] = model.new_int_var(0, len(self.combos), f"util_{self.card_to_idx[card]}")
+
+        # Link utilization to combo participation (only for selected cards)
+        for card in self.all_cards:
+            # Sum of combo variables this card participates in
+            combo_sum = sum(
+                y[combo.id] for combo in self.card_to_combos[card]
+            )
+            # If card is selected, u[card] = combo_sum; else u[card] = 0
+            model.add(u[card] == combo_sum).only_enforce_if(x[card])
+            model.add(u[card] == 0).only_enforce_if(x[card].Not())
+
+        # Compute target mean utilization from Phase 1
+        assert phase1_result.phase1_utilization_stats is not None
+        target_mean = phase1_result.phase1_utilization_stats.mean_utilization
+
+        # MAD deviation variables (only for selected cards)
+        # We need integer arithmetic, so scale mean by 100 to preserve precision
+        mean_scaled = int(target_mean * 100)
+
+        d_plus: dict[str, cp_model.IntVar] = {}
+        d_minus: dict[str, cp_model.IntVar] = {}
+
+        for card in self.all_cards:
+            # Max deviation is bounded by max possible utilization
+            max_dev = len(self.combos) * 100
+            d_plus[card] = model.new_int_var(0, max_dev, f"dplus_{self.card_to_idx[card]}")
+            d_minus[card] = model.new_int_var(0, max_dev, f"dminus_{self.card_to_idx[card]}")
+
+            # u[card] - mean <= d_plus[card] (when x[card] = 1)
+            # mean - u[card] <= d_minus[card] (when x[card] = 1)
+            # When x[card] = 0, both deviations are 0
+            model.add(u[card] * 100 - mean_scaled <= d_plus[card]).only_enforce_if(x[card])
+            model.add(mean_scaled - u[card] * 100 <= d_minus[card]).only_enforce_if(x[card])
+            model.add(d_plus[card] == 0).only_enforce_if(x[card].Not())
+            model.add(d_minus[card] == 0).only_enforce_if(x[card].Not())
+
+        # Objective: Minimize total absolute deviation
+        model.minimize(sum(d_plus[card] + d_minus[card] for card in self.all_cards))
+
+        # Solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = self.time_limit
+        solver.parameters.num_workers = 8
+        solver.parameters.log_search_progress = logger.isEnabledFor(logging.DEBUG)
+
+        status = solver.solve(model)
+        phase2_time = time.time() - start_time
+        status_str = self._status_to_string(status)  # type: ignore[arg-type]
+
+        # If Phase 2 fails, fall back to Phase 1
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            logger.warning(f"Phase 2 failed ({status_str}), falling back to Phase 1 result")
+            return phase1_result
+
+        # Extract Phase 2 solution
+        selected = [card for card in self.all_cards if solver.value(x[card]) == 1]
+        completed = [
+            combo.id for combo in self.combos if solver.value(y[combo.id]) == 1
+        ]
+
+        # Calculate Phase 2 utilization stats
+        utilization = self._calculate_utilization(selected, completed)
+        phase2_stats = self._compute_utilization_stats(utilization)
+
+        logger.info(
+            f"Phase 2 complete ({status_str}): std_dev {phase1_result.phase1_utilization_stats.std_deviation:.2f} → "
+            f"{phase2_stats.std_deviation:.2f} in {phase2_time:.1f}s"
+        )
+
+        # Return full multi-objective result
+        return OptimizationResult(
+            selected_cards=selected,
+            completable_combo_ids=completed,
+            combo_count=len(completed),
+            objective_value=phase1_result.objective_value,  # Preserve Phase 1 objective
+            solve_time_seconds=phase1_result.phase1_solve_time + phase2_time,  # type: ignore
+            status=status_str,
+            utilization_per_card=utilization,
+            phase1_utilization_stats=phase1_result.phase1_utilization_stats,
+            phase2_utilization_stats=phase2_stats,
+            phase1_solve_time=phase1_result.phase1_solve_time,
+            phase2_solve_time=phase2_time,
+            phase2_status=status_str,
+            is_multi_objective=True,
+        )
+
+    def solve_two_phase(self) -> OptimizationResult:
+        """
+        Two-phase multi-objective optimization (recommended entry point).
+
+        Returns:
+            OptimizationResult with balanced utilization, or Phase 1 fallback
+        """
+        logger.info("Starting two-phase multi-objective optimization")
+
+        # Phase 1: Maximize combo count
+        phase1_result = self.solve()
+
+        # Handle Phase 1 failure or edge cases
+        if phase1_result.status not in ("OPTIMAL", "FEASIBLE"):
+            logger.warning(f"Phase 1 failed: {phase1_result.status}")
+            return phase1_result
+
+        if phase1_result.combo_count == 0:
+            logger.warning("Phase 1 found 0 combos. Skipping Phase 2.")
+            return phase1_result
+
+        # Phase 2: Balance utilization
+        return self._solve_phase2(
+            target_combo_count=phase1_result.combo_count,
+            phase1_result=phase1_result,
+        )
 
     @staticmethod
     def _status_to_string(status: int) -> str:

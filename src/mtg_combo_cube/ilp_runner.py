@@ -1,6 +1,9 @@
 """High-level async interface for ILP-based cube building."""
 
+import json
 import logging
+from datetime import datetime, timezone
+from pathlib import Path
 
 from mtg_combo_cube.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.commander_spellbook import CommanderSpellbook
@@ -27,11 +30,106 @@ async def collect_variants(
     return variants
 
 
+def write_utilization_stats(
+    result: OptimizationResult,
+    output_file: str,
+    cube_size: int,
+) -> None:
+    """Write utilization statistics to JSON file."""
+    # Derive stats filename: data/cube.txt -> data/cube_stats.json
+    output_path = Path(output_file)
+    stats_file = output_path.with_stem(f"{output_path.stem}_stats").with_suffix(".json")
+
+    # Build JSON structure
+    stats: dict = {
+        "metadata": {
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "cube_size": cube_size,
+            "combo_count": result.combo_count,
+            "optimization_method": "two_phase" if result.is_multi_objective else "single_phase",
+            "status": result.status,
+            "total_solve_time_seconds": result.solve_time_seconds,
+        },
+        "phase1": None,
+        "phase2": None,
+        "improvement": None,
+        "top_utilized_cards": [],
+        "bottom_utilized_cards": [],
+    }
+
+    # Phase 1 stats
+    if result.phase1_utilization_stats:
+        p1 = result.phase1_utilization_stats
+        stats["phase1"] = {
+            "solve_time_seconds": result.phase1_solve_time,
+            "min_utilization": p1.min_utilization,
+            "max_utilization": p1.max_utilization,
+            "mean_utilization": p1.mean_utilization,
+            "median_utilization": p1.median_utilization,
+            "std_deviation": p1.std_deviation,
+            "total_absolute_deviation": p1.total_absolute_deviation,
+        }
+
+    # Phase 2 stats and improvement (only for multi-objective)
+    if result.is_multi_objective and result.phase2_utilization_stats:
+        p2 = result.phase2_utilization_stats
+        stats["phase2"] = {
+            "solve_time_seconds": result.phase2_solve_time,
+            "status": result.phase2_status,
+            "min_utilization": p2.min_utilization,
+            "max_utilization": p2.max_utilization,
+            "mean_utilization": p2.mean_utilization,
+            "median_utilization": p2.median_utilization,
+            "std_deviation": p2.std_deviation,
+            "total_absolute_deviation": p2.total_absolute_deviation,
+        }
+
+        # Calculate improvement metrics
+        if result.phase1_utilization_stats:
+            p1 = result.phase1_utilization_stats
+            std_improvement = (
+                100 * (1 - p2.std_deviation / p1.std_deviation)
+                if p1.std_deviation > 0 else 0.0
+            )
+            mad_improvement = (
+                100 * (1 - p2.total_absolute_deviation / p1.total_absolute_deviation)
+                if p1.total_absolute_deviation > 0 else 0.0
+            )
+            stats["improvement"] = {
+                "std_deviation_reduction_percent": std_improvement,
+                "mad_reduction_percent": mad_improvement,
+                "range_before": p1.max_utilization - p1.min_utilization,
+                "range_after": p2.max_utilization - p2.min_utilization,
+            }
+
+    # Top and bottom utilized cards
+    if result.utilization_per_card:
+        sorted_cards = sorted(
+            result.utilization_per_card.items(),
+            key=lambda x: x[1],
+            reverse=True
+        )
+        stats["top_utilized_cards"] = [
+            {"card": card, "utilization": util}
+            for card, util in sorted_cards[:10]
+        ]
+        stats["bottom_utilized_cards"] = [
+            {"card": card, "utilization": util}
+            for card, util in sorted_cards[-10:]
+        ]
+
+    with open(stats_file, "w", encoding="utf-8") as f:
+        json.dump(stats, f, indent=2)
+
+    logger.info(f"Utilization statistics written to {stats_file}")
+
+
 async def build_cube_ilp(
     cube_size: int,
     max_cards_in_combo: int = 4,
     max_variants: int = 10000,
     time_limit_seconds: int = 300,
+    use_multi_objective: bool = True,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
     Build cube using ILP optimization.
@@ -68,7 +166,22 @@ async def build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
     )
-    result = optimizer.solve()
+
+    # Run optimization (two-phase by default)
+    if use_multi_objective:
+        result = optimizer.solve_two_phase()
+    else:
+        result = optimizer.solve()
+
+    # Log utilization improvements if multi-objective
+    if result.is_multi_objective and result.phase2_utilization_stats:
+        p1 = result.phase1_utilization_stats
+        p2 = result.phase2_utilization_stats
+        if p1 and p1.std_deviation > 0:
+            logger.info(
+                f"Utilization: std_dev {p1.std_deviation:.1f} → {p2.std_deviation:.1f} "
+                f"({100 * (1 - p2.std_deviation / p1.std_deviation):.1f}% improvement)"
+            )
 
     logger.info(
         f"ILP complete: {result.combo_count} combos, "
@@ -83,12 +196,14 @@ async def run_ilp(
     output_file: str,
     time_limit_seconds: int = 300,
     max_variants: int = 10000,
+    use_multi_objective: bool = True,
 ):
     """Entry point for ILP-based cube building (matches run.run signature)."""
     cards, combo_count, result = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
+        use_multi_objective=use_multi_objective,
     )
 
     logger.info(
@@ -98,3 +213,6 @@ async def run_ilp(
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))
+
+    # Write utilization stats
+    write_utilization_stats(result, output_file, cube_size)
