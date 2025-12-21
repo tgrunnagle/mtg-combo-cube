@@ -32,6 +32,11 @@ if __name__ == "__main__":
         default=10000,
         help="Maximum number of combo variants to fetch (default: 10000)"
     )
+    argparser.add_argument(
+        "--single-phase",
+        action="store_true",
+        help="Use single-phase ILP (max combos only). Default: two-phase (balanced utilization)"
+    )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -41,6 +46,7 @@ if __name__ == "__main__":
             args.output_file,
             time_limit_seconds=args.time_limit,
             max_variants=args.max_variants,
+            use_multi_objective=not args.single_phase,
         ))
     else:
         asyncio.run(run(args.cube_size, args.output_file, golden_ratio=args.ratio))
