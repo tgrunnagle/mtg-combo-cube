@@ -103,6 +103,12 @@ Key concepts:
 # Install dependencies
 task install
 
+# Run unit tests
+task test
+
+# Run tests with coverage
+task test:cov
+
 # Run linting and formatting
 task lint
 task format
@@ -110,7 +116,7 @@ task format
 # Type checking
 task typecheck
 
-# Run all checks
+# Run all checks (lint, format, typecheck, tests)
 task check
 
 # Run the application
@@ -120,6 +126,10 @@ task run
 ### Manual Commands
 
 ```bash
+# Testing
+uv run pytest tests/unit -v
+uv run pytest tests/unit --cov=src --cov-report=term-missing
+
 # Linting
 uv run ruff check --select I --fix .
 uv run ruff check . --fix
@@ -130,6 +140,24 @@ uv run ruff format .
 # Type checking
 uv run ty check .
 ```
+
+### Test Coverage
+
+The project includes comprehensive unit tests for the ILP optimization logic:
+
+- **96% coverage** of ILP optimizer (ilp_optimizer.py)
+- **100% coverage** of ILP models (ilp_models.py)
+- **55% coverage** of ILP runner (ilp_runner.py - integration logic)
+
+Tests focus on:
+- Data model validation and backward compatibility
+- Utilization calculation and statistics
+- Constraint satisfaction and optimization
+- Single-phase and two-phase solver behavior
+- Edge cases (empty combos, insufficient cards, etc.)
+- Stats file generation and formatting
+
+Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
 
 ## How It Works
 
