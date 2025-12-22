@@ -43,6 +43,13 @@ if __name__ == "__main__":
         help="Use single-phase ILP (max combos only). Default: two-phase (balanced utilization)",
     )
     argparser.add_argument(
+        "--combo-tolerance",
+        type=float,
+        default=0.1,
+        help="Tolerance for combo count deviation in phase 2 (default: 0.1 = 10%%). "
+        "Set to 0 for strict equality constraint.",
+    )
+    argparser.add_argument(
         "--skip-api-caching", action="store_true", help="Skip writing API responses to cache files"
     )
     argparser.add_argument(
@@ -64,5 +71,6 @@ if __name__ == "__main__":
             use_multi_objective=not args.single_phase,
             enable_cache_write=not args.skip_api_caching,
             read_cache=args.read_api_cache,
+            combo_tolerance=args.combo_tolerance,
         )
     )

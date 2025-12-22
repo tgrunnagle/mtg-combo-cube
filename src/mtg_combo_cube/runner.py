@@ -19,6 +19,7 @@ async def run(
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,
+    combo_tolerance: float = 0.1,
 ):
     """
     Run the cube building algorithm.
@@ -33,6 +34,7 @@ async def run(
         use_multi_objective: Use two-phase ILP optimization
         enable_cache_write: Write API responses to cache
         read_cache: Read API responses from cache only
+        combo_tolerance: Tolerance for combo count deviation in phase 2
     """
     if method == "ilp":
         await run_ilp(
@@ -43,6 +45,7 @@ async def run(
             use_multi_objective=use_multi_objective,
             enable_cache_write=enable_cache_write,
             read_cache=read_cache,
+            combo_tolerance=combo_tolerance,
         )
     elif method == "greedy":
         await run_greedy(

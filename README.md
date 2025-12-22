@@ -1,21 +1,36 @@
 # MTG Combo Cube
 
-A tool for building Magic: The Gathering combo cubes by optimizing card selection to maximize combo potential. Supports both greedy heuristic and ILP-based optimization methods.
+A tool for building Magic: The Gathering combo cubes by optimizing card selection to maximize combo potential.
+
+## Summary
+
+Given a target cube size (e.g., 360 cards), this tool selects cards that maximize the number of completable combos while ensuring balanced card utilization. It fetches combo data from the [Commander Spellbook API](https://commanderspellbook.com/) and uses Integer Linear Programming (ILP) to find optimal solutions.
+
+**The core optimization problem:**
+- Select exactly N cards for the cube
+- Maximize the number of completable combos (a combo is completable if all its required cards are in the cube)
+- Balance card utilization so each card contributes to roughly the same number of combos
+
+**Two-phase approach (default):**
+1. **Phase 1** - Maximize combo count using weighted optimization (popularity as tiebreaker)
+2. **Phase 2** - Minimize utilization variance while preserving combo count (within configurable tolerance)
+
+This produces cubes where every card pulls its weight, avoiding "dead" cards that don't contribute to any combos.
 
 ## Setup
 
 ### Prerequisites
-- Python 3.11+
+- Python 3.13+
 - [uv](https://github.com/astral-sh/uv) (recommended) or pip
+- [Task](https://taskfile.dev/) (optional, for running development commands)
 
 ### Installation
 
 ```bash
-# Install dependencies with uv
-uv sync
+task install
 
-# Or with pip
-pip install -e .
+# Or install dependencies with uv directly
+uv sync --dev
 ```
 
 ## Usage
@@ -24,6 +39,8 @@ pip install -e .
 
 ```bash
 # Build a 300-card cube using ILP (two-phase optimization, default)
+task build:ilp CARD_COUNT=300
+# or
 uv run python -m src.mtg_combo_cube -c 300 --method ilp
 
 # Build using greedy method
@@ -40,6 +57,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 10000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
+--combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
 -d, --debug            Enable debug logging
 ```
 
@@ -53,6 +71,12 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp
 
 # Single-phase ILP (max combos only)
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --single-phase
+
+# Two-phase with strict combo count (no tolerance)
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0
+
+# Two-phase with 25% combo tolerance (allows trading combos for better balance)
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0.25
 
 # Greedy with custom ratio
 uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
@@ -76,9 +100,10 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal soluti
 
 **Two-Phase (Default)**
 - Phase 1: Maximize combo count
-- Phase 2: Minimize card utilization variance while preserving combo count
+- Phase 2: Minimize card utilization variance while preserving combo count (within tolerance)
 - Produces balanced cubes where cards participate more evenly across combos
 - Outputs detailed statistics to `{output}_stats.json`
+- `--combo-tolerance` controls how much Phase 2 can deviate from Phase 1's combo count (default: 10%). Set to 0 for strict equality.
 
 **Single-Phase** (use `--single-phase`)
 - Maximizes combo count only

@@ -375,7 +375,7 @@ class TestILPOptimizerTwoPhase:
         assert result.combo_count == 2
 
     def test_solve_two_phase_preserves_combo_count(self):
-        """Test that Phase 2 preserves combo count from Phase 1."""
+        """Test that Phase 2 preserves combo count from Phase 1 with zero tolerance."""
         combos = [
             ComboData(
                 id="combo1",
@@ -396,7 +396,10 @@ class TestILPOptimizerTwoPhase:
                 popularity=60,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=4, time_limit_seconds=10)
+        # Use combo_tolerance=0 to enforce strict combo count preservation
+        optimizer = ILPOptimizer(
+            combos=combos, cube_size=4, time_limit_seconds=10, combo_tolerance=0
+        )
 
         # Run Phase 1 only
         phase1_result = optimizer.solve()
@@ -405,8 +408,49 @@ class TestILPOptimizerTwoPhase:
         # Run two-phase
         two_phase_result = optimizer.solve_two_phase()
 
-        # Combo count should be preserved
+        # Combo count should be preserved exactly
         assert two_phase_result.combo_count == phase1_count
+
+    def test_solve_two_phase_with_tolerance(self):
+        """Test that Phase 2 allows combo count deviation within tolerance."""
+        import math
+
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Card A", "Card B"]),
+                requirement_options=[],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Card B", "Card C"]),
+                requirement_options=[],
+                popularity=80,
+            ),
+            ComboData(
+                id="combo3",
+                required_cards=frozenset(["Card C", "Card D"]),
+                requirement_options=[],
+                popularity=60,
+            ),
+        ]
+        # Use 10% tolerance (default)
+        optimizer = ILPOptimizer(
+            combos=combos, cube_size=4, time_limit_seconds=10, combo_tolerance=0.1
+        )
+
+        # Run Phase 1 only
+        phase1_result = optimizer.solve()
+        phase1_count = phase1_result.combo_count
+
+        # Run two-phase
+        two_phase_result = optimizer.solve_two_phase()
+
+        # Combo count should be within tolerance range
+        min_expected = math.floor(phase1_count * 0.9)
+        max_expected = math.ceil(phase1_count * 1.1)
+        assert min_expected <= two_phase_result.combo_count <= max_expected
 
     def test_solve_two_phase_improves_utilization(self):
         """Test that Phase 2 improves utilization balance."""
