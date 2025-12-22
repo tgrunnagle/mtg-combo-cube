@@ -29,11 +29,13 @@ class ILPOptimizer:
         cube_size: int,
         time_limit_seconds: int = DEFAULT_TIME_LIMIT,
         tiebreak_epsilon: float = TIEBREAK_EPSILON,
+        combo_tolerance: float = 0.1,
     ):
         self.combos = combos
         self.cube_size = cube_size
         self.time_limit = time_limit_seconds
         self.tiebreak_epsilon = tiebreak_epsilon
+        self.combo_tolerance = combo_tolerance
 
         # Build card universe
         self.all_cards: list[str] = self._collect_all_cards()
@@ -291,8 +293,23 @@ class ILPOptimizer:
             for opts in combo.requirement_options:
                 model.add(y[combo.id] <= sum(x[card] for card in opts))
 
-        # NEW: Fix combo count to Phase 1 target
-        model.add(sum(y[combo.id] for combo in self.combos) == target_combo_count)
+        # NEW: Fix combo count to Phase 1 target (with optional tolerance)
+        combo_sum = sum(y[combo.id] for combo in self.combos)
+
+        if self.combo_tolerance > 0:
+            min_combo_count = math.floor(target_combo_count * (1 - self.combo_tolerance))
+            max_combo_count = math.ceil(target_combo_count * (1 + self.combo_tolerance))
+
+            logger.info(
+                f"Phase 2 combo tolerance: {self.combo_tolerance:.1%} "
+                f"(range: {min_combo_count}-{max_combo_count})"
+            )
+
+            model.add(combo_sum >= min_combo_count)
+            model.add(combo_sum <= max_combo_count)
+        else:
+            # No tolerance - use exact equality (current behavior)
+            model.add(combo_sum == target_combo_count)
 
         # Utilization variables: u[card] = count of completable combos card participates in
         u: dict[str, cp_model.IntVar] = {}
