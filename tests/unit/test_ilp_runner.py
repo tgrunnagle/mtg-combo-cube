@@ -118,9 +118,7 @@ class TestWriteUtilizationStats:
             assert improvement["range_after"] == 2  # 4 - 2
 
             # std_dev improvement: (1 - 0.8/1.5) * 100 = 46.67%
-            assert improvement["std_deviation_reduction_percent"] == pytest.approx(
-                46.67, rel=0.01
-            )
+            assert improvement["std_deviation_reduction_percent"] == pytest.approx(46.67, rel=0.01)
 
             # MAD improvement: (1 - 6/10) * 100 = 40%
             assert improvement["mad_reduction_percent"] == pytest.approx(40.0, rel=0.01)
@@ -131,7 +129,9 @@ class TestWriteUtilizationStats:
             output_file = str(Path(tmpdir) / "data/cube.txt")
             stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
-            utilization = {f"Card {chr(65+i)}": i + 1 for i in range(15)}  # Card A=1, B=2, ..., O=15
+            utilization = {
+                f"Card {chr(65 + i)}": i + 1 for i in range(15)
+            }  # Card A=1, B=2, ..., O=15
 
             result = OptimizationResult(
                 selected_cards=list(utilization.keys()),

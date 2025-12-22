@@ -7,9 +7,7 @@ logger = logging.getLogger(__name__)
 
 async def build_cube(cube_size: int, golden_ratio: float) -> tuple[list[str], int]:
     cube_builder = CubeBuilder(cube_size)
-    logger.info(
-        f"Building {cube_size} card cube with golden ratio of {golden_ratio}..."
-    )
+    logger.info(f"Building {cube_size} card cube with golden ratio of {golden_ratio}...")
     await cube_builder.build_cube(golden_ratio=golden_ratio)
     logger.info(f"Built cube of size {len(cube_builder.get_cube())}")
 
@@ -26,7 +24,8 @@ async def build_cube(cube_size: int, golden_ratio: float) -> tuple[list[str], in
 
     combos = await cube_builder.get_combos()
     logger.info(
-        f"Found {len(combos)} combos in cube after removing dead cards and adding almost included cards"
+        f"Found {len(combos)} combos in cube after removing dead cards "
+        f"and adding almost included cards"
     )
 
     return cube_builder.get_cube(), len(combos)

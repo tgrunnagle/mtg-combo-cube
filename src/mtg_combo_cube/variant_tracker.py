@@ -48,9 +48,9 @@ class VariantTracker:
     def get_top_cards_by_count(self, n: int) -> list[str]:
         return [
             count[0]
-            for count in sorted(
-                self._card_counts.items(), key=lambda item: item[1], reverse=True
-            )[:n]
+            for count in sorted(self._card_counts.items(), key=lambda item: item[1], reverse=True)[
+                :n
+            ]
         ]
 
     def get_top_cards_by_popularity(self, n: int) -> list[str]:

@@ -78,17 +78,6 @@ tasks:
     deps:
       - install
 
-  build:compare:
-    desc: Build cubes with both single-phase and two-phase ILP for comparison
-    cmds:
-      - echo "Building single-phase ILP cube..."
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp --single-phase -o cube_single.txt -t {{.TIME_LIMIT | default "300"}}
-      - echo "Building two-phase ILP cube..."
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o cube_twophase.txt -t {{.TIME_LIMIT | default "300"}}
-      - echo "Comparison complete. Check cube_single_stats.json and cube_twophase_stats.json"
-    deps:
-      - install
-
   clean:
     desc: Remove generated files
     cmds:

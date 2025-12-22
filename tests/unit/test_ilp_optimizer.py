@@ -2,7 +2,7 @@
 
 import pytest
 
-from mtg_combo_cube.ilp_models import ComboData, UtilizationStats
+from mtg_combo_cube.ilp_models import ComboData
 from mtg_combo_cube.ilp_optimizer import ILPOptimizer
 
 

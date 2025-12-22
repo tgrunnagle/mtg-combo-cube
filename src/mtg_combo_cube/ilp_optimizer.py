@@ -37,9 +37,7 @@ class ILPOptimizer:
 
         # Build card universe
         self.all_cards: list[str] = self._collect_all_cards()
-        self.card_to_idx: dict[str, int] = {
-            card: i for i, card in enumerate(self.all_cards)
-        }
+        self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
         logger.info(
@@ -85,27 +83,19 @@ class ILPOptimizer:
         return int(weight * self.WEIGHT_SCALE)
 
     def _calculate_utilization(
-        self,
-        selected_cards: list[str],
-        completable_combo_ids: list[str]
+        self, selected_cards: list[str], completable_combo_ids: list[str]
     ) -> dict[str, int]:
         """Calculate utilization for each selected card."""
         completable_set = set(completable_combo_ids)
         utilization: dict[str, int] = {}
 
         for card in selected_cards:
-            count = sum(
-                1 for combo in self.card_to_combos[card]
-                if combo.id in completable_set
-            )
+            count = sum(1 for combo in self.card_to_combos[card] if combo.id in completable_set)
             utilization[card] = count
 
         return utilization
 
-    def _compute_utilization_stats(
-        self,
-        utilization: dict[str, int]
-    ) -> UtilizationStats:
+    def _compute_utilization_stats(self, utilization: dict[str, int]) -> UtilizationStats:
         """Compute statistical summary of card utilization."""
         if not utilization:
             return UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
@@ -114,11 +104,15 @@ class ILPOptimizer:
         n = len(values)
         mean = sum(values) / n
         variance = sum((x - mean) ** 2 for x in values) / n
-        std_dev = variance ** 0.5
+        std_dev = variance**0.5
         total_abs_dev = sum(abs(x - mean) for x in values)
 
         sorted_values = sorted(values)
-        median = (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2 if n % 2 == 0 else float(sorted_values[n // 2])
+        median = (
+            (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
+            if n % 2 == 0
+            else float(sorted_values[n // 2])
+        )
 
         return UtilizationStats(
             min_utilization=min(values),
@@ -152,8 +146,7 @@ class ILPOptimizer:
         # Handle edge case: not enough cards for cube size
         if len(self.all_cards) < self.cube_size:
             logger.warning(
-                f"Only {len(self.all_cards)} cards available, "
-                f"but cube size is {self.cube_size}"
+                f"Only {len(self.all_cards)} cards available, but cube size is {self.cube_size}"
             )
             return OptimizationResult(
                 selected_cards=[],
@@ -214,9 +207,7 @@ class ILPOptimizer:
 
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             selected = [card for card in self.all_cards if solver.value(x[card]) == 1]
-            completed = [
-                combo.id for combo in self.combos if solver.value(y[combo.id]) == 1
-            ]
+            completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
             objective = solver.objective_value
 
             # Calculate utilization for this solution
@@ -226,6 +217,13 @@ class ILPOptimizer:
             logger.info(
                 f"ILP solved ({status_str}): {len(selected)} cards, "
                 f"{len(completed)} combos in {solve_time:.1f}s"
+            )
+            logger.info(
+                f"Utilization stats: min={utilization_stats.min_utilization}, "
+                f"max={utilization_stats.max_utilization}, "
+                f"mean={utilization_stats.mean_utilization:.1f}, "
+                f"median={utilization_stats.median_utilization:.1f}, "
+                f"std_dev={utilization_stats.std_deviation:.2f}"
             )
 
             return OptimizationResult(
@@ -266,7 +264,9 @@ class ILPOptimizer:
 
         Falls back to Phase 1 result if Phase 2 fails.
         """
-        logger.info(f"Starting Phase 2: balancing utilization (target: {target_combo_count} combos)")
+        logger.info(
+            f"Starting Phase 2: balancing utilization (target: {target_combo_count} combos)"
+        )
         start_time = time.time()
 
         model = cp_model.CpModel()
@@ -303,9 +303,7 @@ class ILPOptimizer:
         # Link utilization to combo participation (only for selected cards)
         for card in self.all_cards:
             # Sum of combo variables this card participates in
-            combo_sum = sum(
-                y[combo.id] for combo in self.card_to_combos[card]
-            )
+            combo_sum = sum(y[combo.id] for combo in self.card_to_combos[card])
             # If card is selected, u[card] = combo_sum; else u[card] = 0
             model.add(u[card] == combo_sum).only_enforce_if(x[card])
             model.add(u[card] == 0).only_enforce_if(x[card].Not())
@@ -355,17 +353,32 @@ class ILPOptimizer:
 
         # Extract Phase 2 solution
         selected = [card for card in self.all_cards if solver.value(x[card]) == 1]
-        completed = [
-            combo.id for combo in self.combos if solver.value(y[combo.id]) == 1
-        ]
+        completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
 
         # Calculate Phase 2 utilization stats
         utilization = self._calculate_utilization(selected, completed)
         phase2_stats = self._compute_utilization_stats(utilization)
 
+        # Calculate improvement metrics
+        p1 = phase1_result.phase1_utilization_stats
+        std_improvement = (
+            100 * (1 - phase2_stats.std_deviation / p1.std_deviation)
+            if p1.std_deviation > 0
+            else 0.0
+        )
+        range_before = p1.max_utilization - p1.min_utilization
+        range_after = phase2_stats.max_utilization - phase2_stats.min_utilization
+        range_improvement = 100 * (1 - range_after / range_before) if range_before > 0 else 0.0
+
         logger.info(
-            f"Phase 2 complete ({status_str}): std_dev {phase1_result.phase1_utilization_stats.std_deviation:.2f} → "
-            f"{phase2_stats.std_deviation:.2f} in {phase2_time:.1f}s"
+            f"Phase 2 complete ({status_str}): "
+            f"std_dev {p1.std_deviation:.2f} → {phase2_stats.std_deviation:.2f} "
+            f"({std_improvement:.1f}% improvement) in {phase2_time:.1f}s"
+        )
+        logger.info(
+            f"Utilization range: {p1.min_utilization}-{p1.max_utilization} → "
+            f"{phase2_stats.min_utilization}-{phase2_stats.max_utilization} "
+            f"({range_improvement:.1f}% reduction)"
         )
 
         # Return full multi-objective result

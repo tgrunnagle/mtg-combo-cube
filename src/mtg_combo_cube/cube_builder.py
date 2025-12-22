@@ -11,15 +11,13 @@ logger = logging.getLogger(__name__)
 
 
 class CubeBuilder:
-    def __init__(
-        self, cube_size: int, spellbook: CommanderSpellbook = CommanderSpellbook()
-    ):
+    def __init__(self, cube_size: int, spellbook: CommanderSpellbook | None = None):
         self._cube_size = cube_size
         self._cube = []
         self._combos_cache = []
         self._combos_cache_lock = asyncio.Lock()
         self._variant_tracker = VariantTracker()
-        self._spellbook = spellbook
+        self._spellbook = spellbook if spellbook is not None else CommanderSpellbook()
 
     GOLDEN_RATIO = 1.2
 
@@ -37,7 +35,8 @@ class CubeBuilder:
         ):
             await self._variant_tracker.process_variant(variant)
         logger.info(
-            f"Found {self._variant_tracker.count_cards()} cards in {self._variant_tracker.count_variants()} combos"
+            f"Found {self._variant_tracker.count_cards()} cards in "
+            f"{self._variant_tracker.count_variants()} combos"
         )
 
         top_card_count = math.ceil(self._cube_size / golden_ratio)
@@ -53,10 +52,7 @@ class CubeBuilder:
                 if use.card.name not in top_cards:
                     almost_included_cards[use.card.name] += 1
         added_cards = [
-            card
-            for card, _ in almost_included_cards.most_common(
-                self._cube_size - len(top_cards)
-            )
+            card for card, _ in almost_included_cards.most_common(self._cube_size - len(top_cards))
         ]
 
         logger.info(f"Added {len(added_cards)} almost included cards")
@@ -77,9 +73,7 @@ class CubeBuilder:
             if self._combos_cache:
                 return self._combos_cache
             combos: list[Variant] = []
-            async for variant in self._spellbook.get_included(
-                self._cube, max_variants=10000
-            ):
+            async for variant in self._spellbook.get_included(self._cube, max_variants=10000):
                 combos.append(variant)
             self._combos_cache = combos
         return combos

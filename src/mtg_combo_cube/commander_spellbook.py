@@ -1,5 +1,5 @@
 import logging
-from typing import AsyncIterator
+from collections.abc import AsyncIterator
 from urllib.parse import urlencode
 
 import aiohttp
@@ -20,7 +20,7 @@ class CommanderSpellbook:
         params = {
             "limit": self.PAGE_SIZE,
             "offset": offset,
-            "q": f"cards<{max_cards_in_combo + 1}", # "+-is:commander" not working,
+            "q": f"cards<{max_cards_in_combo + 1}",  # "+-is:commander" not working,
             "orderings": "-popularity,card_count",
         }
         return "https://backend.commanderspellbook.com/variants?" + urlencode(params)
@@ -52,11 +52,7 @@ class CommanderSpellbook:
                             return
 
     def _get_find_my_combos_url(self, offset: int) -> str:
-        params = {
-            "limit": self.PAGE_SIZE,
-            "offset": offset,
-            "ordering": "-popularity,card_count"
-        }
+        params = {"limit": self.PAGE_SIZE, "offset": offset, "ordering": "-popularity,card_count"}
         return "https://backend.commanderspellbook.com/find-my-combos?" + urlencode(params)
 
     async def get_almost_included(
