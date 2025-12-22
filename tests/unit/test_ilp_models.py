@@ -1,7 +1,5 @@
 """Unit tests for ILP data models."""
 
-import pytest
-
 from mtg_combo_cube.ilp_models import ComboData, OptimizationResult, UtilizationStats
 
 

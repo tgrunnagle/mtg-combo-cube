@@ -1,5 +1,3 @@
-from typing import Optional
-
 from pydantic import BaseModel, Field
 
 
@@ -9,16 +7,16 @@ class Card(BaseModel):
     spoiler: bool
     oracle_id: str = Field(alias="oracleId")
     type_line: str = Field(alias="typeLine")
-    image_uri_back_png: Optional[str] = Field(alias="imageUriBackPng")
-    image_uri_front_png: Optional[str] = Field(alias="imageUriFrontPng")
-    image_uri_back_large: Optional[str] = Field(alias="imageUriBackLarge")
-    image_uri_back_small: Optional[str] = Field(alias="imageUriBackSmall")
-    image_uri_back_normal: Optional[str] = Field(alias="imageUriBackNormal")
-    image_uri_front_large: Optional[str] = Field(alias="imageUriFrontLarge")
-    image_uri_front_small: Optional[str] = Field(alias="imageUriFrontSmall")
-    image_uri_front_normal: Optional[str] = Field(alias="imageUriFrontNormal")
-    image_uri_back_art_crop: Optional[str] = Field(alias="imageUriBackArtCrop")
-    image_uri_front_art_crop: Optional[str] = Field(alias="imageUriFrontArtCrop")
+    image_uri_back_png: str | None = Field(alias="imageUriBackPng")
+    image_uri_front_png: str | None = Field(alias="imageUriFrontPng")
+    image_uri_back_large: str | None = Field(alias="imageUriBackLarge")
+    image_uri_back_small: str | None = Field(alias="imageUriBackSmall")
+    image_uri_back_normal: str | None = Field(alias="imageUriBackNormal")
+    image_uri_front_large: str | None = Field(alias="imageUriFrontLarge")
+    image_uri_front_small: str | None = Field(alias="imageUriFrontSmall")
+    image_uri_front_normal: str | None = Field(alias="imageUriFrontNormal")
+    image_uri_back_art_crop: str | None = Field(alias="imageUriBackArtCrop")
+    image_uri_front_art_crop: str | None = Field(alias="imageUriFrontArtCrop")
 
 
 class CardUse(BaseModel):

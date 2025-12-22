@@ -13,9 +13,7 @@ class ComboData:
 
     id: str
     required_cards: frozenset[str]  # Card names from 'uses' field
-    requirement_options: list[
-        frozenset[str]
-    ]  # For each 'requires', set of valid card names
+    requirement_options: list[frozenset[str]]  # For each 'requires', set of valid card names
     popularity: int  # For tiebreaking (higher = better)
 
     def all_requirements_resolvable(self) -> bool:
@@ -26,6 +24,7 @@ class ComboData:
 @dataclass
 class UtilizationStats:
     """Statistics about card utilization across completable combos."""
+
     min_utilization: int
     max_utilization: int
     mean_utilization: float

@@ -10,43 +10,59 @@ if __name__ == "__main__":
         description="Build MTG combo cube with optimal card selection"
     )
     argparser.add_argument("-c", "--cube-size", type=int, default=300)
-    argparser.add_argument("-r", "--ratio", type=float,
-                          help="Golden ratio for greedy method (default: 1.2)")
-    argparser.add_argument("-o", "--output-file", type=str, default='data/cube.txt')
+    argparser.add_argument(
+        "-r", "--ratio", type=float, help="Golden ratio for greedy method (default: 1.2)"
+    )
+    argparser.add_argument("-o", "--output-file", type=str, default="data/cube.txt")
     argparser.add_argument("-d", "--debug", action="store_true")
     argparser.add_argument(
-        "-m", "--method",
+        "-m",
+        "--method",
         choices=["greedy", "ilp"],
-        default="greedy",
-        help="Optimization method: greedy (default) or ilp"
+        default="ilp",
+        help="Optimization method: greedy or ilp (default)",
     )
     argparser.add_argument(
-        "-t", "--time-limit",
+        "-t",
+        "--time-limit",
         type=int,
         default=300,
-        help="Time limit for ILP solver in seconds (default: 300)"
+        help="Time limit for ILP solver in seconds (default: 300)",
     )
     argparser.add_argument(
-        "-n", "--max-variants",
+        "-n",
+        "--max-variants",
         type=int,
         default=10000,
-        help="Maximum number of combo variants to fetch (default: 10000)"
+        help="Maximum number of combo variants to fetch (default: 10000)",
     )
     argparser.add_argument(
         "--single-phase",
         action="store_true",
-        help="Use single-phase ILP (max combos only). Default: two-phase (balanced utilization)"
+        help="Use single-phase ILP (max combos only). Default: two-phase (balanced utilization)",
+    )
+    argparser.add_argument(
+        "--skip-api-caching", action="store_true", help="Skip writing API responses to cache files"
+    )
+    argparser.add_argument(
+        "--read-api-cache",
+        action="store_true",
+        help="Read API responses from cache only (fail if cache missing)",
     )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     if args.method == "ilp":
-        asyncio.run(run_ilp(
-            args.cube_size,
-            args.output_file,
-            time_limit_seconds=args.time_limit,
-            max_variants=args.max_variants,
-            use_multi_objective=not args.single_phase,
-        ))
+        asyncio.run(
+            run_ilp(
+                args.cube_size,
+                args.output_file,
+                time_limit_seconds=args.time_limit,
+                max_variants=args.max_variants,
+                use_multi_objective=not args.single_phase,
+                enable_cache_write=not args.skip_api_caching,
+                read_cache=args.read_api_cache,
+            )
+        )
     else:
         asyncio.run(run(args.cube_size, args.output_file, golden_ratio=args.ratio))

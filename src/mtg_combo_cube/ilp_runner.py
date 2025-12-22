@@ -2,9 +2,10 @@
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
+from mtg_combo_cube.api_cache import SpellbookCache
 from mtg_combo_cube.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.commander_spellbook import CommanderSpellbook
 from mtg_combo_cube.ilp_models import OptimizationResult
@@ -18,15 +19,28 @@ async def collect_variants(
     spellbook: CommanderSpellbook,
     max_cards_in_combo: int = 4,
     max_variants: int = 10000,
+    cache: SpellbookCache | None = None,
 ) -> list[Variant]:
-    """Collect variants from Commander Spellbook API."""
+    """Collect variants from Commander Spellbook API with optional caching."""
     variants: list[Variant] = []
-    async for variant in spellbook.get_variants(
-        max_cards_in_combo=max_cards_in_combo,
-        max_variants=max_variants,
-    ):
-        variants.append(variant)
-    logger.info(f"Collected {len(variants)} variants from API")
+
+    if cache is not None:
+        # Use cached getter
+        async for variant in cache.get_variants_cached(
+            spellbook,
+            max_cards_in_combo=max_cards_in_combo,
+            max_variants=max_variants,
+        ):
+            variants.append(variant)
+    else:
+        # Direct API call (legacy behavior)
+        async for variant in spellbook.get_variants(
+            max_cards_in_combo=max_cards_in_combo,
+            max_variants=max_variants,
+        ):
+            variants.append(variant)
+
+    logger.info(f"Collected {len(variants)} variants")
     return variants
 
 
@@ -43,7 +57,7 @@ def write_utilization_stats(
     # Build JSON structure
     stats: dict = {
         "metadata": {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+            "timestamp": datetime.now(UTC).isoformat(),
             "cube_size": cube_size,
             "combo_count": result.combo_count,
             "optimization_method": "two_phase" if result.is_multi_objective else "single_phase",
@@ -88,12 +102,12 @@ def write_utilization_stats(
         if result.phase1_utilization_stats:
             p1 = result.phase1_utilization_stats
             std_improvement = (
-                100 * (1 - p2.std_deviation / p1.std_deviation)
-                if p1.std_deviation > 0 else 0.0
+                100 * (1 - p2.std_deviation / p1.std_deviation) if p1.std_deviation > 0 else 0.0
             )
             mad_improvement = (
                 100 * (1 - p2.total_absolute_deviation / p1.total_absolute_deviation)
-                if p1.total_absolute_deviation > 0 else 0.0
+                if p1.total_absolute_deviation > 0
+                else 0.0
             )
             stats["improvement"] = {
                 "std_deviation_reduction_percent": std_improvement,
@@ -104,19 +118,16 @@ def write_utilization_stats(
 
     # Top and bottom utilized cards
     if result.utilization_per_card:
-        sorted_cards = sorted(
-            result.utilization_per_card.items(),
-            key=lambda x: x[1],
-            reverse=True
-        )
+        sorted_cards = sorted(result.utilization_per_card.items(), key=lambda x: x[1], reverse=True)
         stats["top_utilized_cards"] = [
-            {"card": card, "utilization": util}
-            for card, util in sorted_cards[:10]
+            {"card": card, "utilization": util} for card, util in sorted_cards[:10]
         ]
         stats["bottom_utilized_cards"] = [
-            {"card": card, "utilization": util}
-            for card, util in sorted_cards[-10:]
+            {"card": card, "utilization": util} for card, util in sorted_cards[-10:]
         ]
+
+    # Create parent directory if it doesn't exist
+    stats_file.parent.mkdir(parents=True, exist_ok=True)
 
     with open(stats_file, "w", encoding="utf-8") as f:
         json.dump(stats, f, indent=2)
@@ -130,9 +141,11 @@ async def build_cube_ilp(
     max_variants: int = 10000,
     time_limit_seconds: int = 300,
     use_multi_objective: bool = True,
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
-    Build cube using ILP optimization.
+    Build cube using ILP optimization with optional API caching.
 
     Returns:
         - List of card names in cube
@@ -141,12 +154,19 @@ async def build_cube_ilp(
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
-    # Step 1: Fetch variants
+    # Initialize cache
+    cache = SpellbookCache(
+        enable_write=enable_cache_write,
+        enable_read=read_cache,
+    )
+
+    # Step 1: Fetch variants with caching
     spellbook = CommanderSpellbook()
     variants = await collect_variants(
         spellbook,
         max_cards_in_combo=max_cards_in_combo,
         max_variants=max_variants,
+        cache=cache,
     )
 
     # Step 2: Preprocess for ILP
@@ -197,19 +217,20 @@ async def run_ilp(
     time_limit_seconds: int = 300,
     max_variants: int = 10000,
     use_multi_objective: bool = True,
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
 ):
-    """Entry point for ILP-based cube building (matches run.run signature)."""
+    """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
         use_multi_objective=use_multi_objective,
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
     )
 
-    logger.info(
-        f"ILP result: {len(cards)} cards, {combo_count} combos "
-        f"({result.status})"
-    )
+    logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.status})")
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))

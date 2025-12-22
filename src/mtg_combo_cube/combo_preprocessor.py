@@ -43,8 +43,7 @@ class ComboPreprocessor:
                 all_cards.update(opts)
 
         logger.info(
-            f"Preprocessed {len(combo_data_list)} combos with "
-            f"{len(all_cards)} unique cards"
+            f"Preprocessed {len(combo_data_list)} combos with {len(all_cards)} unique cards"
         )
         return combo_data_list, all_cards
 
