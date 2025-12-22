@@ -1,9 +1,10 @@
+"""CLI entry point for MTG Combo Cube builder."""
+
 import argparse
 import asyncio
 import logging
 
-from mtg_combo_cube.ilp_runner import run_ilp
-from mtg_combo_cube.run import run
+from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(
@@ -52,17 +53,16 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
-    if args.method == "ilp":
-        asyncio.run(
-            run_ilp(
-                args.cube_size,
-                args.output_file,
-                time_limit_seconds=args.time_limit,
-                max_variants=args.max_variants,
-                use_multi_objective=not args.single_phase,
-                enable_cache_write=not args.skip_api_caching,
-                read_cache=args.read_api_cache,
-            )
+    asyncio.run(
+        run(
+            method=args.method,
+            cube_size=args.cube_size,
+            output_file=args.output_file,
+            golden_ratio=args.ratio,
+            time_limit_seconds=args.time_limit,
+            max_variants=args.max_variants,
+            use_multi_objective=not args.single_phase,
+            enable_cache_write=not args.skip_api_caching,
+            read_cache=args.read_api_cache,
         )
-    else:
-        asyncio.run(run(args.cube_size, args.output_file, golden_ratio=args.ratio))
+    )

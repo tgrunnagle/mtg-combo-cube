@@ -1,6 +1,6 @@
 """Unit tests for ILP data models."""
 
-from mtg_combo_cube.ilp_models import ComboData, OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult, UtilizationStats
 
 
 class TestComboData:

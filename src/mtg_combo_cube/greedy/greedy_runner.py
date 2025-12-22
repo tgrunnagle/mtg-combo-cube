@@ -3,14 +3,14 @@ import logging
 import math
 from collections import Counter
 
-from mtg_combo_cube.commander_spellbook import CommanderSpellbook
+from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 from mtg_combo_cube.models import Variant
-from mtg_combo_cube.variant_tracker import VariantTracker
+from mtg_combo_cube.greedy.variant_tracker import VariantTracker
 
 logger = logging.getLogger(__name__)
 
 
-class CubeBuilder:
+class GreedyRunner:
     def __init__(self, cube_size: int, spellbook: CommanderSpellbook | None = None):
         self._cube_size = cube_size
         self._cube = []
@@ -106,3 +106,40 @@ class CubeBuilder:
                     break
             if len(self._cube) == self._cube_size:
                 break
+
+
+async def build_cube(cube_size: int, golden_ratio: float) -> tuple[list[str], int]:
+    """Build a cube using the greedy algorithm."""
+    greedy_runner = GreedyRunner(cube_size)
+    logger.info(f"Building {cube_size} card cube with golden ratio of {golden_ratio}...")
+    await greedy_runner.build_cube(golden_ratio=golden_ratio)
+    logger.info(f"Built cube of size {len(greedy_runner.get_cube())}")
+
+    logger.info("Testing cube...")
+    combos = await greedy_runner.get_combos()
+    logger.info(f"Found {len(combos)} combos in cube")
+
+    logger.info("Removing dead cards...")
+    await greedy_runner.remove_dead_cards()
+    count_removed = cube_size - len(greedy_runner.get_cube())
+    logger.info(f"Removed {count_removed} dead cards")
+    logger.info("Adding almost included cards...")
+    await greedy_runner.add_almost_included()
+
+    combos = await greedy_runner.get_combos()
+    logger.info(
+        f"Found {len(combos)} combos in cube after removing dead cards "
+        f"and adding almost included cards"
+    )
+
+    return greedy_runner.get_cube(), len(combos)
+
+
+async def run_greedy(cube_size: int, output_file: str, golden_ratio: float | None = None):
+    """Entry point for greedy-based cube building."""
+    golden_ratio = golden_ratio if golden_ratio else GreedyRunner.GOLDEN_RATIO
+    result = await build_cube(cube_size, golden_ratio)
+
+    logger.info(f"Found {result[1]} combos with golden ratio {golden_ratio}")
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("\n".join(result[0]))

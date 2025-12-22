@@ -6,8 +6,8 @@ from pathlib import Path
 
 import pytest
 
-from mtg_combo_cube.ilp_models import OptimizationResult, UtilizationStats
-from mtg_combo_cube.ilp_runner import write_utilization_stats
+from mtg_combo_cube.ilp.ilp_models import OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_runner import write_utilization_stats
 
 
 class TestWriteUtilizationStats:
