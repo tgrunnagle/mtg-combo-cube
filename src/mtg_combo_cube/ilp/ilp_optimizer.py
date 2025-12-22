@@ -6,7 +6,7 @@ import time
 
 from ortools.sat.python import cp_model
 
-from mtg_combo_cube.ilp_models import ComboData, OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult, UtilizationStats
 
 logger = logging.getLogger(__name__)
 

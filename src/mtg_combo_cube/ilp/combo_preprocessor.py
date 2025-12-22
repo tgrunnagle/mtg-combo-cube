@@ -4,7 +4,7 @@ import logging
 
 import aiohttp
 
-from mtg_combo_cube.ilp_models import ComboData
+from mtg_combo_cube.ilp.ilp_models import ComboData
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)

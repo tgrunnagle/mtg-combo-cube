@@ -2,8 +2,8 @@
 
 import pytest
 
-from mtg_combo_cube.ilp_models import ComboData
-from mtg_combo_cube.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.ilp_models import ComboData
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 
 
 class TestILPOptimizerInit:

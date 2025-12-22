@@ -5,12 +5,12 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mtg_combo_cube.api_cache import SpellbookCache
-from mtg_combo_cube.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.commander_spellbook import CommanderSpellbook
-from mtg_combo_cube.ilp_models import OptimizationResult
-from mtg_combo_cube.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.spellbook.api_cache import SpellbookCache
+from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
+from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.ilp.ilp_models import OptimizationResult
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 
 logger = logging.getLogger(__name__)
 
