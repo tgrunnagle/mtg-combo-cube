@@ -5,8 +5,8 @@ import logging
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 
 logger = logging.getLogger(__name__)
 

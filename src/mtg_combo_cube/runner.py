@@ -1,6 +1,5 @@
 """Algorithm selection and execution for cube building."""
 
-import asyncio
 import logging
 
 from mtg_combo_cube.greedy.greedy_runner import run_greedy

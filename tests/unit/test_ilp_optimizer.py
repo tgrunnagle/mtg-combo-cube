@@ -2,7 +2,7 @@
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import ComboData
+from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 
 
@@ -28,7 +28,7 @@ class TestILPOptimizerInit:
             ComboData(
                 id="combo2",
                 required_cards=frozenset(["Card B", "Card C"]),
-                requirement_options=[frozenset(["Card D"])],
+                requirement_options=[RequirementOption("Sac outlet", frozenset(["Card D"]))],
                 popularity=50,
             ),
         ]
@@ -47,7 +47,9 @@ class TestILPOptimizerInit:
             ComboData(
                 id="combo2",
                 required_cards=frozenset(["Card B"]),
-                requirement_options=[frozenset(["Card C", "Card D"])],
+                requirement_options=[
+                    RequirementOption("Sac outlet", frozenset(["Card C", "Card D"]))
+                ],
                 popularity=50,
             ),
         ]
@@ -124,7 +126,9 @@ class TestILPOptimizerHelpers:
             ComboData(
                 id="combo1",
                 required_cards=frozenset(["Card A"]),
-                requirement_options=[frozenset(["Card B", "Card C"])],
+                requirement_options=[
+                    RequirementOption("Sac outlet", frozenset(["Card B", "Card C"]))
+                ],
                 popularity=100,
             ),
         ]
@@ -248,7 +252,9 @@ class TestILPOptimizerSolve:
             ComboData(
                 id="combo1",
                 required_cards=frozenset(["Card A"]),
-                requirement_options=[frozenset(["Card B", "Card C"])],
+                requirement_options=[
+                    RequirementOption("Sac outlet", frozenset(["Card B", "Card C"]))
+                ],
                 popularity=100,
             ),
         ]

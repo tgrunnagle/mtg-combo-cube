@@ -5,12 +5,12 @@ import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
-from mtg_combo_cube.spellbook.api_cache import SpellbookCache
-from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.models import Variant
 from mtg_combo_cube.ilp.ilp_models import OptimizationResult
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.models import Variant
+from mtg_combo_cube.spellbook.api_cache import SpellbookCache
+from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 
 logger = logging.getLogger(__name__)
 
@@ -125,6 +125,27 @@ def write_utilization_stats(
         stats["bottom_utilized_cards"] = [
             {"card": card, "utilization": util} for card, util in sorted_cards[-10:]
         ]
+
+    # Requirement type stats
+    if result.requirement_type_stats:
+        stats["requirement_types"] = {
+            "summary": {
+                "mean_coverage_ratio": result.requirement_coverage_stats.mean_coverage_ratio,
+                "std_dev_coverage_ratio": result.requirement_coverage_stats.std_dev_coverage_ratio,
+            }
+            if result.requirement_coverage_stats
+            else None,
+            "by_type": [
+                {
+                    "template_name": r.template_name,
+                    "combo_count": r.combo_count,
+                    "card_count": r.card_count,
+                    "coverage_ratio": r.coverage_ratio,
+                    "cards": r.cards,
+                }
+                for r in sorted(result.requirement_type_stats, key=lambda x: -x.combo_count)
+            ],
+        }
 
     # Create parent directory if it doesn't exist
     stats_file.parent.mkdir(parents=True, exist_ok=True)

@@ -170,11 +170,7 @@ uv run ty check .
 
 ### Test Coverage
 
-The project includes comprehensive unit tests for the ILP optimization logic:
-
-- **96% coverage** of ILP optimizer (ilp_optimizer.py)
-- **100% coverage** of ILP models (ilp_models.py)
-- **55% coverage** of ILP runner (ilp_runner.py - integration logic)
+The project includes comprehensive unit tests for the ILP optimization logic.
 
 Tests focus on:
 - Data model validation and backward compatibility
@@ -204,6 +200,27 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
 3. **Phase 1**: Maximize weighted combo count
 4. **Phase 2** (if enabled): Minimize utilization variance with fixed combo count
 5. Output optimized card list and statistics
+
+### ILP Complexity
+
+The ILP model scales as follows (where **Q** = cube size, **N** = number of combos, **C** = number of unique cards):
+
+| Aspect | Phase 1 | Phase 2 |
+|--------|---------|---------|
+| Binary variables | C + N | C + N |
+| Integer variables | 0 | 3C |
+| Constraints | O(N × R) | O(N × R + C) |
+
+Where **R** is the average number of optional requirements per combo.
+
+**Practical scaling behavior:**
+- **Model construction** is O(N × R × K) where K is cards per requirement
+- **Solve time** is bounded by `--time-limit` (default 300s), but typically:
+  - Small cubes (Q < 200, N < 1000): seconds
+  - Medium cubes (Q ~ 300, N ~ 5000): 10-60 seconds
+  - Large cubes (Q > 400, N > 8000): may hit time limit
+
+The solver uses 8 parallel workers and sophisticated pruning, so actual performance depends heavily on problem structure (card overlap between combos) rather than raw input size. Cube size **Q** primarily affects constraint tightness rather than model size.
 
 ## License
 

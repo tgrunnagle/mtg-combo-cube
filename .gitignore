@@ -1,5 +1,6 @@
 data/*
 !data/.gitkeep
+.claude/settings.local.json
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

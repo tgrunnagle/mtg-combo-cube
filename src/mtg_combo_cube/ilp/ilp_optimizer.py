@@ -6,7 +6,13 @@ import time
 
 from ortools.sat.python import cp_model
 
-from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import (
+    ComboData,
+    OptimizationResult,
+    RequirementCoverageStats,
+    RequirementTypeStats,
+    UtilizationStats,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +58,8 @@ class ILPOptimizer:
         cards: set[str] = set()
         for combo in self.combos:
             cards.update(combo.required_cards)
-            for opts in combo.requirement_options:
-                cards.update(opts)
+            for opt in combo.requirement_options:
+                cards.update(opt.cards)
         return sorted(cards)  # Sorted for deterministic ordering
 
     def _build_participation_graph(self) -> dict[str, list[ComboData]]:
@@ -65,8 +71,8 @@ class ILPOptimizer:
         for combo in self.combos:
             for card in combo.required_cards:
                 participation[card].append(combo)
-            for opts in combo.requirement_options:
-                for card in opts:
+            for opt in combo.requirement_options:
+                for card in opt.cards:
                     if combo not in participation[card]:
                         participation[card].append(combo)
 
@@ -123,6 +129,57 @@ class ILPOptimizer:
             std_deviation=std_dev,
             total_absolute_deviation=int(total_abs_dev),
             median_utilization=median,
+        )
+
+    def _calculate_requirement_stats(
+        self,
+        selected_cards: set[str],
+        completable_combo_ids: set[str],
+    ) -> list[RequirementTypeStats]:
+        """Calculate stats for each requirement type in completable combos."""
+        template_stats: dict[str, dict[str, set[str]]] = {}
+
+        for combo in self.combos:
+            if combo.id not in completable_combo_ids:
+                continue
+            for opt in combo.requirement_options:
+                name = opt.template_name
+                if name not in template_stats:
+                    template_stats[name] = {"combos": set(), "cards": set()}
+                template_stats[name]["combos"].add(combo.id)
+                # Cards that satisfy this requirement AND are in the cube
+                satisfying = opt.cards & selected_cards
+                template_stats[name]["cards"].update(satisfying)
+
+        return [
+            RequirementTypeStats(
+                template_name=name,
+                combo_count=len(data["combos"]),
+                card_count=len(data["cards"]),
+                cards=sorted(data["cards"]),
+                coverage_ratio=(
+                    len(data["cards"]) / len(data["combos"]) if data["combos"] else 0.0
+                ),
+            )
+            for name, data in sorted(template_stats.items())
+        ]
+
+    def _compute_coverage_stats(
+        self,
+        requirement_stats: list[RequirementTypeStats],
+    ) -> RequirementCoverageStats:
+        """Compute mean and std dev of coverage ratios."""
+        if not requirement_stats:
+            return RequirementCoverageStats(mean_coverage_ratio=0.0, std_dev_coverage_ratio=0.0)
+
+        ratios = [r.coverage_ratio for r in requirement_stats]
+        mean = sum(ratios) / len(ratios)
+        variance = sum((r - mean) ** 2 for r in ratios) / len(ratios)
+        std_dev = variance**0.5
+
+        return RequirementCoverageStats(
+            mean_coverage_ratio=mean,
+            std_dev_coverage_ratio=std_dev,
         )
 
     def solve(self) -> OptimizationResult:
@@ -184,8 +241,8 @@ class ILPOptimizer:
         # Constraint 3: Optional requirements (at least one card from each set)
         # y[j] <= sum(x[c] for c in matching_cards[r])
         for combo in self.combos:
-            for opts in combo.requirement_options:
-                model.add(y[combo.id] <= sum(x[card] for card in opts))
+            for opt in combo.requirement_options:
+                model.add(y[combo.id] <= sum(x[card] for card in opt.cards))
 
         # Objective: Maximize weighted combo count
         objective_terms = []
@@ -216,6 +273,12 @@ class ILPOptimizer:
             utilization = self._calculate_utilization(selected, completed)
             utilization_stats = self._compute_utilization_stats(utilization)
 
+            # Calculate requirement type stats
+            selected_set = set(selected)
+            completed_set = set(completed)
+            req_stats = self._calculate_requirement_stats(selected_set, completed_set)
+            coverage_stats = self._compute_coverage_stats(req_stats)
+
             logger.info(
                 f"ILP solved ({status_str}): {len(selected)} cards, "
                 f"{len(completed)} combos in {solve_time:.1f}s"
@@ -239,6 +302,8 @@ class ILPOptimizer:
                 phase1_utilization_stats=utilization_stats,
                 phase1_solve_time=solve_time,
                 is_multi_objective=False,
+                requirement_type_stats=req_stats,
+                requirement_coverage_stats=coverage_stats,
             )
         else:
             logger.warning(f"ILP solve failed: {status_str}")
@@ -290,8 +355,8 @@ class ILPOptimizer:
                 model.add(y[combo.id] <= x[card])
 
         for combo in self.combos:
-            for opts in combo.requirement_options:
-                model.add(y[combo.id] <= sum(x[card] for card in opts))
+            for opt in combo.requirement_options:
+                model.add(y[combo.id] <= sum(x[card] for card in opt.cards))
 
         # NEW: Fix combo count to Phase 1 target (with optional tolerance)
         combo_sum = sum(y[combo.id] for combo in self.combos)
@@ -376,6 +441,12 @@ class ILPOptimizer:
         utilization = self._calculate_utilization(selected, completed)
         phase2_stats = self._compute_utilization_stats(utilization)
 
+        # Calculate requirement type stats for Phase 2 solution
+        selected_set = set(selected)
+        completed_set = set(completed)
+        req_stats = self._calculate_requirement_stats(selected_set, completed_set)
+        coverage_stats = self._compute_coverage_stats(req_stats)
+
         # Calculate improvement metrics
         p1 = phase1_result.phase1_utilization_stats
         std_improvement = (
@@ -413,6 +484,8 @@ class ILPOptimizer:
             phase2_solve_time=phase2_time,
             phase2_status=status_str,
             is_multi_objective=True,
+            requirement_type_stats=req_stats,
+            requirement_coverage_stats=coverage_stats,
         )
 
     def solve_two_phase(self) -> OptimizationResult:
