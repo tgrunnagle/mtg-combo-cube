@@ -60,7 +60,7 @@ tasks:
   build:greedy:
     desc: Build a cube using the greedy method
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method greedy -o {{.OUTPUT | default "data/cube.txt"}}
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method greedy -o {{.OUTPUT | default "data/cube_greedy.txt"}}
     deps:
       - install
 
@@ -74,7 +74,7 @@ tasks:
   build:ilp-single:
     desc: Build a cube using single-phase ILP (max combos only)
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp --single-phase -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "300"}}
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp --single-phase -o {{.OUTPUT | default "data/cube_ilp_single.txt"}} -t {{.TIME_LIMIT | default "300"}}
     deps:
       - install
 
