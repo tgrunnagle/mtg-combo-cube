@@ -1,11 +1,20 @@
 """Unit tests for ILP data models."""
 
 from mtg_combo_cube.ilp.ilp_models import (
+    CandidateCard,
     ComboData,
     OptimizationResult,
     RequirementOption,
     UtilizationStats,
 )
+
+
+def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
+    """Helper to create CandidateCard objects from names for testing."""
+    return [
+        CandidateCard(name=name, combo_ids=frozenset(), requirement_group_keys=frozenset())
+        for name in names
+    ]
 
 
 class TestComboData:
@@ -77,14 +86,14 @@ class TestOptimizationResult:
     def test_basic_result(self):
         """Test creating basic optimization result."""
         result = OptimizationResult(
-            selected_cards=["Card A", "Card B"],
+            selected_cards=make_candidate_cards(["Card A", "Card B"]),
             completable_combo_ids=["combo1"],
             combo_count=1,
             objective_value=1.0,
             solve_time_seconds=1.5,
-            status="OPTIMAL",
+            phase1_status="OPTIMAL",
         )
-        assert result.selected_cards == ["Card A", "Card B"]
+        assert result.get_selected_card_names() == ["Card A", "Card B"]
         assert result.combo_count == 1
         assert result.is_multi_objective is False
         assert result.utilization_per_card is None
@@ -95,12 +104,12 @@ class TestOptimizationResult:
         p2_stats = UtilizationStats(2, 8, 5.0, 2.0, 20, 5.0)
 
         result = OptimizationResult(
-            selected_cards=["Card A", "Card B"],
+            selected_cards=make_candidate_cards(["Card A", "Card B"]),
             completable_combo_ids=["combo1"],
             combo_count=1,
             objective_value=1.0,
             solve_time_seconds=3.0,
-            status="OPTIMAL",
+            phase1_status="OPTIMAL",
             utilization_per_card={"Card A": 1, "Card B": 1},
             phase1_utilization_stats=p1_stats,
             phase2_utilization_stats=p2_stats,
@@ -123,7 +132,7 @@ class TestOptimizationResult:
             combo_count=0,
             objective_value=0.0,
             solve_time_seconds=0.0,
-            status="INFEASIBLE",
+            phase1_status="INFEASIBLE",
         )
         assert result.utilization_per_card is None
         assert result.phase1_utilization_stats is None

@@ -61,7 +61,7 @@ def write_utilization_stats(
             "cube_size": cube_size,
             "combo_count": result.combo_count,
             "optimization_method": "two_phase" if result.is_multi_objective else "single_phase",
-            "status": result.status,
+            "phase1_status": result.phase1_status,
             "total_solve_time_seconds": result.solve_time_seconds,
         },
         "phase1": None,
@@ -148,6 +148,36 @@ def write_utilization_stats(
             ],
         }
 
+    # Cross-template overlap stats
+    if result.cross_template_stats:
+        cts = result.cross_template_stats
+        stats["cross_template_overlap"] = {
+            "summary": {
+                "multi_template_card_count": cts.multi_template_card_count,
+                "max_templates_per_card": cts.max_templates_per_card,
+                "mean_templates_per_card": round(cts.mean_templates_per_card, 2),
+                "cards_by_template_count": cts.cards_by_template_count,
+            },
+            "top_versatile_cards": [
+                {
+                    "card": c.name,
+                    "template_count": c.template_count,
+                    "requirement_keys": sorted(c.requirement_group_keys),
+                }
+                for c in cts.top_versatile_cards
+            ],
+            "template_pair_overlaps": [
+                {
+                    "template1": p.template1_name,
+                    "template2": p.template2_name,
+                    "shared_cards": p.shared_cards,
+                    "overlap_count": p.overlap_count,
+                    "jaccard_similarity": round(p.jaccard_similarity, 3),
+                }
+                for p in cts.top_overlapping_pairs
+            ],
+        }
+
     # Create parent directory if it doesn't exist
     stats_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -196,18 +226,19 @@ async def build_cube_ilp(
 
     # Step 2: Preprocess for ILP
     preprocessor = ComboPreprocessor()
-    combo_data, all_cards = await preprocessor.preprocess_variants(variants)
+    combo_data, candidate_cards = await preprocessor.preprocess_variants(variants)
 
-    if len(all_cards) < cube_size:
+    if len(candidate_cards) < cube_size:
         logger.warning(
-            f"Only {len(all_cards)} unique cards available, "
+            f"Only {len(candidate_cards)} unique cards available, "
             f"but cube size is {cube_size}. Adjusting cube size."
         )
-        cube_size = len(all_cards)
+        cube_size = len(candidate_cards)
 
     # Step 3: Run ILP optimization
     optimizer = ILPOptimizer(
         combos=combo_data,
+        candidate_cards=candidate_cards,
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         combo_tolerance=combo_tolerance,
@@ -233,10 +264,10 @@ async def build_cube_ilp(
 
     logger.info(
         f"ILP complete: {result.combo_count} combos, "
-        f"status={result.status}, time={result.solve_time_seconds:.1f}s"
+        f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.selected_cards, result.combo_count, result
+    return result.get_selected_card_names(), result.combo_count, result
 
 
 async def run_ilp(
@@ -264,7 +295,7 @@ async def run_ilp(
         min_combo_threshold=min_combo_threshold,
     )
 
-    logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.status})")
+    logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))

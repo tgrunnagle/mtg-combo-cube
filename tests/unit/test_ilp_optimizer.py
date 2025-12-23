@@ -2,8 +2,33 @@
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
+from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+
+
+def build_candidate_cards(combos: list[ComboData]) -> dict[str, CandidateCard]:
+    """Build candidate cards from combos for testing."""
+    from collections import defaultdict
+
+    card_combo_ids: dict[str, set[str]] = defaultdict(set)
+    card_requirement_keys: dict[str, set[str]] = defaultdict(set)
+
+    for combo in combos:
+        for card in combo.required_cards:
+            card_combo_ids[card].add(combo.id)
+        for opt in combo.requirement_options:
+            for card in opt.cards:
+                card_requirement_keys[card].add(opt.group_key)
+
+    all_card_names = set(card_combo_ids.keys()) | set(card_requirement_keys.keys())
+    return {
+        name: CandidateCard(
+            name=name,
+            combo_ids=frozenset(card_combo_ids.get(name, set())),
+            requirement_group_keys=frozenset(card_requirement_keys.get(name, set())),
+        )
+        for name in all_card_names
+    }
 
 
 class TestILPOptimizerInit:
@@ -11,7 +36,7 @@ class TestILPOptimizerInit:
 
     def test_empty_combos(self):
         """Test optimizer with no combos."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
         assert optimizer.combos == []
         assert optimizer.all_cards == []
         assert optimizer.card_to_combos == {}
@@ -34,7 +59,8 @@ class TestILPOptimizerInit:
                 popularity=50,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=4)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(combos=combos, candidate_cards=candidate_cards, cube_size=4)
         assert set(optimizer.all_cards) == {"Card A", "Card B", "Card C", "Card D"}
 
     def test_build_participation_graph(self):
@@ -57,7 +83,8 @@ class TestILPOptimizerInit:
                 popularity=50,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=4)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(combos=combos, candidate_cards=candidate_cards, cube_size=4)
 
         # Card A appears in combo1 only
         assert len(optimizer.card_to_combos["Card A"]) == 1
@@ -80,7 +107,7 @@ class TestILPOptimizerHelpers:
 
     def test_compute_weight(self):
         """Test weight computation with popularity."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
 
         # Base weight (popularity=0) should be ~1.0 * WEIGHT_SCALE
         weight_0 = optimizer._compute_weight(0)
@@ -113,7 +140,8 @@ class TestILPOptimizerHelpers:
                 popularity=25,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=3)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(combos=combos, candidate_cards=candidate_cards, cube_size=3)
 
         selected = ["Card A", "Card B", "Card C"]
         completed = ["combo1", "combo2"]  # combo3 not completed
@@ -138,7 +166,8 @@ class TestILPOptimizerHelpers:
                 popularity=100,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=2)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(combos=combos, candidate_cards=candidate_cards, cube_size=2)
 
         selected = ["Card A", "Card B"]
         completed = ["combo1"]
@@ -150,7 +179,7 @@ class TestILPOptimizerHelpers:
 
     def test_compute_utilization_stats_empty(self):
         """Test utilization stats with empty input."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
         stats = optimizer._compute_utilization_stats({})
 
         assert stats.min_utilization == 0
@@ -160,7 +189,7 @@ class TestILPOptimizerHelpers:
 
     def test_compute_utilization_stats(self):
         """Test utilization stats computation."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
         utilization = {
             "Card A": 1,
             "Card B": 3,
@@ -180,7 +209,7 @@ class TestILPOptimizerHelpers:
 
     def test_compute_utilization_stats_even_count(self):
         """Test median calculation with even number of values."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
         utilization = {
             "Card A": 2,
             "Card B": 4,
@@ -194,7 +223,7 @@ class TestILPOptimizerHelpers:
 
     def test_compute_utilization_stats_odd_count(self):
         """Test median calculation with odd number of values."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
         utilization = {
             "Card A": 1,
             "Card B": 5,
@@ -211,10 +240,10 @@ class TestILPOptimizerSolve:
 
     def test_solve_empty_combos(self):
         """Test solving with no combos."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10, time_limit_seconds=1)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10, time_limit_seconds=1)
         result = optimizer.solve()
 
-        assert result.status == "OPTIMAL"
+        assert result.phase1_status == "OPTIMAL"
         assert result.combo_count == 0
         assert result.selected_cards == []
 
@@ -228,10 +257,13 @@ class TestILPOptimizerSolve:
                 popularity=100,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=10, time_limit_seconds=1)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=10, time_limit_seconds=1
+        )
         result = optimizer.solve()
 
-        assert result.status == "INFEASIBLE"
+        assert result.phase1_status == "INFEASIBLE"
         assert result.combo_count == 0
 
     def test_solve_simple_combo(self):
@@ -244,12 +276,15 @@ class TestILPOptimizerSolve:
                 popularity=100,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=2, time_limit_seconds=5)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+        )
         result = optimizer.solve()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         assert result.combo_count == 1
-        assert set(result.selected_cards) == {"Card A", "Card B"}
+        assert set(result.get_selected_card_names()) == {"Card A", "Card B"}
         assert result.completable_combo_ids == ["combo1"]
 
     def test_solve_with_optional_requirements(self):
@@ -266,14 +301,18 @@ class TestILPOptimizerSolve:
                 popularity=100,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=2, time_limit_seconds=5)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+        )
         result = optimizer.solve()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         assert result.combo_count == 1
-        assert "Card A" in result.selected_cards
+        selected_names = result.get_selected_card_names()
+        assert "Card A" in selected_names
         # Should select either Card B or Card C (or both)
-        assert "Card B" in result.selected_cards or "Card C" in result.selected_cards
+        assert "Card B" in selected_names or "Card C" in selected_names
 
     def test_solve_multiple_combos(self):
         """Test solving with multiple combos."""
@@ -291,12 +330,15 @@ class TestILPOptimizerSolve:
                 popularity=50,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=4, time_limit_seconds=5)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=5
+        )
         result = optimizer.solve()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         assert result.combo_count == 2
-        assert set(result.selected_cards) == {"Card A", "Card B", "Card C", "Card D"}
+        assert set(result.get_selected_card_names()) == {"Card A", "Card B", "Card C", "Card D"}
 
     def test_solve_overlapping_combos(self):
         """Test solving with combos sharing cards."""
@@ -314,12 +356,15 @@ class TestILPOptimizerSolve:
                 popularity=50,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=3, time_limit_seconds=5)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=3, time_limit_seconds=5
+        )
         result = optimizer.solve()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         assert result.combo_count == 2  # Both combos completable
-        assert set(result.selected_cards) == {"Card A", "Card B", "Card C"}
+        assert set(result.get_selected_card_names()) == {"Card A", "Card B", "Card C"}
 
     def test_solve_populates_utilization(self):
         """Test that solve() populates utilization data."""
@@ -331,7 +376,10 @@ class TestILPOptimizerSolve:
                 popularity=100,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=2, time_limit_seconds=5)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+        )
         result = optimizer.solve()
 
         assert result.utilization_per_card is not None
@@ -349,10 +397,10 @@ class TestILPOptimizerTwoPhase:
 
     def test_solve_two_phase_empty_combos(self):
         """Test two-phase with no combos."""
-        optimizer = ILPOptimizer(combos=[], cube_size=10, time_limit_seconds=1)
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10, time_limit_seconds=1)
         result = optimizer.solve_two_phase()
 
-        assert result.status == "OPTIMAL"
+        assert result.phase1_status == "OPTIMAL"
         assert result.combo_count == 0
         assert result.is_multi_objective is False  # Phase 2 skipped
 
@@ -372,10 +420,13 @@ class TestILPOptimizerTwoPhase:
                 popularity=50,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=4, time_limit_seconds=10)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+        )
         result = optimizer.solve_two_phase()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         assert result.combo_count == 2
         assert result.is_multi_objective is True
 
@@ -410,9 +461,14 @@ class TestILPOptimizerTwoPhase:
                 popularity=60,
             ),
         ]
+        candidate_cards = build_candidate_cards(combos)
         # Use combo_tolerance=0 to enforce strict combo count preservation
         optimizer = ILPOptimizer(
-            combos=combos, cube_size=4, time_limit_seconds=10, combo_tolerance=0
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=10,
+            combo_tolerance=0,
         )
 
         # Run Phase 1 only
@@ -449,9 +505,14 @@ class TestILPOptimizerTwoPhase:
                 popularity=60,
             ),
         ]
+        candidate_cards = build_candidate_cards(combos)
         # Use 10% tolerance (default)
         optimizer = ILPOptimizer(
-            combos=combos, cube_size=4, time_limit_seconds=10, combo_tolerance=0.1
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=10,
+            combo_tolerance=0.1,
         )
 
         # Run Phase 1 only
@@ -495,7 +556,10 @@ class TestILPOptimizerTwoPhase:
                 popularity=70,
             ),
         ]
-        optimizer = ILPOptimizer(combos=combos, cube_size=6, time_limit_seconds=15)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=6, time_limit_seconds=15
+        )
         result = optimizer.solve_two_phase()
 
         if result.is_multi_objective and result.phase2_utilization_stats:
@@ -535,9 +599,11 @@ class TestCoverageConstraints:
                 )
             )
 
+        candidate_cards = build_candidate_cards(combos)
         # With min_coverage_ratio=0.1 and 20 combos, need at least 2 sac outlets
         optimizer = ILPOptimizer(
             combos=combos,
+            candidate_cards=candidate_cards,
             cube_size=22,  # 20 unique + 2 sac outlets
             time_limit_seconds=30,
             min_coverage_ratio=0.1,
@@ -546,9 +612,10 @@ class TestCoverageConstraints:
 
         result = optimizer.solve_two_phase()
 
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         # Should have at least 2 of the sac outlet cards
-        sac_outlets = {"Card B", "Card C", "Card D"} & set(result.selected_cards)
+        selected_names = set(result.get_selected_card_names())
+        sac_outlets = {"Card B", "Card C", "Card D"} & selected_names
         assert len(sac_outlets) >= 2
 
     def test_coverage_constraint_soft_when_insufficient_cards(self):
@@ -571,9 +638,11 @@ class TestCoverageConstraints:
                 )
             )
 
+        candidate_cards = build_candidate_cards(combos)
         # Would need 2 cards but only 1 exists
         optimizer = ILPOptimizer(
             combos=combos,
+            candidate_cards=candidate_cards,
             cube_size=21,
             time_limit_seconds=30,
             min_coverage_ratio=0.1,
@@ -582,8 +651,8 @@ class TestCoverageConstraints:
 
         # Should still succeed (soft constraint)
         result = optimizer.solve_two_phase()
-        assert result.status in ("OPTIMAL", "FEASIBLE")
-        assert "Only Option" in result.selected_cards
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
+        assert "Only Option" in result.get_selected_card_names()
 
     def test_coverage_constraint_respects_threshold(self):
         """Test that small combo counts don't trigger constraint."""
@@ -605,9 +674,11 @@ class TestCoverageConstraints:
                 )
             )
 
+        candidate_cards = build_candidate_cards(combos)
         # min_combo_threshold=10, so 5 combos won't trigger constraint
         optimizer = ILPOptimizer(
             combos=combos,
+            candidate_cards=candidate_cards,
             cube_size=6,
             time_limit_seconds=30,
             min_coverage_ratio=0.5,  # Would require 3 cards if threshold met
@@ -615,9 +686,10 @@ class TestCoverageConstraints:
         )
 
         result = optimizer.solve_two_phase()
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         # Can get away with just 1 sac outlet since threshold not met
-        sac_outlets = {"Card B", "Card C"} & set(result.selected_cards)
+        selected_names = set(result.get_selected_card_names())
+        sac_outlets = {"Card B", "Card C"} & selected_names
         assert len(sac_outlets) >= 1  # At least 1, but not forced to be more
 
     def test_build_requirement_pool_info(self):
@@ -649,7 +721,8 @@ class TestCoverageConstraints:
             ),
         ]
 
-        optimizer = ILPOptimizer(combos=combos, cube_size=4)
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(combos=combos, candidate_cards=candidate_cards, cube_size=4)
         pool_info = optimizer._build_requirement_pool_info()
 
         assert "scryfall:q=sac outlet" in pool_info
@@ -676,9 +749,11 @@ class TestCoverageConstraints:
                 )
             )
 
+        candidate_cards = build_candidate_cards(combos)
         # Disable coverage constraints
         optimizer = ILPOptimizer(
             combos=combos,
+            candidate_cards=candidate_cards,
             cube_size=21,  # Only room for 1 sac outlet
             time_limit_seconds=30,
             min_coverage_ratio=0,  # Disabled
@@ -686,7 +761,278 @@ class TestCoverageConstraints:
         )
 
         result = optimizer.solve_two_phase()
-        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
         # With constraint disabled, optimizer can use just 1 sac outlet
-        sac_outlets = {"Card B", "Card C", "Card D"} & set(result.selected_cards)
+        selected_names = set(result.get_selected_card_names())
+        sac_outlets = {"Card B", "Card C", "Card D"} & selected_names
         assert len(sac_outlets) >= 1
+
+
+class TestCandidateCard:
+    """Test CandidateCard dataclass properties."""
+
+    def test_template_count(self):
+        """Test template_count property."""
+        card = CandidateCard(
+            name="Test Card",
+            combo_ids=frozenset(["combo1"]),
+            requirement_group_keys=frozenset(["key1", "key2", "key3"]),
+        )
+        assert card.template_count == 3
+
+    def test_template_count_empty(self):
+        """Test template_count with no requirements."""
+        card = CandidateCard(
+            name="Test Card",
+            combo_ids=frozenset(["combo1"]),
+            requirement_group_keys=frozenset(),
+        )
+        assert card.template_count == 0
+
+    def test_is_multi_template_true(self):
+        """Test is_multi_template when card satisfies 2+ templates."""
+        card = CandidateCard(
+            name="Test Card",
+            combo_ids=frozenset(),
+            requirement_group_keys=frozenset(["key1", "key2"]),
+        )
+        assert card.is_multi_template is True
+
+    def test_is_multi_template_false(self):
+        """Test is_multi_template when card satisfies 0-1 templates."""
+        card1 = CandidateCard(
+            name="Card 1",
+            combo_ids=frozenset(),
+            requirement_group_keys=frozenset(["key1"]),
+        )
+        card2 = CandidateCard(
+            name="Card 2",
+            combo_ids=frozenset(),
+            requirement_group_keys=frozenset(),
+        )
+        assert card1.is_multi_template is False
+        assert card2.is_multi_template is False
+
+
+class TestCrossTemplateStats:
+    """Test cross-template overlap statistics calculation."""
+
+    def test_cross_template_stats_basic(self):
+        """Test cross-template stats with multi-template cards."""
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Card A"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Persist Creature",
+                        "scryfall:q=keyword:persist",
+                        frozenset(["Kitchen Finks", "Murderous Redcap"]),
+                    )
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Card B"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Green Persist",
+                        "scryfall:q=c:g keyword:persist",
+                        frozenset(["Kitchen Finks"]),  # Overlaps with first requirement
+                    )
+                ],
+                popularity=80,
+            ),
+        ]
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+        )
+        result = optimizer.solve()
+
+        assert result.cross_template_stats is not None
+        stats = result.cross_template_stats
+
+        # Kitchen Finks satisfies 2 templates
+        if "Kitchen Finks" in result.selected_cards:
+            assert stats.multi_template_card_count >= 1
+            assert stats.max_templates_per_card >= 2
+
+    def test_cross_template_stats_no_overlap(self):
+        """Test cross-template stats when no cards satisfy multiple templates."""
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Card A", "Card B"]),
+                requirement_options=[],
+                popularity=100,
+            ),
+        ]
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+        )
+        result = optimizer.solve()
+
+        assert result.cross_template_stats is not None
+        stats = result.cross_template_stats
+
+        # No requirement options, so no templates satisfied
+        assert stats.multi_template_card_count == 0
+        assert stats.max_templates_per_card == 0
+
+    def test_cross_template_stats_template_pair_overlap(self):
+        """Test template pair overlap calculation."""
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Card A"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Template 1",
+                        "key1",
+                        frozenset(["Shared Card", "Unique 1"]),
+                    )
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Card B"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Template 2",
+                        "key2",
+                        frozenset(["Shared Card", "Unique 2"]),
+                    )
+                ],
+                popularity=80,
+            ),
+        ]
+        candidate_cards = build_candidate_cards(combos)
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+        )
+        result = optimizer.solve()
+
+        assert result.cross_template_stats is not None
+        stats = result.cross_template_stats
+
+        # If both combos completed and Shared Card selected, should see overlap
+        selected_names = result.get_selected_card_names()
+        if "Shared Card" in selected_names:
+            # Shared Card satisfies both templates
+            assert stats.multi_template_card_count >= 1
+
+    def test_multi_template_card_satisfies_multiple_combos(self):
+        """Test that a single multi-template card can satisfy requirements for multiple combos.
+
+        This verifies that the ILP constraint logic correctly handles cards that appear
+        in multiple requirement option sets with different group_keys.
+        """
+        # Setup: "Versatile Card" satisfies both "Persist Creature" and "ETB Creature"
+        # requirements, allowing it to complete two different combos with just one card.
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Combo Piece A"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Persist Creature",
+                        "scryfall:q=keyword:persist",
+                        frozenset(["Versatile Card", "Persist Only"]),
+                    )
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Combo Piece B"]),
+                requirement_options=[
+                    RequirementOption(
+                        "ETB Creature",
+                        "scryfall:q=keyword:etb",
+                        frozenset(["Versatile Card", "ETB Only"]),
+                    )
+                ],
+                popularity=100,
+            ),
+        ]
+
+        candidate_cards = build_candidate_cards(combos)
+
+        # Verify CandidateCard tracking: Versatile Card should have 2 requirement_group_keys
+        assert "Versatile Card" in candidate_cards
+        versatile = candidate_cards["Versatile Card"]
+        assert versatile.template_count == 2
+        assert versatile.is_multi_template is True
+        assert "scryfall:q=keyword:persist" in versatile.requirement_group_keys
+        assert "scryfall:q=keyword:etb" in versatile.requirement_group_keys
+
+        # With cube_size=3, solver can complete both combos using Versatile Card
+        # for both requirements instead of needing separate cards
+        optimizer = ILPOptimizer(
+            combos=combos, candidate_cards=candidate_cards, cube_size=3, time_limit_seconds=10
+        )
+        result = optimizer.solve()
+
+        assert result.phase1_status in ("OPTIMAL", "FEASIBLE")
+        assert result.combo_count == 2  # Both combos should be completable
+        assert set(result.completable_combo_ids) == {"combo1", "combo2"}
+
+        # The Versatile Card should be selected since it enables completing both combos
+        selected_names = result.get_selected_card_names()
+        assert "Versatile Card" in selected_names
+        assert "Combo Piece A" in selected_names
+        assert "Combo Piece B" in selected_names
+
+        # Cross-template stats should reflect the multi-template card
+        assert result.cross_template_stats is not None
+        assert result.cross_template_stats.multi_template_card_count >= 1
+
+    def test_multi_template_card_tracked_in_candidate_cards(self):
+        """Test that cards satisfying multiple different requirement group_keys are tracked."""
+        # Create combos where the same card appears in different requirement options
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Base A"]),
+                requirement_options=[
+                    RequirementOption("Type 1", "group_key_1", frozenset(["Multi Card", "Card X"]))
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Base B"]),
+                requirement_options=[
+                    RequirementOption("Type 2", "group_key_2", frozenset(["Multi Card", "Card Y"]))
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo3",
+                required_cards=frozenset(["Base C"]),
+                requirement_options=[
+                    RequirementOption("Type 3", "group_key_3", frozenset(["Multi Card", "Card Z"]))
+                ],
+                popularity=100,
+            ),
+        ]
+
+        candidate_cards = build_candidate_cards(combos)
+
+        # Multi Card should track all 3 group keys
+        assert "Multi Card" in candidate_cards
+        multi_card = candidate_cards["Multi Card"]
+        assert multi_card.template_count == 3
+        assert multi_card.is_multi_template is True
+        assert multi_card.requirement_group_keys == frozenset(
+            ["group_key_1", "group_key_2", "group_key_3"]
+        )
+
+        # Single-template cards should only have 1 key
+        assert candidate_cards["Card X"].template_count == 1
+        assert candidate_cards["Card Y"].template_count == 1
+        assert candidate_cards["Card Z"].template_count == 1
