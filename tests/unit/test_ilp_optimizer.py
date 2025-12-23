@@ -509,3 +509,184 @@ class TestILPOptimizerTwoPhase:
                 p2.std_deviation <= p1.std_deviation + 0.1  # Allow small tolerance
                 or p2.total_absolute_deviation <= p1.total_absolute_deviation
             )
+
+
+class TestCoverageConstraints:
+    """Test minimum coverage ratio constraints."""
+
+    def test_coverage_constraint_enforces_minimum(self):
+        """Test that coverage constraint forces multiple cards for popular requirements."""
+        # Create combos where many share the same requirement
+        combos = []
+        # 20 combos all requiring a "sac outlet" (Card B, C, or D)
+        for i in range(20):
+            combos.append(
+                ComboData(
+                    id=f"combo{i}",
+                    required_cards=frozenset([f"Card A{i}"]),  # Unique required card
+                    requirement_options=[
+                        RequirementOption(
+                            "Sac outlet",
+                            "scryfall:q=sac outlet",
+                            frozenset(["Card B", "Card C", "Card D"]),
+                        )
+                    ],
+                    popularity=100 - i,
+                )
+            )
+
+        # With min_coverage_ratio=0.1 and 20 combos, need at least 2 sac outlets
+        optimizer = ILPOptimizer(
+            combos=combos,
+            cube_size=22,  # 20 unique + 2 sac outlets
+            time_limit_seconds=30,
+            min_coverage_ratio=0.1,
+            min_combo_threshold=5,
+        )
+
+        result = optimizer.solve_two_phase()
+
+        assert result.status in ("OPTIMAL", "FEASIBLE")
+        # Should have at least 2 of the sac outlet cards
+        sac_outlets = {"Card B", "Card C", "Card D"} & set(result.selected_cards)
+        assert len(sac_outlets) >= 2
+
+    def test_coverage_constraint_soft_when_insufficient_cards(self):
+        """Test that constraint is soft when not enough cards exist."""
+        # Only 1 card can satisfy the requirement
+        combos = []
+        for i in range(20):
+            combos.append(
+                ComboData(
+                    id=f"combo{i}",
+                    required_cards=frozenset([f"Card A{i}"]),
+                    requirement_options=[
+                        RequirementOption(
+                            "Rare ability",
+                            "scryfall:q=rare ability",
+                            frozenset(["Only Option"]),  # Only 1 card
+                        )
+                    ],
+                    popularity=100 - i,
+                )
+            )
+
+        # Would need 2 cards but only 1 exists
+        optimizer = ILPOptimizer(
+            combos=combos,
+            cube_size=21,
+            time_limit_seconds=30,
+            min_coverage_ratio=0.1,
+            min_combo_threshold=5,
+        )
+
+        # Should still succeed (soft constraint)
+        result = optimizer.solve_two_phase()
+        assert result.status in ("OPTIMAL", "FEASIBLE")
+        assert "Only Option" in result.selected_cards
+
+    def test_coverage_constraint_respects_threshold(self):
+        """Test that small combo counts don't trigger constraint."""
+        combos = []
+        # Only 5 combos with same requirement
+        for i in range(5):
+            combos.append(
+                ComboData(
+                    id=f"combo{i}",
+                    required_cards=frozenset([f"Card A{i}"]),
+                    requirement_options=[
+                        RequirementOption(
+                            "Sac outlet",
+                            "scryfall:q=sac outlet",
+                            frozenset(["Card B", "Card C"]),
+                        )
+                    ],
+                    popularity=100,
+                )
+            )
+
+        # min_combo_threshold=10, so 5 combos won't trigger constraint
+        optimizer = ILPOptimizer(
+            combos=combos,
+            cube_size=6,
+            time_limit_seconds=30,
+            min_coverage_ratio=0.5,  # Would require 3 cards if threshold met
+            min_combo_threshold=10,
+        )
+
+        result = optimizer.solve_two_phase()
+        assert result.status in ("OPTIMAL", "FEASIBLE")
+        # Can get away with just 1 sac outlet since threshold not met
+        sac_outlets = {"Card B", "Card C"} & set(result.selected_cards)
+        assert len(sac_outlets) >= 1  # At least 1, but not forced to be more
+
+    def test_build_requirement_pool_info(self):
+        """Test requirement pool info building."""
+        combos = [
+            ComboData(
+                id="combo1",
+                required_cards=frozenset(["Card A"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Sac outlet",
+                        "scryfall:q=sac outlet",
+                        frozenset(["Card B", "Card C"]),
+                    )
+                ],
+                popularity=100,
+            ),
+            ComboData(
+                id="combo2",
+                required_cards=frozenset(["Card D"]),
+                requirement_options=[
+                    RequirementOption(
+                        "Sacrifice outlet",  # Different display name, same group_key
+                        "scryfall:q=sac outlet",
+                        frozenset(["Card B", "Card E"]),  # Overlapping cards
+                    )
+                ],
+                popularity=50,
+            ),
+        ]
+
+        optimizer = ILPOptimizer(combos=combos, cube_size=4)
+        pool_info = optimizer._build_requirement_pool_info()
+
+        assert "scryfall:q=sac outlet" in pool_info
+        info = pool_info["scryfall:q=sac outlet"]
+        assert info.combo_count == 2
+        assert info.pool_cards == frozenset(["Card B", "Card C", "Card E"])
+
+    def test_coverage_constraint_disabled_when_zero(self):
+        """Test that coverage constraints are disabled when min_coverage_ratio=0."""
+        combos = []
+        for i in range(20):
+            combos.append(
+                ComboData(
+                    id=f"combo{i}",
+                    required_cards=frozenset([f"Card A{i}"]),
+                    requirement_options=[
+                        RequirementOption(
+                            "Sac outlet",
+                            "scryfall:q=sac outlet",
+                            frozenset(["Card B", "Card C", "Card D"]),
+                        )
+                    ],
+                    popularity=100 - i,
+                )
+            )
+
+        # Disable coverage constraints
+        optimizer = ILPOptimizer(
+            combos=combos,
+            cube_size=21,  # Only room for 1 sac outlet
+            time_limit_seconds=30,
+            min_coverage_ratio=0,  # Disabled
+            min_combo_threshold=5,
+        )
+
+        result = optimizer.solve_two_phase()
+        assert result.status in ("OPTIMAL", "FEASIBLE")
+        # With constraint disabled, optimizer can use just 1 sac outlet
+        sac_outlets = {"Card B", "Card C", "Card D"} & set(result.selected_cards)
+        assert len(sac_outlets) >= 1

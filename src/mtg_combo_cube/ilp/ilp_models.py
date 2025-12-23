@@ -63,6 +63,16 @@ class RequirementCoverageStats:
 
 
 @dataclass
+class RequirementPoolInfo:
+    """Information about a requirement type for coverage constraint generation."""
+
+    group_key: str
+    display_name: str
+    combo_count: int  # Total combos using this requirement
+    pool_cards: frozenset[str]  # All cards that can satisfy this requirement
+
+
+@dataclass
 class OptimizationResult:
     """Result from ILP optimization."""
 

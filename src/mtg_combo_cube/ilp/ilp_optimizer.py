@@ -10,6 +10,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboData,
     OptimizationResult,
     RequirementCoverageStats,
+    RequirementPoolInfo,
     RequirementTypeStats,
     UtilizationStats,
 )
@@ -36,12 +37,16 @@ class ILPOptimizer:
         time_limit_seconds: int = DEFAULT_TIME_LIMIT,
         tiebreak_epsilon: float = TIEBREAK_EPSILON,
         combo_tolerance: float = 0.1,
+        min_coverage_ratio: float = 0.05,
+        min_combo_threshold: int = 10,
     ):
         self.combos = combos
         self.cube_size = cube_size
         self.time_limit = time_limit_seconds
         self.tiebreak_epsilon = tiebreak_epsilon
         self.combo_tolerance = combo_tolerance
+        self.min_coverage_ratio = min_coverage_ratio
+        self.min_combo_threshold = min_combo_threshold
 
         # Build card universe
         self.all_cards: list[str] = self._collect_all_cards()
@@ -200,6 +205,82 @@ class ILPOptimizer:
             mean_coverage_ratio=mean,
             std_dev_coverage_ratio=std_dev,
         )
+
+    def _build_requirement_pool_info(self) -> dict[str, RequirementPoolInfo]:
+        """
+        Build mapping of requirement group_key to pool information.
+
+        This includes ALL cards that can satisfy each requirement (not just selected cards),
+        and counts ALL combos using the requirement (not just completable ones).
+        """
+        from collections import defaultdict
+
+        requirement_info: dict[str, dict] = defaultdict(
+            lambda: {"combos": set(), "pool_cards": set(), "display_names": set()}
+        )
+
+        for combo in self.combos:
+            for opt in combo.requirement_options:
+                key = opt.group_key
+                requirement_info[key]["combos"].add(combo.id)
+                requirement_info[key]["pool_cards"].update(opt.cards)
+                requirement_info[key]["display_names"].add(opt.template_name)
+
+        result = {}
+        for key, data in requirement_info.items():
+            display_name = self._pick_display_name(data["display_names"])
+            result[key] = RequirementPoolInfo(
+                group_key=key,
+                display_name=display_name,
+                combo_count=len(data["combos"]),
+                pool_cards=frozenset(data["pool_cards"]),
+            )
+        return result
+
+    def _add_coverage_constraints(
+        self,
+        model: cp_model.CpModel,
+        x: dict[str, cp_model.IntVar],
+        requirement_pool_info: dict[str, RequirementPoolInfo],
+    ) -> int:
+        """
+        Add minimum coverage ratio constraints to the model.
+
+        Returns the number of constraints added.
+        """
+        constraints_added = 0
+
+        for info in requirement_pool_info.values():
+            # Skip requirements used by few combos
+            if info.combo_count < self.min_combo_threshold:
+                continue
+
+            # Calculate required minimum cards
+            required_min_cards = math.ceil(self.min_coverage_ratio * info.combo_count)
+
+            # Check if enough cards exist in the pool
+            pool_card_count = len(info.pool_cards)
+            if pool_card_count < required_min_cards:
+                logger.warning(
+                    f"Cannot meet minimum coverage for '{info.display_name}': "
+                    f"need {required_min_cards} cards but only {pool_card_count} available "
+                    f"(used by {info.combo_count} combos)"
+                )
+                # Use max available as soft constraint
+                required_min_cards = pool_card_count
+
+            if required_min_cards > 0:
+                # Only add constraint for cards in our card universe
+                cards_in_universe = [c for c in info.pool_cards if c in x]
+                if len(cards_in_universe) >= required_min_cards:
+                    model.add(sum(x[card] for card in cards_in_universe) >= required_min_cards)
+                    constraints_added += 1
+                    logger.debug(
+                        f"Coverage constraint: '{info.display_name}' needs >= {required_min_cards} "
+                        f"cards (from {len(cards_in_universe)} available)"
+                    )
+
+        return constraints_added
 
     def solve(self) -> OptimizationResult:
         """
@@ -394,6 +475,15 @@ class ILPOptimizer:
         else:
             # No tolerance - use exact equality (current behavior)
             model.add(combo_sum == target_combo_count)
+
+        # Add minimum coverage ratio constraints
+        if self.min_coverage_ratio > 0:
+            requirement_pool_info = self._build_requirement_pool_info()
+            num_constraints = self._add_coverage_constraints(model, x, requirement_pool_info)
+            logger.info(
+                f"Phase 2: Added {num_constraints} coverage constraints "
+                f"(min_ratio={self.min_coverage_ratio}, min_combos={self.min_combo_threshold})"
+            )
 
         # Utilization variables: u[card] = count of completable combos card participates in
         u: dict[str, cp_model.IntVar] = {}

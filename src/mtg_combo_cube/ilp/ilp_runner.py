@@ -166,6 +166,8 @@ async def build_cube_ilp(
     enable_cache_write: bool = True,
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
+    min_coverage_ratio: float = 0.05,
+    min_combo_threshold: int = 10,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
     Build cube using ILP optimization with optional API caching.
@@ -209,6 +211,8 @@ async def build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         combo_tolerance=combo_tolerance,
+        min_coverage_ratio=min_coverage_ratio,
+        min_combo_threshold=min_combo_threshold,
     )
 
     # Run optimization (two-phase by default)
@@ -244,6 +248,8 @@ async def run_ilp(
     enable_cache_write: bool = True,
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
+    min_coverage_ratio: float = 0.05,
+    min_combo_threshold: int = 10,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
@@ -254,6 +260,8 @@ async def run_ilp(
         enable_cache_write=enable_cache_write,
         read_cache=read_cache,
         combo_tolerance=combo_tolerance,
+        min_coverage_ratio=min_coverage_ratio,
+        min_combo_threshold=min_combo_threshold,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.status})")
