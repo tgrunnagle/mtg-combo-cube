@@ -1,6 +1,11 @@
 """Unit tests for ILP data models."""
 
-from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import (
+    ComboData,
+    OptimizationResult,
+    RequirementOption,
+    UtilizationStats,
+)
 
 
 class TestComboData:
@@ -22,8 +27,8 @@ class TestComboData:
             id="combo1",
             required_cards=frozenset(["Card A"]),
             requirement_options=[
-                frozenset(["Card B", "Card C"]),
-                frozenset(["Card D"]),
+                RequirementOption("Sac outlet", frozenset(["Card B", "Card C"])),
+                RequirementOption("Mana dork", frozenset(["Card D"])),
             ],
             popularity=100,
         )
@@ -34,7 +39,10 @@ class TestComboData:
         combo = ComboData(
             id="combo1",
             required_cards=frozenset(["Card A"]),
-            requirement_options=[frozenset(), frozenset(["Card B"])],
+            requirement_options=[
+                RequirementOption("Empty req", frozenset()),
+                RequirementOption("Valid req", frozenset(["Card B"])),
+            ],
             popularity=100,
         )
         assert combo.all_requirements_resolvable() is False

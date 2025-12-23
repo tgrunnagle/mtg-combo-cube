@@ -4,7 +4,7 @@ import logging
 
 import aiohttp
 
-from mtg_combo_cube.ilp.ilp_models import ComboData
+from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)
@@ -39,8 +39,8 @@ class ComboPreprocessor:
 
             combo_data_list.append(combo_data)
             all_cards.update(combo_data.required_cards)
-            for opts in combo_data.requirement_options:
-                all_cards.update(opts)
+            for opt in combo_data.requirement_options:
+                all_cards.update(opt.cards)
 
         logger.info(
             f"Preprocessed {len(combo_data_list)} combos with {len(all_cards)} unique cards"
@@ -53,7 +53,7 @@ class ComboPreprocessor:
         required_cards = frozenset(use.card.name for use in variant.uses)
 
         # Resolve template requirements
-        requirement_options: list[frozenset[str]] = []
+        requirement_options: list[RequirementOption] = []
         for req in variant.requires:
             if req.template.scryfall_api is None:
                 # No API means unresolvable - skip this combo
@@ -64,7 +64,12 @@ class ComboPreprocessor:
             if not cards:
                 logger.debug(f"Skipping combo {variant.id}: empty requirement options")
                 return None
-            requirement_options.append(frozenset(cards))
+            requirement_options.append(
+                RequirementOption(
+                    template_name=req.template.name,
+                    cards=frozenset(cards),
+                )
+            )
 
         return ComboData(
             id=variant.id,

@@ -3,9 +3,9 @@ import logging
 import math
 from collections import Counter
 
-from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
-from mtg_combo_cube.models import Variant
 from mtg_combo_cube.greedy.variant_tracker import VariantTracker
+from mtg_combo_cube.models import Variant
+from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 
 logger = logging.getLogger(__name__)
 

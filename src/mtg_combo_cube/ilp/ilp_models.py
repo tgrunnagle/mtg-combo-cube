@@ -4,6 +4,14 @@ from dataclasses import dataclass
 
 
 @dataclass
+class RequirementOption:
+    """A single template requirement with its matching cards."""
+
+    template_name: str
+    cards: frozenset[str]
+
+
+@dataclass
 class ComboData:
     """Preprocessed combo data for ILP optimization.
 
@@ -13,12 +21,12 @@ class ComboData:
 
     id: str
     required_cards: frozenset[str]  # Card names from 'uses' field
-    requirement_options: list[frozenset[str]]  # For each 'requires', set of valid card names
+    requirement_options: list[RequirementOption]  # For each 'requires', template name + valid cards
     popularity: int  # For tiebreaking (higher = better)
 
     def all_requirements_resolvable(self) -> bool:
         """Check if all template requirements have at least one card option."""
-        return all(len(opts) > 0 for opts in self.requirement_options)
+        return all(len(opt.cards) > 0 for opt in self.requirement_options)
 
 
 @dataclass
@@ -31,6 +39,25 @@ class UtilizationStats:
     std_deviation: float
     total_absolute_deviation: int
     median_utilization: float
+
+
+@dataclass
+class RequirementTypeStats:
+    """Statistics for a single requirement type."""
+
+    template_name: str
+    combo_count: int  # How many completable combos use this requirement
+    card_count: int  # How many cards in cube satisfy this requirement
+    cards: list[str]  # Which cards satisfy it
+    coverage_ratio: float  # card_count / combo_count
+
+
+@dataclass
+class RequirementCoverageStats:
+    """Aggregate statistics for coverage ratios across all requirement types."""
+
+    mean_coverage_ratio: float
+    std_dev_coverage_ratio: float
 
 
 @dataclass
@@ -52,3 +79,5 @@ class OptimizationResult:
     phase2_solve_time: float | None = None
     phase2_status: str | None = None
     is_multi_objective: bool = False
+    requirement_type_stats: list[RequirementTypeStats] | None = None
+    requirement_coverage_stats: RequirementCoverageStats | None = None
