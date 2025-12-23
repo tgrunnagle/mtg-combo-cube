@@ -157,6 +157,7 @@ class OptimizationResult:
     requirement_type_stats: list[RequirementTypeStats] | None = None
     requirement_coverage_stats: RequirementCoverageStats | None = None
     cross_template_stats: CrossTemplateStats | None = None
+    phase1_selected_cards: list[CandidateCard] | None = None  # Cards from Phase 1 (before Phase 2)
 
     def get_selected_card_names(self) -> list[str]:
         """Get the names of all selected cards."""

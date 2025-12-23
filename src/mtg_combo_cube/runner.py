@@ -19,6 +19,7 @@ async def run(
     enable_cache_write: bool = True,
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
+    min_coverage_ratio: float = 0.1,
 ):
     """
     Run the cube building algorithm.
@@ -34,6 +35,7 @@ async def run(
         enable_cache_write: Write API responses to cache
         read_cache: Read API responses from cache only
         combo_tolerance: Tolerance for combo count deviation in phase 2
+        min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
     """
     if method == "ilp":
         await run_ilp(
@@ -45,6 +47,7 @@ async def run(
             enable_cache_write=enable_cache_write,
             read_cache=read_cache,
             combo_tolerance=combo_tolerance,
+            min_coverage_ratio=min_coverage_ratio,
         )
     elif method == "greedy":
         await run_greedy(
