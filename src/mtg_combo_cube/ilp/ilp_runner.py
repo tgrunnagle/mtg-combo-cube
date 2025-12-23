@@ -44,7 +44,7 @@ async def collect_variants(
     return variants
 
 
-def write_utilization_stats(
+def write_stats(
     result: OptimizationResult,
     output_file: str,
     cube_size: int,
@@ -301,4 +301,4 @@ async def run_ilp(
         f.write("\n".join(cards))
 
     # Write utilization stats
-    write_utilization_stats(result, output_file, cube_size)
+    write_stats(result, output_file, cube_size)
