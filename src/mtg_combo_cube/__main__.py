@@ -55,7 +55,7 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--read-api-cache",
         action="store_true",
-        help="Read API responses from cache only (fail if cache missing)",
+        help="Attempt to read API responses from cache, fall back to live API calls if cache missing",
     )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)

@@ -3,14 +3,19 @@
 import logging
 import math
 import time
+from collections import defaultdict
 
 from ortools.sat.python import cp_model
 
 from mtg_combo_cube.ilp.ilp_models import (
+    CandidateCard,
     ComboData,
+    CrossTemplateStats,
     OptimizationResult,
     RequirementCoverageStats,
+    RequirementPool,
     RequirementTypeStats,
+    TemplateOverlapPairStats,
     UtilizationStats,
 )
 
@@ -27,24 +32,31 @@ class ILPOptimizer:
 
     DEFAULT_TIME_LIMIT = 300  # 5 minutes
     TIEBREAK_EPSILON = 0.001  # Small weight for popularity tiebreaker
+    VERSATILITY_EPSILON = 0.0001  # Small bonus for multi-template cards
     WEIGHT_SCALE = 10000  # Scale for integer conversion
 
     def __init__(
         self,
         combos: list[ComboData],
+        candidate_cards: dict[str, CandidateCard],
         cube_size: int,
         time_limit_seconds: int = DEFAULT_TIME_LIMIT,
         tiebreak_epsilon: float = TIEBREAK_EPSILON,
         combo_tolerance: float = 0.1,
+        min_coverage_ratio: float = 0.05,
+        min_combo_threshold: int = 10,
     ):
         self.combos = combos
+        self.candidate_cards = candidate_cards
         self.cube_size = cube_size
         self.time_limit = time_limit_seconds
         self.tiebreak_epsilon = tiebreak_epsilon
         self.combo_tolerance = combo_tolerance
+        self.min_coverage_ratio = min_coverage_ratio
+        self.min_combo_threshold = min_combo_threshold
 
-        # Build card universe
-        self.all_cards: list[str] = self._collect_all_cards()
+        # Build card universe from candidate cards
+        self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
@@ -53,19 +65,8 @@ class ILPOptimizer:
             f"{len(self.all_cards)} cards, cube size {cube_size}"
         )
 
-    def _collect_all_cards(self) -> list[str]:
-        """Collect all unique card names from combos."""
-        cards: set[str] = set()
-        for combo in self.combos:
-            cards.update(combo.required_cards)
-            for opt in combo.requirement_options:
-                cards.update(opt.cards)
-        return sorted(cards)  # Sorted for deterministic ordering
-
     def _build_participation_graph(self) -> dict[str, list[ComboData]]:
         """Build mapping of cards to combos they participate in."""
-        from collections import defaultdict
-
         participation: dict[str, list[ComboData]] = defaultdict(list)
 
         for combo in self.combos:
@@ -201,6 +202,153 @@ class ILPOptimizer:
             std_dev_coverage_ratio=std_dev,
         )
 
+    def _build_group_key_to_name_map(
+        self,
+        completable_combo_ids: set[str],
+    ) -> dict[str, str]:
+        """Build mapping from group_key to display name for completable combos."""
+        group_key_to_names: dict[str, set[str]] = defaultdict(set)
+
+        for combo in self.combos:
+            if combo.id not in completable_combo_ids:
+                continue
+            for opt in combo.requirement_options:
+                group_key_to_names[opt.group_key].add(opt.template_name)
+
+        return {key: self._pick_display_name(names) for key, names in group_key_to_names.items()}
+
+    def _calculate_cross_template_stats(
+        self,
+        selected_cards: set[str],
+        group_key_to_name: dict[str, str],
+    ) -> CrossTemplateStats:
+        """Calculate cross-template overlap statistics for selected cards."""
+        # Get candidate cards that are selected
+        selected_candidates = [
+            self.candidate_cards[name] for name in selected_cards if name in self.candidate_cards
+        ]
+
+        # Count distribution
+        template_counts = [c.template_count for c in selected_candidates]
+        cards_by_count: dict[int, int] = {}
+        for count in template_counts:
+            cards_by_count[count] = cards_by_count.get(count, 0) + 1
+
+        # Multi-template cards sorted by template_count
+        multi_template = [c for c in selected_candidates if c.is_multi_template]
+        top_versatile = sorted(multi_template, key=lambda c: -c.template_count)[:10]
+
+        # Calculate pairwise template overlaps
+        template_to_cards: dict[str, set[str]] = defaultdict(set)
+        for card in selected_candidates:
+            for key in card.requirement_group_keys:
+                template_to_cards[key].add(card.name)
+
+        pair_overlaps: list[TemplateOverlapPairStats] = []
+        template_keys = sorted(template_to_cards.keys())
+        for i, t1 in enumerate(template_keys):
+            for t2 in template_keys[i + 1 :]:
+                cards1, cards2 = template_to_cards[t1], template_to_cards[t2]
+                shared = cards1 & cards2
+                if shared:
+                    union_size = len(cards1 | cards2)
+                    pair_overlaps.append(
+                        TemplateOverlapPairStats(
+                            template1_name=group_key_to_name.get(t1, t1),
+                            template2_name=group_key_to_name.get(t2, t2),
+                            shared_cards=sorted(shared),
+                            overlap_count=len(shared),
+                            jaccard_similarity=len(shared) / union_size,
+                        )
+                    )
+
+        top_pairs = sorted(pair_overlaps, key=lambda p: -p.overlap_count)[:10]
+
+        return CrossTemplateStats(
+            multi_template_card_count=len(multi_template),
+            max_templates_per_card=max(template_counts) if template_counts else 0,
+            mean_templates_per_card=(
+                sum(template_counts) / len(template_counts) if template_counts else 0.0
+            ),
+            cards_by_template_count=cards_by_count,
+            top_versatile_cards=top_versatile,
+            top_overlapping_pairs=top_pairs,
+        )
+
+    def _build_requirement_pool_info(self) -> dict[str, RequirementPool]:
+        """
+        Build mapping of requirement group_key to pool information.
+
+        This includes ALL cards that can satisfy each requirement (not just selected cards),
+        and counts ALL combos using the requirement (not just completable ones).
+        """
+        requirement_info: dict[str, dict] = defaultdict(
+            lambda: {"combos": set(), "pool_cards": set(), "display_names": set()}
+        )
+
+        for combo in self.combos:
+            for opt in combo.requirement_options:
+                key = opt.group_key
+                requirement_info[key]["combos"].add(combo.id)
+                requirement_info[key]["pool_cards"].update(opt.cards)
+                requirement_info[key]["display_names"].add(opt.template_name)
+
+        result = {}
+        for key, data in requirement_info.items():
+            display_name = self._pick_display_name(data["display_names"])
+            result[key] = RequirementPool(
+                group_key=key,
+                display_name=display_name,
+                combo_count=len(data["combos"]),
+                pool_cards=frozenset(data["pool_cards"]),
+            )
+        return result
+
+    def _add_coverage_constraints(
+        self,
+        model: cp_model.CpModel,
+        x: dict[str, cp_model.IntVar],
+        requirement_pool_info: dict[str, RequirementPool],
+    ) -> int:
+        """
+        Add minimum coverage ratio constraints to the model.
+
+        Returns the number of constraints added.
+        """
+        constraints_added = 0
+
+        for info in requirement_pool_info.values():
+            # Skip requirements used by few combos
+            if info.combo_count < self.min_combo_threshold:
+                continue
+
+            # Calculate required minimum cards
+            required_min_cards = math.ceil(self.min_coverage_ratio * info.combo_count)
+
+            # Check if enough cards exist in the pool
+            pool_card_count = len(info.pool_cards)
+            if pool_card_count < required_min_cards:
+                logger.warning(
+                    f"Cannot meet minimum coverage for '{info.display_name}': "
+                    f"need {required_min_cards} cards but only {pool_card_count} available "
+                    f"(used by {info.combo_count} combos)"
+                )
+                # Use max available as soft constraint
+                required_min_cards = pool_card_count
+
+            if required_min_cards > 0:
+                # Only add constraint for cards in our card universe
+                cards_in_universe = [c for c in info.pool_cards if c in x]
+                if len(cards_in_universe) >= required_min_cards:
+                    model.add(sum(x[card] for card in cards_in_universe) >= required_min_cards)
+                    constraints_added += 1
+                    logger.debug(
+                        f"Coverage constraint: '{info.display_name}' needs >= {required_min_cards} "
+                        f"cards (from {len(cards_in_universe)} available)"
+                    )
+
+        return constraints_added
+
     def solve(self) -> OptimizationResult:
         """
         Build and solve the ILP model.
@@ -218,7 +366,7 @@ class ILPOptimizer:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=time.time() - start_time,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
             )
 
         # Handle edge case: not enough cards for cube size
@@ -232,7 +380,7 @@ class ILPOptimizer:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=time.time() - start_time,
-                status="INFEASIBLE",
+                phase1_status="INFEASIBLE",
             )
 
         model = cp_model.CpModel()
@@ -284,19 +432,26 @@ class ILPOptimizer:
         status_str = self._status_to_string(status)  # type: ignore[arg-type]
 
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
-            selected = [card for card in self.all_cards if solver.value(x[card]) == 1]
+            selected_names = [card for card in self.all_cards if solver.value(x[card]) == 1]
+            selected = [self.candidate_cards[name] for name in selected_names]
             completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
             objective = solver.objective_value
 
             # Calculate utilization for this solution
-            utilization = self._calculate_utilization(selected, completed)
+            utilization = self._calculate_utilization(selected_names, completed)
             utilization_stats = self._compute_utilization_stats(utilization)
 
             # Calculate requirement type stats
-            selected_set = set(selected)
+            selected_name_set = set(selected_names)
             completed_set = set(completed)
-            req_stats = self._calculate_requirement_stats(selected_set, completed_set)
+            req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
             coverage_stats = self._compute_coverage_stats(req_stats)
+
+            # Calculate cross-template stats
+            group_key_to_name = self._build_group_key_to_name_map(completed_set)
+            cross_template_stats = self._calculate_cross_template_stats(
+                selected_name_set, group_key_to_name
+            )
 
             logger.info(
                 f"ILP solved ({status_str}): {len(selected)} cards, "
@@ -316,13 +471,14 @@ class ILPOptimizer:
                 combo_count=len(completed),
                 objective_value=objective / self.WEIGHT_SCALE,
                 solve_time_seconds=solve_time,
-                status=status_str,
+                phase1_status=status_str,
                 utilization_per_card=utilization,
                 phase1_utilization_stats=utilization_stats,
                 phase1_solve_time=solve_time,
                 is_multi_objective=False,
                 requirement_type_stats=req_stats,
                 requirement_coverage_stats=coverage_stats,
+                cross_template_stats=cross_template_stats,
             )
         else:
             logger.warning(f"ILP solve failed: {status_str}")
@@ -332,7 +488,7 @@ class ILPOptimizer:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=solve_time,
-                status=status_str,
+                phase1_status=status_str,
             )
 
     def _solve_phase2(
@@ -395,6 +551,15 @@ class ILPOptimizer:
             # No tolerance - use exact equality (current behavior)
             model.add(combo_sum == target_combo_count)
 
+        # Add minimum coverage ratio constraints
+        if self.min_coverage_ratio > 0:
+            requirement_pool_info = self._build_requirement_pool_info()
+            num_constraints = self._add_coverage_constraints(model, x, requirement_pool_info)
+            logger.info(
+                f"Phase 2: Added {num_constraints} coverage constraints "
+                f"(min_ratio={self.min_coverage_ratio}, min_combos={self.min_combo_threshold})"
+            )
+
         # Utilization variables: u[card] = count of completable combos card participates in
         u: dict[str, cp_model.IntVar] = {}
         for card in self.all_cards:
@@ -434,8 +599,22 @@ class ILPOptimizer:
             model.add(d_plus[card] == 0).only_enforce_if(x[card].Not())
             model.add(d_minus[card] == 0).only_enforce_if(x[card].Not())
 
-        # Objective: Minimize total absolute deviation
-        model.minimize(sum(d_plus[card] + d_minus[card] for card in self.all_cards))
+        # Objective: Minimize total absolute deviation with versatility bonus
+        mad_terms = sum(d_plus[card] + d_minus[card] for card in self.all_cards)
+
+        # Add versatility bonus (subtract because we're minimizing)
+        # Cards satisfying more templates get a small bonus
+        versatility_bonus = sum(
+            int(
+                self.VERSATILITY_EPSILON
+                * math.log1p(self.candidate_cards[card].template_count)
+                * self.WEIGHT_SCALE
+            )
+            * x[card]
+            for card in self.all_cards
+        )
+
+        model.minimize(mad_terms - versatility_bonus)
 
         # Solve
         solver = cp_model.CpSolver()
@@ -453,18 +632,25 @@ class ILPOptimizer:
             return phase1_result
 
         # Extract Phase 2 solution
-        selected = [card for card in self.all_cards if solver.value(x[card]) == 1]
+        selected_names = [card for card in self.all_cards if solver.value(x[card]) == 1]
+        selected = [self.candidate_cards[name] for name in selected_names]
         completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
 
         # Calculate Phase 2 utilization stats
-        utilization = self._calculate_utilization(selected, completed)
+        utilization = self._calculate_utilization(selected_names, completed)
         phase2_stats = self._compute_utilization_stats(utilization)
 
         # Calculate requirement type stats for Phase 2 solution
-        selected_set = set(selected)
+        selected_name_set = set(selected_names)
         completed_set = set(completed)
-        req_stats = self._calculate_requirement_stats(selected_set, completed_set)
+        req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
+
+        # Calculate cross-template stats
+        group_key_to_name = self._build_group_key_to_name_map(completed_set)
+        cross_template_stats = self._calculate_cross_template_stats(
+            selected_name_set, group_key_to_name
+        )
 
         # Calculate improvement metrics
         p1 = phase1_result.phase1_utilization_stats
@@ -495,7 +681,7 @@ class ILPOptimizer:
             combo_count=len(completed),
             objective_value=phase1_result.objective_value,  # Preserve Phase 1 objective
             solve_time_seconds=phase1_result.phase1_solve_time + phase2_time,  # type: ignore
-            status=status_str,
+            phase1_status=phase1_result.phase1_status,
             utilization_per_card=utilization,
             phase1_utilization_stats=phase1_result.phase1_utilization_stats,
             phase2_utilization_stats=phase2_stats,
@@ -505,6 +691,7 @@ class ILPOptimizer:
             is_multi_objective=True,
             requirement_type_stats=req_stats,
             requirement_coverage_stats=coverage_stats,
+            cross_template_stats=cross_template_stats,
         )
 
     def solve_two_phase(self) -> OptimizationResult:
@@ -520,8 +707,8 @@ class ILPOptimizer:
         phase1_result = self.solve()
 
         # Handle Phase 1 failure or edge cases
-        if phase1_result.status not in ("OPTIMAL", "FEASIBLE"):
-            logger.warning(f"Phase 1 failed: {phase1_result.status}")
+        if phase1_result.phase1_status not in ("OPTIMAL", "FEASIBLE"):
+            logger.warning(f"Phase 1 failed: {phase1_result.phase1_status}")
             return phase1_result
 
         if phase1_result.combo_count == 0:

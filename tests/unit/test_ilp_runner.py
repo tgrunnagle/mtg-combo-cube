@@ -6,8 +6,16 @@ from pathlib import Path
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import OptimizationResult, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import CandidateCard, OptimizationResult, UtilizationStats
 from mtg_combo_cube.ilp.ilp_runner import write_utilization_stats
+
+
+def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
+    """Helper to create CandidateCard objects from names for testing."""
+    return [
+        CandidateCard(name=name, combo_ids=frozenset(), requirement_group_keys=frozenset())
+        for name in names
+    ]
 
 
 class TestWriteUtilizationStats:
@@ -20,12 +28,12 @@ class TestWriteUtilizationStats:
             stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
             result = OptimizationResult(
-                selected_cards=["Card A", "Card B", "Card C"],
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
                 completable_combo_ids=["combo1", "combo2"],
                 combo_count=2,
                 objective_value=2.0,
                 solve_time_seconds=1.5,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
                 utilization_per_card={"Card A": 2, "Card B": 1, "Card C": 1},
                 phase1_utilization_stats=UtilizationStats(
                     min_utilization=1,
@@ -49,7 +57,7 @@ class TestWriteUtilizationStats:
             assert stats["metadata"]["cube_size"] == 3
             assert stats["metadata"]["combo_count"] == 2
             assert stats["metadata"]["optimization_method"] == "single_phase"
-            assert stats["metadata"]["status"] == "OPTIMAL"
+            assert stats["metadata"]["phase1_status"] == "OPTIMAL"
             assert stats["metadata"]["total_solve_time_seconds"] == 1.5
 
             assert stats["phase1"] is not None
@@ -83,12 +91,12 @@ class TestWriteUtilizationStats:
             )
 
             result = OptimizationResult(
-                selected_cards=["Card A", "Card B", "Card C"],
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
                 completable_combo_ids=["combo1", "combo2"],
                 combo_count=2,
                 objective_value=2.0,
                 solve_time_seconds=3.0,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
                 utilization_per_card={"Card A": 2, "Card B": 3, "Card C": 4},
                 phase1_utilization_stats=p1_stats,
                 phase2_utilization_stats=p2_stats,
@@ -129,17 +137,18 @@ class TestWriteUtilizationStats:
             output_file = str(Path(tmpdir) / "data/cube.txt")
             stats_file = str(Path(tmpdir) / "data/cube_stats.json")
 
+            card_names = [f"Card {chr(65 + i)}" for i in range(15)]
             utilization = {
-                f"Card {chr(65 + i)}": i + 1 for i in range(15)
+                name: i + 1 for i, name in enumerate(card_names)
             }  # Card A=1, B=2, ..., O=15
 
             result = OptimizationResult(
-                selected_cards=list(utilization.keys()),
+                selected_cards=make_candidate_cards(card_names),
                 completable_combo_ids=["combo1"],
                 combo_count=1,
                 objective_value=1.0,
                 solve_time_seconds=1.0,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
                 utilization_per_card=utilization,
                 phase1_utilization_stats=UtilizationStats(1, 15, 8.0, 4.0, 50, 8.0),
                 phase1_solve_time=1.0,
@@ -174,7 +183,7 @@ class TestWriteUtilizationStats:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=0.0,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
             )
 
             write_utilization_stats(result, output_file, 0)
@@ -196,7 +205,7 @@ class TestWriteUtilizationStats:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=0.0,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
                 utilization_per_card={},
                 phase1_utilization_stats=p1_stats,
                 phase2_utilization_stats=p2_stats,
@@ -227,7 +236,7 @@ class TestWriteUtilizationStats:
                 combo_count=0,
                 objective_value=0.0,
                 solve_time_seconds=0.0,
-                status="OPTIMAL",
+                phase1_status="OPTIMAL",
             )
 
             write_utilization_stats(result, output_file, 0)

@@ -1,10 +1,11 @@
 """Converts Variant objects to ILP-ready ComboData."""
 
 import logging
+from collections import defaultdict
 
 import aiohttp
 
-from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
+from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, RequirementOption
 from mtg_combo_cube.ilp.requirement_normalizer import compute_requirement_group_key
 from mtg_combo_cube.models import Variant
 
@@ -22,16 +23,19 @@ class ComboPreprocessor:
     async def preprocess_variants(
         self,
         variants: list[Variant],
-    ) -> tuple[list[ComboData], set[str]]:
+    ) -> tuple[list[ComboData], dict[str, CandidateCard]]:
         """
-        Convert variants to ComboData and collect all card names.
+        Convert variants to ComboData and build candidate cards.
 
         Returns:
             - List of ComboData for ILP
-            - Set of all unique card names in the universe
+            - Dict of card_name -> CandidateCard with all relationships
         """
         combo_data_list: list[ComboData] = []
-        all_cards: set[str] = set()
+
+        # Track relationships per card
+        card_combo_ids: dict[str, set[str]] = defaultdict(set)
+        card_requirement_keys: dict[str, set[str]] = defaultdict(set)
 
         for variant in variants:
             combo_data = await self._process_single_variant(variant)
@@ -39,14 +43,31 @@ class ComboPreprocessor:
                 continue  # Skip unresolvable combos
 
             combo_data_list.append(combo_data)
-            all_cards.update(combo_data.required_cards)
+
+            # Track direct combo participation
+            for card in combo_data.required_cards:
+                card_combo_ids[card].add(combo_data.id)
+
+            # Track requirement template satisfaction
             for opt in combo_data.requirement_options:
-                all_cards.update(opt.cards)
+                for card in opt.cards:
+                    card_requirement_keys[card].add(opt.group_key)
+
+        # Build CandidateCard instances
+        all_card_names = set(card_combo_ids.keys()) | set(card_requirement_keys.keys())
+        candidate_cards = {
+            name: CandidateCard(
+                name=name,
+                combo_ids=frozenset(card_combo_ids.get(name, set())),
+                requirement_group_keys=frozenset(card_requirement_keys.get(name, set())),
+            )
+            for name in all_card_names
+        }
 
         logger.info(
-            f"Preprocessed {len(combo_data_list)} combos with {len(all_cards)} unique cards"
+            f"Preprocessed {len(combo_data_list)} combos with {len(candidate_cards)} unique cards"
         )
-        return combo_data_list, all_cards
+        return combo_data_list, candidate_cards
 
     async def _process_single_variant(self, variant: Variant) -> ComboData | None:
         """Convert a single Variant to ComboData."""
