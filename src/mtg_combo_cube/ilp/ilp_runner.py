@@ -142,6 +142,7 @@ def write_utilization_stats(
                     "card_count": r.card_count,
                     "coverage_ratio": r.coverage_ratio,
                     "cards": r.cards,
+                    **({"aliases": r.aliases} if r.aliases else {}),
                 }
                 for r in sorted(result.requirement_type_stats, key=lambda x: -x.combo_count)
             ],

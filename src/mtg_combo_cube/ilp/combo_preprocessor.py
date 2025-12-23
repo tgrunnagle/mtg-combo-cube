@@ -5,6 +5,7 @@ import logging
 import aiohttp
 
 from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
+from mtg_combo_cube.ilp.requirement_normalizer import compute_requirement_group_key
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)
@@ -64,9 +65,15 @@ class ComboPreprocessor:
             if not cards:
                 logger.debug(f"Skipping combo {variant.id}: empty requirement options")
                 return None
+
+            group_key = compute_requirement_group_key(
+                req.template.scryfall_api,
+                req.template.name,
+            )
             requirement_options.append(
                 RequirementOption(
                     template_name=req.template.name,
+                    group_key=group_key,
                     cards=frozenset(cards),
                 )
             )
