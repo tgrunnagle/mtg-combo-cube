@@ -28,7 +28,9 @@ class TestILPOptimizerInit:
             ComboData(
                 id="combo2",
                 required_cards=frozenset(["Card B", "Card C"]),
-                requirement_options=[RequirementOption("Sac outlet", frozenset(["Card D"]))],
+                requirement_options=[
+                    RequirementOption("Sac outlet", "scryfall:q=sac outlet", frozenset(["Card D"]))
+                ],
                 popularity=50,
             ),
         ]
@@ -48,7 +50,9 @@ class TestILPOptimizerInit:
                 id="combo2",
                 required_cards=frozenset(["Card B"]),
                 requirement_options=[
-                    RequirementOption("Sac outlet", frozenset(["Card C", "Card D"]))
+                    RequirementOption(
+                        "Sac outlet", "scryfall:q=sac outlet", frozenset(["Card C", "Card D"])
+                    )
                 ],
                 popularity=50,
             ),
@@ -127,7 +131,9 @@ class TestILPOptimizerHelpers:
                 id="combo1",
                 required_cards=frozenset(["Card A"]),
                 requirement_options=[
-                    RequirementOption("Sac outlet", frozenset(["Card B", "Card C"]))
+                    RequirementOption(
+                        "Sac outlet", "scryfall:q=sac outlet", frozenset(["Card B", "Card C"])
+                    )
                 ],
                 popularity=100,
             ),
@@ -253,7 +259,9 @@ class TestILPOptimizerSolve:
                 id="combo1",
                 required_cards=frozenset(["Card A"]),
                 requirement_options=[
-                    RequirementOption("Sac outlet", frozenset(["Card B", "Card C"]))
+                    RequirementOption(
+                        "Sac outlet", "scryfall:q=sac outlet", frozenset(["Card B", "Card C"])
+                    )
                 ],
                 popularity=100,
             ),

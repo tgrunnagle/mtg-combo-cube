@@ -7,7 +7,8 @@ from dataclasses import dataclass
 class RequirementOption:
     """A single template requirement with its matching cards."""
 
-    template_name: str
+    template_name: str  # Human-readable name for display
+    group_key: str  # Canonical key for deduplication
     cards: frozenset[str]
 
 
@@ -50,6 +51,7 @@ class RequirementTypeStats:
     card_count: int  # How many cards in cube satisfy this requirement
     cards: list[str]  # Which cards satisfy it
     coverage_ratio: float  # card_count / combo_count
+    aliases: list[str] | None = None  # Other names that were merged into this group
 
 
 @dataclass

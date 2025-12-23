@@ -137,32 +137,51 @@ class ILPOptimizer:
         completable_combo_ids: set[str],
     ) -> list[RequirementTypeStats]:
         """Calculate stats for each requirement type in completable combos."""
+        # Group by group_key, but track all display names seen
         template_stats: dict[str, dict[str, set[str]]] = {}
 
         for combo in self.combos:
             if combo.id not in completable_combo_ids:
                 continue
             for opt in combo.requirement_options:
-                name = opt.template_name
-                if name not in template_stats:
-                    template_stats[name] = {"combos": set(), "cards": set()}
-                template_stats[name]["combos"].add(combo.id)
+                key = opt.group_key
+                if key not in template_stats:
+                    template_stats[key] = {
+                        "combos": set(),
+                        "cards": set(),
+                        "display_names": set(),
+                    }
+                template_stats[key]["combos"].add(combo.id)
+                template_stats[key]["display_names"].add(opt.template_name)
                 # Cards that satisfy this requirement AND are in the cube
                 satisfying = opt.cards & selected_cards
-                template_stats[name]["cards"].update(satisfying)
+                template_stats[key]["cards"].update(satisfying)
 
-        return [
-            RequirementTypeStats(
-                template_name=name,
-                combo_count=len(data["combos"]),
-                card_count=len(data["cards"]),
-                cards=sorted(data["cards"]),
-                coverage_ratio=(
-                    len(data["cards"]) / len(data["combos"]) if data["combos"] else 0.0
-                ),
+        result = []
+        for _key, data in sorted(template_stats.items()):
+            display_name = self._pick_display_name(data["display_names"])
+            other_names = sorted(data["display_names"] - {display_name})
+            result.append(
+                RequirementTypeStats(
+                    template_name=display_name,
+                    combo_count=len(data["combos"]),
+                    card_count=len(data["cards"]),
+                    cards=sorted(data["cards"]),
+                    coverage_ratio=(
+                        len(data["cards"]) / len(data["combos"]) if data["combos"] else 0.0
+                    ),
+                    aliases=other_names if other_names else None,
+                )
             )
-            for name, data in sorted(template_stats.items())
-        ]
+        return result
+
+    def _pick_display_name(self, names: set[str]) -> str:
+        """Pick the best display name from a set of aliases.
+
+        Strategy: Pick the shortest name (usually the most general).
+        If tied, pick alphabetically first for determinism.
+        """
+        return min(names, key=lambda n: (len(n), n))
 
     def _compute_coverage_stats(
         self,

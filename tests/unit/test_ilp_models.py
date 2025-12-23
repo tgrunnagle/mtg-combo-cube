@@ -27,8 +27,10 @@ class TestComboData:
             id="combo1",
             required_cards=frozenset(["Card A"]),
             requirement_options=[
-                RequirementOption("Sac outlet", frozenset(["Card B", "Card C"])),
-                RequirementOption("Mana dork", frozenset(["Card D"])),
+                RequirementOption(
+                    "Sac outlet", "scryfall:q=sac outlet", frozenset(["Card B", "Card C"])
+                ),
+                RequirementOption("Mana dork", "scryfall:q=mana dork", frozenset(["Card D"])),
             ],
             popularity=100,
         )
@@ -40,8 +42,8 @@ class TestComboData:
             id="combo1",
             required_cards=frozenset(["Card A"]),
             requirement_options=[
-                RequirementOption("Empty req", frozenset()),
-                RequirementOption("Valid req", frozenset(["Card B"])),
+                RequirementOption("Empty req", "name:empty req", frozenset()),
+                RequirementOption("Valid req", "name:valid req", frozenset(["Card B"])),
             ],
             popularity=100,
         )
