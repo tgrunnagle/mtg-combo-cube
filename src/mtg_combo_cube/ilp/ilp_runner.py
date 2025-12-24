@@ -212,6 +212,7 @@ async def build_cube_ilp(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
+    blocklist: frozenset[str] = frozenset(),
 ) -> tuple[list[str], int, OptimizationResult]:
     """
     Build cube using ILP optimization with optional API caching.
@@ -239,7 +240,7 @@ async def build_cube_ilp(
     )
 
     # Step 2: Preprocess for ILP
-    preprocessor = ComboPreprocessor()
+    preprocessor = ComboPreprocessor(blocklist=blocklist)
     combo_data, candidate_cards = await preprocessor.preprocess_variants(variants)
 
     if len(candidate_cards) < cube_size:
@@ -295,6 +296,7 @@ async def run_ilp(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
+    blocklist: frozenset[str] = frozenset(),
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
@@ -307,6 +309,7 @@ async def run_ilp(
         combo_tolerance=combo_tolerance,
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
+        blocklist=blocklist,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")

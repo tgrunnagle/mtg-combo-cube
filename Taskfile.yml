@@ -9,6 +9,14 @@ tasks:
   lint:
     desc: Run linting with ruff
     cmds:
+      - uv run ruff check --select I
+      - uv run ruff check .
+    deps:
+      - install
+
+  lint:fix:
+    desc: Run linting with ruff and fix
+    cmds:
       - uv run ruff check --select I --fix .
       - uv run ruff check . --fix
     deps:
@@ -67,7 +75,7 @@ tasks:
   build:ilp:
     desc: Build a cube using ILP two-phase optimization (default)
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "1200"}} -n {{.MAX_VARIANTS | default "10000"}}
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "1800"}} -n {{.MAX_VARIANTS | default "10000"}}
     deps:
       - install
 

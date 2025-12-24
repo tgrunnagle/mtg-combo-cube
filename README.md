@@ -58,6 +58,8 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -n, --max-variants     Max combo variants to fetch (default: 10000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
 --combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
+--skip-api-caching     Skip writing API responses to cache files
+--read-api-cache       Read from cache if available, fall back to API if not
 -d, --debug            Enable debug logging
 ```
 
@@ -82,13 +84,34 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0.25
 uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
 
 # Custom output file and time limit
-uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 600
+uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 ```
 
 ### Output Files
 
 - **data/cube.txt**: List of selected cards (one per line)
 - **data/cube_stats.json**: Utilization statistics and optimization metrics (ILP only)
+
+### API Caching
+
+The tool caches Commander Spellbook API responses to speed up repeated runs and reduce API load.
+
+**Cache behavior:**
+- By default, API responses are written to `data/cache/` after fetching
+- Use `--read-api-cache` to read from cache when available (falls back to live API on cache miss)
+- Use `--skip-api-caching` to disable writing to cache
+- Cache files are named based on parameters: `variants_cards{max}_max{variants}.json`
+
+```bash
+# First run: fetches from API and caches results
+uv run python -m src.mtg_combo_cube -c 300 --method ilp
+
+# Subsequent runs: use cached data for faster iteration
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --read-api-cache
+
+# Force fresh API fetch without caching
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
+```
 
 ## Optimization Methods
 
@@ -195,7 +218,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
 1. Fetch and preprocess combo variants
 2. Build constraint satisfaction model with:
    - Cube size constraint
-   - Combo completion requirements (required cards + optional requirements)
+   - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
 4. **Phase 2** (if enabled): Minimize utilization variance with fixed combo count

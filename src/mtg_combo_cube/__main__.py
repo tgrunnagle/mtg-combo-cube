@@ -62,7 +62,13 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--read-api-cache",
         action="store_true",
-        help="Attempt to read API responses from cache, fall back to live API calls if cache missing",
+        help="Read API responses from cache, fall back to live API if missing",
+    )
+    argparser.add_argument(
+        "--blocklist",
+        type=str,
+        default=None,
+        help="Path to blocklist file (default: data/blocklist.txt)",
     )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
@@ -80,5 +86,6 @@ if __name__ == "__main__":
             read_cache=args.read_api_cache,
             combo_tolerance=args.combo_tolerance,
             min_coverage_ratio=args.min_coverage_ratio,
+            blocklist_path=args.blocklist,
         )
     )

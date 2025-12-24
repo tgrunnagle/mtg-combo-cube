@@ -2,6 +2,7 @@
 
 import logging
 
+from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_runner import run_ilp
 
@@ -20,6 +21,7 @@ async def run(
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
+    blocklist_path: str | None = None,
 ):
     """
     Run the cube building algorithm.
@@ -36,7 +38,10 @@ async def run(
         read_cache: Read API responses from cache only
         combo_tolerance: Tolerance for combo count deviation in phase 2
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
+        blocklist_path: Path to blocklist file (default: data/blocklist.txt)
     """
+    blocklist = load_blocklist(blocklist_path)
+
     if method == "ilp":
         await run_ilp(
             cube_size=cube_size,
@@ -48,12 +53,14 @@ async def run(
             read_cache=read_cache,
             combo_tolerance=combo_tolerance,
             min_coverage_ratio=min_coverage_ratio,
+            blocklist=blocklist,
         )
     elif method == "greedy":
         await run_greedy(
             cube_size=cube_size,
             output_file=output_file,
             golden_ratio=golden_ratio,
+            blocklist=blocklist,
         )
     else:
         raise ValueError(f"Unknown method: {method}")

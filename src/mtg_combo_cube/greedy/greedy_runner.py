@@ -11,13 +11,19 @@ logger = logging.getLogger(__name__)
 
 
 class GreedyRunner:
-    def __init__(self, cube_size: int, spellbook: CommanderSpellbook | None = None):
+    def __init__(
+        self,
+        cube_size: int,
+        spellbook: CommanderSpellbook | None = None,
+        blocklist: frozenset[str] = frozenset(),
+    ):
         self._cube_size = cube_size
         self._cube = []
         self._combos_cache = []
         self._combos_cache_lock = asyncio.Lock()
-        self._variant_tracker = VariantTracker()
+        self._variant_tracker = VariantTracker(blocklist=blocklist)
         self._spellbook = spellbook if spellbook is not None else CommanderSpellbook()
+        self._blocklist = blocklist
 
     GOLDEN_RATIO = 1.2
 
@@ -49,8 +55,9 @@ class GreedyRunner:
             existing_cards=top_cards, max_variants=2000
         ):
             for use in variant.uses:
-                if use.card.name not in top_cards:
-                    almost_included_cards[use.card.name] += 1
+                card_name = use.card.name
+                if card_name not in top_cards and card_name not in self._blocklist:
+                    almost_included_cards[card_name] += 1
         added_cards = [
             card for card, _ in almost_included_cards.most_common(self._cube_size - len(top_cards))
         ]
@@ -100,17 +107,22 @@ class GreedyRunner:
             existing_cards=existing_cards, max_variants=1000
         ):
             for use in variant.uses:
-                if use.card.name not in existing_cards:
-                    self._cube.append(use.card.name)
+                card_name = use.card.name
+                if card_name not in existing_cards and card_name not in self._blocklist:
+                    self._cube.append(card_name)
                 if len(self._cube) == self._cube_size:
                     break
             if len(self._cube) == self._cube_size:
                 break
 
 
-async def build_cube(cube_size: int, golden_ratio: float) -> tuple[list[str], int]:
+async def build_cube(
+    cube_size: int,
+    golden_ratio: float,
+    blocklist: frozenset[str] = frozenset(),
+) -> tuple[list[str], int]:
     """Build a cube using the greedy algorithm."""
-    greedy_runner = GreedyRunner(cube_size)
+    greedy_runner = GreedyRunner(cube_size, blocklist=blocklist)
     logger.info(f"Building {cube_size} card cube with golden ratio of {golden_ratio}...")
     await greedy_runner.build_cube(golden_ratio=golden_ratio)
     logger.info(f"Built cube of size {len(greedy_runner.get_cube())}")
@@ -135,10 +147,15 @@ async def build_cube(cube_size: int, golden_ratio: float) -> tuple[list[str], in
     return greedy_runner.get_cube(), len(combos)
 
 
-async def run_greedy(cube_size: int, output_file: str, golden_ratio: float | None = None):
+async def run_greedy(
+    cube_size: int,
+    output_file: str,
+    golden_ratio: float | None = None,
+    blocklist: frozenset[str] = frozenset(),
+):
     """Entry point for greedy-based cube building."""
     golden_ratio = golden_ratio if golden_ratio else GreedyRunner.GOLDEN_RATIO
-    result = await build_cube(cube_size, golden_ratio)
+    result = await build_cube(cube_size, golden_ratio, blocklist=blocklist)
 
     logger.info(f"Found {result[1]} combos with golden ratio {golden_ratio}")
     with open(output_file, "w", encoding="utf-8") as f:
