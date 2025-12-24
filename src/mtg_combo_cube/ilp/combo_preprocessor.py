@@ -17,8 +17,9 @@ class ComboPreprocessor:
 
     REQUIREMENT_CARD_LIMIT = 10  # Max cards per template requirement
 
-    def __init__(self):
+    def __init__(self, blocklist: frozenset[str] = frozenset()):
         self._scryfall_cache: dict[str, list[str]] = {}
+        self._blocklist = blocklist
 
     async def preprocess_variants(
         self,
@@ -74,6 +75,12 @@ class ComboPreprocessor:
         # Extract required cards from 'uses'
         required_cards = frozenset(use.card.name for use in variant.uses)
 
+        # Skip combo if ANY required card is blocked
+        if required_cards & self._blocklist:
+            blocked = required_cards & self._blocklist
+            logger.debug(f"Skipping combo {variant.id}: blocked cards {blocked}")
+            return None
+
         # Resolve template requirements
         requirement_options: list[RequirementOption] = []
         for req in variant.requires:
@@ -123,6 +130,8 @@ class ComboPreprocessor:
                         return []
                     data = await response.json()
                     cards = [card["name"] for card in data.get("data", [])]
+                    # Filter out blocked cards before applying limit
+                    cards = [card for card in cards if card not in self._blocklist]
                     cards = cards[: self.REQUIREMENT_CARD_LIMIT]
 
             self._scryfall_cache[url] = cards
