@@ -116,6 +116,20 @@ def write_stats(
                 "range_after": p2.max_utilization - p2.min_utilization,
             }
 
+            # Add card changes between Phase 1 and Phase 2
+            if result.phase1_selected_cards is not None:
+                phase1_names = {c.name for c in result.phase1_selected_cards}
+                phase2_names = {c.name for c in result.selected_cards}
+
+                cards_added = sorted(phase2_names - phase1_names)
+                cards_removed = sorted(phase1_names - phase2_names)
+
+                stats["improvement"]["card_changes"] = {
+                    "cards_added": cards_added,
+                    "cards_removed": cards_removed,
+                    "total_changed": len(cards_added) + len(cards_removed),
+                }
+
     # Top and bottom utilized cards
     if result.utilization_per_card:
         sorted_cards = sorted(result.utilization_per_card.items(), key=lambda x: x[1], reverse=True)
@@ -196,7 +210,7 @@ async def build_cube_ilp(
     enable_cache_write: bool = True,
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
-    min_coverage_ratio: float = 0.05,
+    min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
@@ -279,7 +293,7 @@ async def run_ilp(
     enable_cache_write: bool = True,
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
-    min_coverage_ratio: float = 0.05,
+    min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
 ):
     """Entry point for ILP-based cube building with caching support."""

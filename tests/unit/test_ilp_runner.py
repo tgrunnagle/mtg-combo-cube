@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, OptimizationResult, UtilizationStats
-from mtg_combo_cube.ilp.ilp_runner import write_utilization_stats
+from mtg_combo_cube.ilp.ilp_runner import write_stats
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -47,7 +47,7 @@ class TestWriteUtilizationStats:
                 is_multi_objective=False,
             )
 
-            write_utilization_stats(result, output_file, 3)
+            write_stats(result, output_file, 3)
 
             assert Path(stats_file).exists()
 
@@ -106,7 +106,7 @@ class TestWriteUtilizationStats:
                 is_multi_objective=True,
             )
 
-            write_utilization_stats(result, output_file, 3)
+            write_stats(result, output_file, 3)
 
             assert Path(stats_file).exists()
 
@@ -155,7 +155,7 @@ class TestWriteUtilizationStats:
                 is_multi_objective=False,
             )
 
-            write_utilization_stats(result, output_file, 15)
+            write_stats(result, output_file, 15)
 
             with open(stats_file) as f:
                 stats = json.load(f)
@@ -186,7 +186,7 @@ class TestWriteUtilizationStats:
                 phase1_status="OPTIMAL",
             )
 
-            write_utilization_stats(result, output_file, 0)
+            write_stats(result, output_file, 0)
 
             assert Path(stats_file).exists()
 
@@ -216,7 +216,7 @@ class TestWriteUtilizationStats:
             )
 
             # Should not raise ZeroDivisionError
-            write_utilization_stats(result, output_file, 0)
+            write_stats(result, output_file, 0)
 
             with open(stats_file) as f:
                 stats = json.load(f)
@@ -239,7 +239,7 @@ class TestWriteUtilizationStats:
                 phase1_status="OPTIMAL",
             )
 
-            write_utilization_stats(result, output_file, 0)
+            write_stats(result, output_file, 0)
 
             with open(stats_file) as f:
                 stats = json.load(f)
@@ -247,3 +247,137 @@ class TestWriteUtilizationStats:
             assert "timestamp" in stats["metadata"]
             # Should be ISO format with timezone
             assert "T" in stats["metadata"]["timestamp"]
+
+    def test_write_stats_card_changes(self):
+        """Test that card changes between phases are recorded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            p1_stats = UtilizationStats(
+                min_utilization=1,
+                max_utilization=5,
+                mean_utilization=3.0,
+                std_deviation=1.5,
+                total_absolute_deviation=10,
+                median_utilization=3.0,
+            )
+            p2_stats = UtilizationStats(
+                min_utilization=2,
+                max_utilization=4,
+                mean_utilization=3.0,
+                std_deviation=0.8,
+                total_absolute_deviation=6,
+                median_utilization=3.0,
+            )
+
+            # Phase 1 had: Card A, Card B, Card C
+            # Phase 2 has: Card A, Card D, Card E (removed B, C; added D, E)
+            phase1_cards = make_candidate_cards(["Card A", "Card B", "Card C"])
+            phase2_cards = make_candidate_cards(["Card A", "Card D", "Card E"])
+
+            result = OptimizationResult(
+                selected_cards=phase2_cards,
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=3.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card D": 3, "Card E": 4},
+                phase1_utilization_stats=p1_stats,
+                phase2_utilization_stats=p2_stats,
+                phase1_solve_time=1.5,
+                phase2_solve_time=1.5,
+                phase2_status="OPTIMAL",
+                is_multi_objective=True,
+                phase1_selected_cards=phase1_cards,
+            )
+
+            write_stats(result, output_file, 3)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            assert "card_changes" in stats["improvement"]
+            card_changes = stats["improvement"]["card_changes"]
+
+            assert card_changes["cards_added"] == ["Card D", "Card E"]
+            assert card_changes["cards_removed"] == ["Card B", "Card C"]
+            assert card_changes["total_changed"] == 4
+
+    def test_write_stats_card_changes_no_changes(self):
+        """Test that card_changes is recorded even when no cards change."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            p1_stats = UtilizationStats(1, 5, 3.0, 1.5, 10, 3.0)
+            p2_stats = UtilizationStats(2, 4, 3.0, 0.8, 6, 3.0)
+
+            # Same cards in both phases
+            phase1_cards = make_candidate_cards(["Card A", "Card B", "Card C"])
+            phase2_cards = make_candidate_cards(["Card A", "Card B", "Card C"])
+
+            result = OptimizationResult(
+                selected_cards=phase2_cards,
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=3.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 3, "Card C": 4},
+                phase1_utilization_stats=p1_stats,
+                phase2_utilization_stats=p2_stats,
+                phase1_solve_time=1.5,
+                phase2_solve_time=1.5,
+                phase2_status="OPTIMAL",
+                is_multi_objective=True,
+                phase1_selected_cards=phase1_cards,
+            )
+
+            write_stats(result, output_file, 3)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            assert "card_changes" in stats["improvement"]
+            card_changes = stats["improvement"]["card_changes"]
+
+            assert card_changes["cards_added"] == []
+            assert card_changes["cards_removed"] == []
+            assert card_changes["total_changed"] == 0
+
+    def test_write_stats_card_changes_not_present_without_phase1_cards(self):
+        """Test that card_changes is not present when phase1_selected_cards is None."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            p1_stats = UtilizationStats(1, 5, 3.0, 1.5, 10, 3.0)
+            p2_stats = UtilizationStats(2, 4, 3.0, 0.8, 6, 3.0)
+
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=3.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 3, "Card C": 4},
+                phase1_utilization_stats=p1_stats,
+                phase2_utilization_stats=p2_stats,
+                phase1_solve_time=1.5,
+                phase2_solve_time=1.5,
+                phase2_status="OPTIMAL",
+                is_multi_objective=True,
+                # phase1_selected_cards is None (not provided)
+            )
+
+            write_stats(result, output_file, 3)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            # improvement should exist but not have card_changes
+            assert stats["improvement"] is not None
+            assert "card_changes" not in stats["improvement"]

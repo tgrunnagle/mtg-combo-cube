@@ -43,7 +43,7 @@ class ILPOptimizer:
         time_limit_seconds: int = DEFAULT_TIME_LIMIT,
         tiebreak_epsilon: float = TIEBREAK_EPSILON,
         combo_tolerance: float = 0.1,
-        min_coverage_ratio: float = 0.05,
+        min_coverage_ratio: float = 0.1,
         min_combo_threshold: int = 10,
     ):
         self.combos = combos
@@ -692,6 +692,7 @@ class ILPOptimizer:
             requirement_type_stats=req_stats,
             requirement_coverage_stats=coverage_stats,
             cross_template_stats=cross_template_stats,
+            phase1_selected_cards=phase1_result.selected_cards,
         )
 
     def solve_two_phase(self) -> OptimizationResult:

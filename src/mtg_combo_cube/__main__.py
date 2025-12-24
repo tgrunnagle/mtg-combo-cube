@@ -50,6 +50,13 @@ if __name__ == "__main__":
         "Set to 0 for strict equality constraint.",
     )
     argparser.add_argument(
+        "--min-coverage-ratio",
+        type=float,
+        default=0.1,
+        help="Minimum coverage ratio for requirement templates in phase 2 (default: 0.1 = 10%%). "
+        "Set to 0 to disable coverage constraints.",
+    )
+    argparser.add_argument(
         "--skip-api-caching", action="store_true", help="Skip writing API responses to cache files"
     )
     argparser.add_argument(
@@ -72,5 +79,6 @@ if __name__ == "__main__":
             enable_cache_write=not args.skip_api_caching,
             read_cache=args.read_api_cache,
             combo_tolerance=args.combo_tolerance,
+            min_coverage_ratio=args.min_coverage_ratio,
         )
     )
