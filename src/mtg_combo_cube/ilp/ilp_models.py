@@ -1,6 +1,7 @@
 """Data structures for ILP optimization."""
 
 from dataclasses import dataclass
+from typing import Any
 
 # =============================================================================
 # Solver Input Models - Used to build and run the ILP optimization
@@ -158,6 +159,9 @@ class OptimizationResult:
     requirement_coverage_stats: RequirementCoverageStats | None = None
     cross_template_stats: CrossTemplateStats | None = None
     phase1_selected_cards: list[CandidateCard] | None = None  # Cards from Phase 1 (before Phase 2)
+
+    # Profiling data (populated when --profile is used)
+    profile_data: dict[str, Any] | None = None
 
     def get_selected_card_names(self) -> list[str]:
         """Get the names of all selected cards."""

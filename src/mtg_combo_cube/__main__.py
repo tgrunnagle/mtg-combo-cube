@@ -70,6 +70,11 @@ if __name__ == "__main__":
         default=None,
         help="Path to blocklist file (default: data/blocklist.txt)",
     )
+    argparser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Enable detailed profiling of ILP optimization (constraint counts, solver stats)",
+    )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -87,5 +92,6 @@ if __name__ == "__main__":
             combo_tolerance=args.combo_tolerance,
             min_coverage_ratio=args.min_coverage_ratio,
             blocklist_path=args.blocklist,
+            profile=args.profile,
         )
     )

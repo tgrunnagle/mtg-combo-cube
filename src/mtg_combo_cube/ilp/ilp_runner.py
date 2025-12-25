@@ -192,6 +192,10 @@ def write_stats(
             ],
         }
 
+    # Profiling data (when --profile was used)
+    if result.profile_data:
+        stats["profiling"] = result.profile_data
+
     # Create parent directory if it doesn't exist
     stats_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -213,6 +217,7 @@ async def build_cube_ilp(
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
     blocklist: frozenset[str] = frozenset(),
+    profile: bool = False,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
     Build cube using ILP optimization with optional API caching.
@@ -263,9 +268,9 @@ async def build_cube_ilp(
 
     # Run optimization (two-phase by default)
     if use_multi_objective:
-        result = optimizer.solve_two_phase()
+        result = optimizer.solve_two_phase(profile=profile)
     else:
-        result = optimizer.solve()
+        result = optimizer.solve(profile=profile)
 
     # Log utilization improvements if multi-objective
     if result.is_multi_objective and result.phase2_utilization_stats:
@@ -297,6 +302,7 @@ async def run_ilp(
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
     blocklist: frozenset[str] = frozenset(),
+    profile: bool = False,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
@@ -310,6 +316,7 @@ async def run_ilp(
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
         blocklist=blocklist,
+        profile=profile,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")

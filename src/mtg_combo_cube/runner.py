@@ -22,6 +22,7 @@ async def run(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     blocklist_path: str | None = None,
+    profile: bool = False,
 ):
     """
     Run the cube building algorithm.
@@ -39,6 +40,7 @@ async def run(
         combo_tolerance: Tolerance for combo count deviation in phase 2
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
         blocklist_path: Path to blocklist file (default: data/blocklist.txt)
+        profile: Enable detailed profiling of ILP optimization
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -54,6 +56,7 @@ async def run(
             combo_tolerance=combo_tolerance,
             min_coverage_ratio=min_coverage_ratio,
             blocklist=blocklist,
+            profile=profile,
         )
     elif method == "greedy":
         await run_greedy(

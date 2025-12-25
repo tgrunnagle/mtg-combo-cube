@@ -18,6 +18,11 @@ from mtg_combo_cube.ilp.ilp_models import (
     TemplateOverlapPairStats,
     UtilizationStats,
 )
+from mtg_combo_cube.ilp.profiling import (
+    ProfileResult,
+    extract_solver_stats,
+    log_profile_comparison,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -349,13 +354,17 @@ class ILPOptimizer:
 
         return constraints_added
 
-    def solve(self) -> OptimizationResult:
+    def solve(self, profile: bool = False) -> OptimizationResult:
         """
         Build and solve the ILP model.
 
+        Args:
+            profile: If True, collect detailed profiling statistics
+
         Returns OptimizationResult with selected cards and completable combos.
         """
-        start_time = time.time()
+        start_time = time.perf_counter()
+        profile_result = ProfileResult(phase="Phase 1") if profile else None
 
         # Handle edge case: no combos
         if not self.combos:
@@ -384,6 +393,7 @@ class ILPOptimizer:
             )
 
         model = cp_model.CpModel()
+        build_start = time.perf_counter()
 
         # Decision variables
         # x[c] = 1 if card c is in cube
@@ -396,20 +406,35 @@ class ILPOptimizer:
         for combo in self.combos:
             y[combo.id] = model.new_bool_var(f"combo_{combo.id}")
 
+        if profile_result:
+            profile_result.counts["variables_card"] = len(x)
+            profile_result.counts["variables_combo"] = len(y)
+
         # Constraint 1: Cube size
         model.add(sum(x[card] for card in self.all_cards) == self.cube_size)
 
         # Constraint 2: Required cards for each combo
         # y[j] <= x[c] for all c in required_cards[j]
+        required_constraint_count = 0
         for combo in self.combos:
             for card in combo.required_cards:
                 model.add(y[combo.id] <= x[card])
+                required_constraint_count += 1
+
+        if profile_result:
+            profile_result.counts["required_card"] = required_constraint_count
 
         # Constraint 3: Optional requirements (at least one card from each set)
         # y[j] <= sum(x[c] for c in matching_cards[r])
+        options_constraint_count = 0
         for combo in self.combos:
             for opt in combo.requirement_options:
                 model.add(y[combo.id] <= sum(x[card] for card in opt.cards))
+                options_constraint_count += 1
+
+        if profile_result:
+            profile_result.counts["requirement_options"] = options_constraint_count
+            profile_result.counts["cube_size"] = 1
 
         # Objective: Maximize weighted combo count
         objective_terms = []
@@ -418,20 +443,31 @@ class ILPOptimizer:
             objective_terms.append(weight * y[combo.id])
         model.maximize(sum(objective_terms))
 
+        if profile_result:
+            profile_result.timings["model_build"] = time.perf_counter() - build_start
+
         # Solve
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.time_limit
         solver.parameters.num_workers = 8  # Parallel search
         solver.parameters.log_search_progress = logger.isEnabledFor(logging.DEBUG)
 
+        solve_start = time.perf_counter()
         status = solver.solve(model)
-        solve_time = time.time() - start_time
+        solver_time = time.perf_counter() - solve_start
+
+        if profile_result:
+            profile_result.timings["solver"] = solver_time
+            profile_result.solver_stats = extract_solver_stats(solver)
+
+        solve_time = time.perf_counter() - start_time
 
         # Extract solution
         # CpSolverStatus is int at runtime, type stubs are incomplete
         status_str = self._status_to_string(status)  # type: ignore[arg-type]
 
         if status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            extract_start = time.perf_counter()
             selected_names = [card for card in self.all_cards if solver.value(x[card]) == 1]
             selected = [self.candidate_cards[name] for name in selected_names]
             completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
@@ -453,6 +489,10 @@ class ILPOptimizer:
                 selected_name_set, group_key_to_name
             )
 
+            if profile_result:
+                profile_result.timings["extraction"] = time.perf_counter() - extract_start
+                profile_result.log_summary()
+
             logger.info(
                 f"ILP solved ({status_str}): {len(selected)} cards, "
                 f"{len(completed)} combos in {solve_time:.1f}s"
@@ -464,6 +504,17 @@ class ILPOptimizer:
                 f"median={utilization_stats.median_utilization:.1f}, "
                 f"std_dev={utilization_stats.std_deviation:.2f}"
             )
+
+            # Build profile data for result
+            profile_data = None
+            if profile_result:
+                profile_data = {
+                    "phase1": {
+                        "timings": profile_result.timings,
+                        "counts": profile_result.counts,
+                        "solver_stats": profile_result.solver_stats,
+                    }
+                }
 
             return OptimizationResult(
                 selected_cards=selected,
@@ -479,6 +530,7 @@ class ILPOptimizer:
                 requirement_type_stats=req_stats,
                 requirement_coverage_stats=coverage_stats,
                 cross_template_stats=cross_template_stats,
+                profile_data=profile_data,
             )
         else:
             logger.warning(f"ILP solve failed: {status_str}")
@@ -495,6 +547,7 @@ class ILPOptimizer:
         self,
         target_combo_count: int,
         phase1_result: OptimizationResult,
+        profile: bool = False,
     ) -> OptimizationResult:
         """
         Phase 2: Minimize utilization variance while preserving combo count.
@@ -509,9 +562,11 @@ class ILPOptimizer:
         logger.info(
             f"Starting Phase 2: balancing utilization (target: {target_combo_count} combos)"
         )
-        start_time = time.time()
+        start_time = time.perf_counter()
+        profile_result = ProfileResult(phase="Phase 2") if profile else None
 
         model = cp_model.CpModel()
+        build_start = time.perf_counter()
 
         # Decision variables (same as Phase 1)
         x: dict[str, cp_model.IntVar] = {}
@@ -522,20 +577,34 @@ class ILPOptimizer:
         for combo in self.combos:
             y[combo.id] = model.new_bool_var(f"combo_{combo.id}")
 
+        if profile_result:
+            profile_result.counts["variables_card"] = len(x)
+            profile_result.counts["variables_combo"] = len(y)
+
         # Base constraints (same as Phase 1)
         model.add(sum(x[card] for card in self.all_cards) == self.cube_size)
 
+        required_constraint_count = 0
         for combo in self.combos:
             for card in combo.required_cards:
                 model.add(y[combo.id] <= x[card])
+                required_constraint_count += 1
 
+        options_constraint_count = 0
         for combo in self.combos:
             for opt in combo.requirement_options:
                 model.add(y[combo.id] <= sum(x[card] for card in opt.cards))
+                options_constraint_count += 1
+
+        if profile_result:
+            profile_result.counts["cube_size"] = 1
+            profile_result.counts["required_card"] = required_constraint_count
+            profile_result.counts["requirement_options"] = options_constraint_count
 
         # NEW: Fix combo count to Phase 1 target (with optional tolerance)
         combo_sum = sum(y[combo.id] for combo in self.combos)
 
+        combo_count_constraints = 0
         if self.combo_tolerance > 0:
             min_combo_count = math.floor(target_combo_count * (1 - self.combo_tolerance))
             max_combo_count = math.ceil(target_combo_count * (1 + self.combo_tolerance))
@@ -547,18 +616,27 @@ class ILPOptimizer:
 
             model.add(combo_sum >= min_combo_count)
             model.add(combo_sum <= max_combo_count)
+            combo_count_constraints = 2
         else:
             # No tolerance - use exact equality (current behavior)
             model.add(combo_sum == target_combo_count)
+            combo_count_constraints = 1
+
+        if profile_result:
+            profile_result.counts["combo_count"] = combo_count_constraints
 
         # Add minimum coverage ratio constraints
+        coverage_constraints = 0
         if self.min_coverage_ratio > 0:
             requirement_pool_info = self._build_requirement_pool_info()
-            num_constraints = self._add_coverage_constraints(model, x, requirement_pool_info)
+            coverage_constraints = self._add_coverage_constraints(model, x, requirement_pool_info)
             logger.info(
-                f"Phase 2: Added {num_constraints} coverage constraints "
+                f"Phase 2: Added {coverage_constraints} coverage constraints "
                 f"(min_ratio={self.min_coverage_ratio}, min_combos={self.min_combo_threshold})"
             )
+
+        if profile_result:
+            profile_result.counts["coverage"] = coverage_constraints
 
         # Utilization variables: u[card] = count of completable combos card participates in
         u: dict[str, cp_model.IntVar] = {}
@@ -566,13 +644,21 @@ class ILPOptimizer:
             # Max possible utilization is the total number of combos
             u[card] = model.new_int_var(0, len(self.combos), f"util_{self.card_to_idx[card]}")
 
+        if profile_result:
+            profile_result.counts["variables_utilization"] = len(u)
+
         # Link utilization to combo participation (only for selected cards)
+        utilization_linking_count = 0
         for card in self.all_cards:
             # Sum of combo variables this card participates in
             combo_sum = sum(y[combo.id] for combo in self.card_to_combos[card])
             # If card is selected, u[card] = combo_sum; else u[card] = 0
             model.add(u[card] == combo_sum).only_enforce_if(x[card])
             model.add(u[card] == 0).only_enforce_if(x[card].Not())
+            utilization_linking_count += 2
+
+        if profile_result:
+            profile_result.counts["utilization_linking"] = utilization_linking_count
 
         # Compute target mean utilization from Phase 1
         assert phase1_result.phase1_utilization_stats is not None
@@ -585,6 +671,7 @@ class ILPOptimizer:
         d_plus: dict[str, cp_model.IntVar] = {}
         d_minus: dict[str, cp_model.IntVar] = {}
 
+        mad_constraint_count = 0
         for card in self.all_cards:
             # Max deviation is bounded by max possible utilization
             max_dev = len(self.combos) * 100
@@ -598,6 +685,11 @@ class ILPOptimizer:
             model.add(mean_scaled - u[card] * 100 <= d_minus[card]).only_enforce_if(x[card])
             model.add(d_plus[card] == 0).only_enforce_if(x[card].Not())
             model.add(d_minus[card] == 0).only_enforce_if(x[card].Not())
+            mad_constraint_count += 4
+
+        if profile_result:
+            profile_result.counts["variables_deviation"] = len(d_plus) * 2
+            profile_result.counts["mad_deviation"] = mad_constraint_count
 
         # Objective: Minimize total absolute deviation with versatility bonus
         mad_terms = sum(d_plus[card] + d_minus[card] for card in self.all_cards)
@@ -616,14 +708,24 @@ class ILPOptimizer:
 
         model.minimize(mad_terms - versatility_bonus)
 
+        if profile_result:
+            profile_result.timings["model_build"] = time.perf_counter() - build_start
+
         # Solve
         solver = cp_model.CpSolver()
         solver.parameters.max_time_in_seconds = self.time_limit
         solver.parameters.num_workers = 8
         solver.parameters.log_search_progress = logger.isEnabledFor(logging.DEBUG)
 
+        solve_start = time.perf_counter()
         status = solver.solve(model)
-        phase2_time = time.time() - start_time
+        solver_time = time.perf_counter() - solve_start
+
+        if profile_result:
+            profile_result.timings["solver"] = solver_time
+            profile_result.solver_stats = extract_solver_stats(solver)
+
+        phase2_time = time.perf_counter() - start_time
         status_str = self._status_to_string(status)  # type: ignore[arg-type]
 
         # If Phase 2 fails, fall back to Phase 1
@@ -632,6 +734,7 @@ class ILPOptimizer:
             return phase1_result
 
         # Extract Phase 2 solution
+        extract_start = time.perf_counter()
         selected_names = [card for card in self.all_cards if solver.value(x[card]) == 1]
         selected = [self.candidate_cards[name] for name in selected_names]
         completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
@@ -651,6 +754,10 @@ class ILPOptimizer:
         cross_template_stats = self._calculate_cross_template_stats(
             selected_name_set, group_key_to_name
         )
+
+        if profile_result:
+            profile_result.timings["extraction"] = time.perf_counter() - extract_start
+            profile_result.log_summary()
 
         # Calculate improvement metrics
         p1 = phase1_result.phase1_utilization_stats
@@ -674,6 +781,25 @@ class ILPOptimizer:
             f"({range_improvement:.1f}% reduction)"
         )
 
+        # Build combined profile data
+        profile_data = None
+        if profile_result:
+            # Merge Phase 1 profile data with Phase 2
+            profile_data = phase1_result.profile_data or {}
+            profile_data["phase2"] = {
+                "timings": profile_result.timings,
+                "counts": profile_result.counts,
+                "solver_stats": profile_result.solver_stats,
+            }
+            # Log comparison summary
+            phase1_profile = ProfileResult(
+                phase="Phase 1",
+                timings=profile_data.get("phase1", {}).get("timings", {}),
+                counts=profile_data.get("phase1", {}).get("counts", {}),
+                solver_stats=profile_data.get("phase1", {}).get("solver_stats", {}),
+            )
+            log_profile_comparison(phase1_profile, profile_result)
+
         # Return full multi-objective result
         return OptimizationResult(
             selected_cards=selected,
@@ -693,11 +819,15 @@ class ILPOptimizer:
             requirement_coverage_stats=coverage_stats,
             cross_template_stats=cross_template_stats,
             phase1_selected_cards=phase1_result.selected_cards,
+            profile_data=profile_data,
         )
 
-    def solve_two_phase(self) -> OptimizationResult:
+    def solve_two_phase(self, profile: bool = False) -> OptimizationResult:
         """
         Two-phase multi-objective optimization (recommended entry point).
+
+        Args:
+            profile: If True, collect detailed profiling statistics
 
         Returns:
             OptimizationResult with balanced utilization, or Phase 1 fallback
@@ -705,7 +835,7 @@ class ILPOptimizer:
         logger.info("Starting two-phase multi-objective optimization")
 
         # Phase 1: Maximize combo count
-        phase1_result = self.solve()
+        phase1_result = self.solve(profile=profile)
 
         # Handle Phase 1 failure or edge cases
         if phase1_result.phase1_status not in ("OPTIMAL", "FEASIBLE"):
@@ -720,6 +850,7 @@ class ILPOptimizer:
         return self._solve_phase2(
             target_combo_count=phase1_result.combo_count,
             phase1_result=phase1_result,
+            profile=profile,
         )
 
     @staticmethod
