@@ -23,7 +23,7 @@ uv run python -m src.mtg_combo_cube -c 100 --method ilp -o data/cube_test.txt -t
 
 **Parameters:** 100 cards, 1,000 variants, 300s time limit
 
-### Results
+### Baseline Results (Before Warm-Start)
 
 | Metric | Phase 1 | Phase 2 |
 |--------|---------|---------|
@@ -46,80 +46,113 @@ uv run python -m src.mtg_combo_cube -c 100 --method ilp -o data/cube_test.txt -t
 
 ---
 
-## Step 2: Root Cause Analysis
+## Step 2: Warm-Start Optimization ✓ IMPLEMENTED
 
-The MAD (Mean Absolute Deviation) objective in Phase 2 creates a much harder optimization problem:
+### Implementation
+
+Added hints to Phase 2 model using Phase 1 solution:
+```python
+# Hint card selection variables
+for card in self.all_cards:
+    model.add_hint(x[card], 1 if card in phase1_cards else 0)
+
+# Hint combo completion variables
+for combo in self.combos:
+    model.add_hint(y[combo.id], 1 if combo.id in phase1_combos else 0)
+
+# Hint utilization variables
+for card in self.all_cards:
+    util_value = phase1_result.utilization_per_card.get(card, 0)
+    model.add_hint(u[card], util_value if card in phase1_cards else 0)
+```
+
+### Results With Warm-Start
+
+| Metric | Before | After | Improvement |
+|--------|--------|-------|-------------|
+| Phase 2 Branches | 99,257 | 8,208 | **12x reduction** |
+| Phase 2 Conflicts | 12,572 | 0 | **Eliminated** |
+| Phase 2 Solver Time | 302.9s | 300.4s | Still hits limit |
+| Phase 2 Status | FEASIBLE | FEASIBLE | No change |
+
+### Analysis
+
+Warm-start significantly improved search efficiency:
+- **12x fewer branches** explored
+- **Zero conflicts** (down from 12,572)
+- Phase 2 now explores only **2.3x more branches** than Phase 1 (vs 46.8x before)
+
+However, the solver still hits the time limit. The issue is now **proving optimality** rather than finding a good solution. The solver finds a good feasible solution quickly but spends remaining time trying to prove no better solution exists.
+
+---
+
+## Step 3: Root Cause Analysis
+
+The MAD (Mean Absolute Deviation) objective in Phase 2 creates a harder optimization problem:
 
 1. **Utilization linking constraints** (1,880): Force `u[card] = combo_sum` when selected
 2. **MAD deviation constraints** (3,760): 4 constraints per card for `d_plus`, `d_minus`
 3. **Conditional constraints**: `only_enforce_if()` creates reified constraints
 
-The solver struggles because:
+The solver struggles to prove optimality because:
 - **Objective is continuous-like**: Minimizing sum of deviations has many near-optimal solutions
 - **No strong bounds**: Unlike Phase 1's integer combo count, deviation can vary smoothly
-- **Branching difficulty**: 99K branches with 12K conflicts indicates poor search guidance
+- **Symmetry**: Many equivalent card swaps produce similar deviation values
 
 ---
 
-## Step 3: Optimization Strategies
+## Step 4: Next Optimization Options
 
-### A. Warm-Start from Phase 1 (Recommended First)
+### A. Early Termination (Quick Win)
 
-Provide Phase 1 solution as a hint to Phase 2:
+Accept "good enough" solutions instead of waiting for optimality proof:
 ```python
-# After Phase 1, before Phase 2 solve:
-for card in phase1_selected:
-    solver.add_hint(x[card], 1)
-for combo in phase1_completed:
-    solver.add_hint(y[combo.id], 1)
+# Stop when solution is within 5% of best known bound
+solver.parameters.relative_gap_limit = 0.05
 ```
-
-**Expected impact:** Reduces branches by starting closer to optimal.
 
 ### B. Time Budget Split
 
-Currently both phases share time limit. Consider:
-- Phase 1: 10% of time (fast, usually optimal quickly)
-- Phase 2: 90% of time (needs more exploration)
+Phase 1 completes in <1s. Give Phase 2 almost all the time:
+- Current: Both phases share `time_limit`
+- Better: Phase 2 gets `time_limit - phase1_time`
 
-### C. Simplify Objective
+### C. Simpler Objective (More Invasive)
 
 Replace MAD with simpler objectives:
-1. **Min-max utilization**: `minimize(max_util - min_util)` - fewer variables
-2. **Variance proxy**: Single auxiliary variable instead of per-card deviations
-3. **Quantile-based**: Only constrain bottom 10% utilization
+1. **Min-max range**: `minimize(max_util - min_util)` - 2 variables instead of 2×cards
+2. **Satisficing**: Just constrain `min_util >= threshold`, no optimization
+3. **Bucketed deviation**: Only penalize cards outside acceptable range
 
-### D. Constraint Reduction
+### D. Solution Callbacks
 
-The 3,760 MAD constraints dominate. Options:
-- Only add deviation constraints for "borderline" cards (high variance candidates)
-- Use lazy constraint generation
-
----
-
-## Step 4: Implementation Priority
-
-1. **Warm-start** - Low effort, potentially high impact
-2. **Time split** - Simple configuration change
-3. **Simpler objective** - Medium effort, guarantees faster solve
-4. **Lazy constraints** - Higher complexity
+Use callbacks to accept first feasible solution that meets quality threshold:
+```python
+class StopOnGoodSolution(cp_model.CpSolverSolutionCallback):
+    def on_solution_callback(self):
+        if self.objective_value < target_deviation:
+            self.stop_search()
+```
 
 ---
 
-## Next Steps
+## Implementation Status
 
-- [ ] Implement warm-start from Phase 1
-- [ ] Re-run test to measure improvement
-- [ ] If still slow, try simpler objective function
+| Optimization | Status | Impact |
+|--------------|--------|--------|
+| Warm-start hints | ✓ Done | 12x fewer branches |
+| Early termination | Pending | - |
+| Time budget split | Pending | - |
+| Simpler objective | Pending | - |
 
 ---
 
-## Files Changed (Profiling Implementation)
+## Files Changed
 
 | File | Change |
 |------|--------|
 | `src/mtg_combo_cube/ilp/profiling.py` | **New** - ProfileResult, extract_solver_stats |
-| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Instrumented solve() and _solve_phase2() |
+| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Profiling + warm-start hints |
 | `src/mtg_combo_cube/ilp/ilp_models.py` | Added profile_data field |
 | `src/mtg_combo_cube/ilp/ilp_runner.py` | Pass flag, output to stats JSON |
 | `src/mtg_combo_cube/runner.py` | Pass profile parameter |

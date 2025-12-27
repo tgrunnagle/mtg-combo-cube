@@ -708,8 +708,37 @@ class ILPOptimizer:
 
         model.minimize(mad_terms - versatility_bonus)
 
+        # Warm-start from Phase 1 solution (add hints to model before solving)
+        # Only hint variables that we have values for from Phase 1
+        phase1_cards = {c.name for c in phase1_result.selected_cards}
+        phase1_combos = set(phase1_result.completable_combo_ids)
+        hints_added = 0
+
+        # Hint card selection variables
+        for card in self.all_cards:
+            model.add_hint(x[card], 1 if card in phase1_cards else 0)
+            hints_added += 1
+
+        # Hint combo completion variables
+        for combo in self.combos:
+            model.add_hint(y[combo.id], 1 if combo.id in phase1_combos else 0)
+            hints_added += 1
+
+        # Hint utilization variables based on Phase 1 solution
+        if phase1_result.utilization_per_card:
+            for card in self.all_cards:
+                if card in phase1_cards:
+                    util_value = phase1_result.utilization_per_card.get(card, 0)
+                    model.add_hint(u[card], util_value)
+                else:
+                    model.add_hint(u[card], 0)
+                hints_added += 1
+
+        logger.info(f"Phase 2: Added {hints_added} warm-start hints from Phase 1 solution")
+
         if profile_result:
             profile_result.timings["model_build"] = time.perf_counter() - build_start
+            profile_result.counts["warm_start_hints"] = hints_added
 
         # Solve
         solver = cp_model.CpSolver()
