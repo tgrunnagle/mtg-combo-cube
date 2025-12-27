@@ -50,6 +50,7 @@ class ILPOptimizer:
         combo_tolerance: float = 0.1,
         min_coverage_ratio: float = 0.1,
         min_combo_threshold: int = 10,
+        gap_limit: float = 0.05,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -59,6 +60,7 @@ class ILPOptimizer:
         self.combo_tolerance = combo_tolerance
         self.min_coverage_ratio = min_coverage_ratio
         self.min_combo_threshold = min_combo_threshold
+        self.gap_limit = gap_limit
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -745,6 +747,11 @@ class ILPOptimizer:
         solver.parameters.max_time_in_seconds = self.time_limit
         solver.parameters.num_workers = 8
         solver.parameters.log_search_progress = logger.isEnabledFor(logging.DEBUG)
+
+        # Early termination: stop when solution is within gap_limit of optimal
+        if self.gap_limit > 0:
+            solver.parameters.relative_gap_limit = self.gap_limit
+            logger.info(f"Phase 2: Early termination enabled (gap limit: {self.gap_limit:.1%})")
 
         solve_start = time.perf_counter()
         status = solver.solve(model)

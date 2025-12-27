@@ -4,7 +4,7 @@ A tool for building Magic: The Gathering combo cubes by optimizing card selectio
 
 ## Summary
 
-Given a target cube size (e.g., 360 cards), this tool selects cards that maximize the number of completable combos while ensuring balanced card utilization. It fetches combo data from the [Commander Spellbook API](https://commanderspellbook.com/) and uses Integer Linear Programming (ILP) to find optimal solutions.
+Given a target cube size (e.g., 360 cards), this tool selects cards that maximize the number of completable combos while ensuring balanced card utilization. This problem is a variant of a **weighted maximum coverage** or **set cover**, which is NP-hard. It fetches combo data from the [Commander Spellbook API](https://commanderspellbook.com/) and uses Integer Linear Programming (ILP) to find optimal solutions.
 
 **The core optimization problem:**
 - Select exactly N cards for the cube
@@ -58,6 +58,10 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -n, --max-variants     Max combo variants to fetch (default: 10000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
 --combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
+--gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
+--min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
+--profile              Enable detailed profiling of ILP optimization
+--blocklist            Path to card blocklist file (default: data/blocklist.txt)
 --skip-api-caching     Skip writing API responses to cache files
 --read-api-cache       Read from cache if available, fall back to API if not
 -d, --debug            Enable debug logging
@@ -127,6 +131,7 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal soluti
 - Produces balanced cubes where cards participate more evenly across combos
 - Outputs detailed statistics to `{output}_stats.json`
 - `--combo-tolerance` controls how much Phase 2 can deviate from Phase 1's combo count (default: 10%). Set to 0 for strict equality.
+- `--gap-limit` enables early termination when the solution is within N% of optimal (default: 5%). This significantly speeds up Phase 2 by accepting "good enough" solutions instead of waiting for proof of optimality. Set to 0 to require exact optimality.
 
 **Single-Phase** (use `--single-phase`)
 - Maximizes combo count only

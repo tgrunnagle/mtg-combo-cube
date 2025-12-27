@@ -75,6 +75,13 @@ if __name__ == "__main__":
         action="store_true",
         help="Enable detailed profiling of ILP optimization (constraint counts, solver stats)",
     )
+    argparser.add_argument(
+        "--gap-limit",
+        type=float,
+        default=0.05,
+        help="Relative gap limit for Phase 2 early termination (default: 0.05 = 5%%). "
+        "Solver stops when solution is within this %% of optimal. Set to 0 for exact optimal.",
+    )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -93,5 +100,6 @@ if __name__ == "__main__":
             min_coverage_ratio=args.min_coverage_ratio,
             blocklist_path=args.blocklist,
             profile=args.profile,
+            gap_limit=args.gap_limit,
         )
     )

@@ -10,7 +10,7 @@ Profiling has been added to the ILP optimizer. Key metrics captured:
 - Constraint counts by type
 - Variable counts
 - Build/solve/extract timings
-- OR-Tools solver statistics (branches, conflicts, booleans)
+- OR-Tools solver statistics (branches, conflicts, booleans, objective bounds)
 
 ---
 
@@ -86,53 +86,81 @@ However, the solver still hits the time limit. The issue is now **proving optima
 
 ---
 
-## Step 3: Root Cause Analysis
+## Step 3: Early Termination via Gap Limit ✓ IMPLEMENTED
 
-The MAD (Mean Absolute Deviation) objective in Phase 2 creates a harder optimization problem:
+### Implementation
 
-1. **Utilization linking constraints** (1,880): Force `u[card] = combo_sum` when selected
-2. **MAD deviation constraints** (3,760): 4 constraints per card for `d_plus`, `d_minus`
-3. **Conditional constraints**: `only_enforce_if()` creates reified constraints
+Added `--gap-limit` CLI parameter (default: 5%) to enable early termination:
+```python
+if self.gap_limit > 0:
+    solver.parameters.relative_gap_limit = self.gap_limit
+```
 
-The solver struggles to prove optimality because:
-- **Objective is continuous-like**: Minimizing sum of deviations has many near-optimal solutions
-- **No strong bounds**: Unlike Phase 1's integer combo count, deviation can vary smoothly
-- **Symmetry**: Many equivalent card swaps produce similar deviation values
+### Results
+
+Gap limit doesn't help because **the solver's bound is too loose**:
+
+| Metric | Value |
+|--------|-------|
+| Objective Value | 24,745 |
+| Best Bound | 13,903 |
+| **Relative Gap** | **43.8%** |
+
+The solver can't prove tight bounds for the MAD objective, so even a 20% gap limit won't trigger early termination.
+
+### Root Cause
+
+The MAD (Mean Absolute Deviation) objective creates a fundamentally hard problem for CP-SAT's bounding:
+1. **Large objective scale**: Deviation values are scaled by 100 for integer arithmetic
+2. **Weak LP relaxation**: The reified constraints (`only_enforce_if`) don't provide strong bounds
+3. **Symmetry**: Many card swaps produce similar deviation values, creating a flat objective landscape
 
 ---
 
-## Step 4: Next Optimization Options
+## Step 4: Solution Comparison
 
-### A. Early Termination (Quick Win)
+### Actual Quality (Not What Gap Suggests)
 
-Accept "good enough" solutions instead of waiting for optimality proof:
-```python
-# Stop when solution is within 5% of best known bound
-solver.parameters.relative_gap_limit = 0.05
-```
+Despite the 43.8% gap, the solution quality is excellent:
 
-### B. Time Budget Split
+| Metric | Phase 1 | Phase 2 | Improvement |
+|--------|---------|---------|-------------|
+| Std Dev | 5.64 | 3.66-3.73 | ~35% better |
+| Util Range | 2-32 | 2-23 | 30% smaller |
+| Combos | 221 | 198 | -10% (within tolerance) |
 
-Phase 1 completes in <1s. Give Phase 2 almost all the time:
-- Current: Both phases share `time_limit`
-- Better: Phase 2 gets `time_limit - phase1_time`
+The gap is a **bound quality issue**, not a solution quality issue. The solver finds good solutions quickly but can't prove they're optimal.
 
-### C. Simpler Objective (More Invasive)
+---
 
-Replace MAD with simpler objectives:
-1. **Min-max range**: `minimize(max_util - min_util)` - 2 variables instead of 2×cards
-2. **Satisficing**: Just constrain `min_util >= threshold`, no optimization
-3. **Bucketed deviation**: Only penalize cards outside acceptable range
+## Step 5: Recommended Next Steps
 
-### D. Solution Callbacks
+### A. Satisficing Approach (Recommended)
 
-Use callbacks to accept first feasible solution that meets quality threshold:
-```python
-class StopOnGoodSolution(cp_model.CpSolverSolutionCallback):
-    def on_solution_callback(self):
-        if self.objective_value < target_deviation:
-            self.stop_search()
-```
+Since solution quality is already good, accept solutions faster:
+
+1. **Solution callback**: Stop after finding first feasible solution
+   ```python
+   class FirstSolutionCallback(cp_model.CpSolverSolutionCallback):
+       def on_solution_callback(self):
+           self.stop_search()
+   ```
+
+2. **Quality threshold**: Stop when std_dev improvement exceeds target (e.g., 20%)
+
+### B. Simpler Objective (Alternative)
+
+Replace MAD with objectives that have better bounds:
+
+1. **Min-max range**: `minimize(max_util - min_util)` - only 2 auxiliary variables
+2. **Bound-only**: `minimize(max_util)` with `min_util >= threshold` constraint
+3. **Quadratic approximation**: Use sum of squared deviations (can be linearized)
+
+### C. Iterative Refinement
+
+Run multiple short Phase 2 attempts with progressively tighter constraints:
+1. First pass: Quick feasible solution (10s)
+2. If time remains: Add constraint to beat current objective, re-solve
 
 ---
 
@@ -140,10 +168,10 @@ class StopOnGoodSolution(cp_model.CpSolverSolutionCallback):
 
 | Optimization | Status | Impact |
 |--------------|--------|--------|
-| Warm-start hints | ✓ Done | 12x fewer branches |
-| Early termination | Pending | - |
-| Time budget split | Pending | - |
-| Simpler objective | Pending | - |
+| Warm-start hints | ✓ Done | 12x fewer branches, 0 conflicts |
+| Gap limit CLI | ✓ Done | Works, but gap is 43.8% (too loose) |
+| Solution callback | Pending | Expected: immediate termination |
+| Simpler objective | Pending | Expected: faster bounds |
 
 ---
 
@@ -151,10 +179,11 @@ class StopOnGoodSolution(cp_model.CpSolverSolutionCallback):
 
 | File | Change |
 |------|--------|
-| `src/mtg_combo_cube/ilp/profiling.py` | **New** - ProfileResult, extract_solver_stats |
-| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Profiling + warm-start hints |
+| `src/mtg_combo_cube/ilp/profiling.py` | ProfileResult, extract_solver_stats (with bounds) |
+| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Profiling + warm-start + gap_limit |
 | `src/mtg_combo_cube/ilp/ilp_models.py` | Added profile_data field |
-| `src/mtg_combo_cube/ilp/ilp_runner.py` | Pass flag, output to stats JSON |
-| `src/mtg_combo_cube/runner.py` | Pass profile parameter |
-| `src/mtg_combo_cube/__main__.py` | Added --profile flag |
+| `src/mtg_combo_cube/ilp/ilp_runner.py` | Pass flags, output to stats JSON |
+| `src/mtg_combo_cube/runner.py` | Pass profile and gap_limit parameters |
+| `src/mtg_combo_cube/__main__.py` | Added --profile and --gap-limit flags |
 | `Taskfile.yml` | --profile now default for build:ilp tasks |
+| `README.md` | Documented --gap-limit and --profile options |

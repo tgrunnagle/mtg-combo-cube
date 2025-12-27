@@ -85,12 +85,27 @@ def extract_solver_stats(solver: cp_model.CpSolver) -> dict[str, Any]:
     Returns:
         Dictionary with solver statistics
     """
-    return {
+    stats = {
         "wall_time": solver.WallTime(),
         "branches": solver.NumBranches(),
         "conflicts": solver.NumConflicts(),
         "booleans": solver.NumBooleans(),
     }
+
+    # Add objective value and bound if available
+    try:
+        stats["objective_value"] = solver.ObjectiveValue()
+        stats["best_objective_bound"] = solver.BestObjectiveBound()
+        # Calculate relative gap
+        obj = solver.ObjectiveValue()
+        bound = solver.BestObjectiveBound()
+        if obj != 0:
+            stats["relative_gap"] = abs(obj - bound) / abs(obj)
+    except Exception:
+        # Objective stats not available (e.g., for satisfaction problems)
+        pass
+
+    return stats
 
 
 def log_profile_comparison(phase1: ProfileResult, phase2: ProfileResult | None) -> None:
