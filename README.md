@@ -59,6 +59,8 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --single-phase         Use single-phase ILP (disables utilization balancing)
 --combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
 --gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
+--phase2-objective     Phase 2 objective: 'minmax' (default) or 'mad'
+--min-util-floor       Minimum utilization floor for minmax (default: 2)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --profile              Enable detailed profiling of ILP optimization
 --blocklist            Path to card blocklist file (default: data/blocklist.txt)
@@ -119,10 +121,10 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
 
 ## Optimization Methods
 
-### Greedy (Default CLI Method)
+### Greedy
 Fast heuristic approach that iteratively selects high-impact cards. Good for quick iterations.
 
-### ILP (Recommended)
+### ILP (Recommended, default)
 Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal solutions with two operational modes:
 
 **Two-Phase (Default)**
@@ -130,8 +132,22 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal soluti
 - Phase 2: Minimize card utilization variance while preserving combo count (within tolerance)
 - Produces balanced cubes where cards participate more evenly across combos
 - Outputs detailed statistics to `{output}_stats.json`
-- `--combo-tolerance` controls how much Phase 2 can deviate from Phase 1's combo count (default: 10%). Set to 0 for strict equality.
-- `--gap-limit` enables early termination when the solution is within N% of optimal (default: 5%). This significantly speeds up Phase 2 by accepting "good enough" solutions instead of waiting for proof of optimality. Set to 0 to require exact optimality.
+
+**Phase 2 Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--phase2-objective` | `minmax` | Objective function: `minmax` or `mad` |
+| `--combo-tolerance` | `0.1` | How much Phase 2 can deviate from Phase 1's combo count (10%) |
+| `--gap-limit` | `0.05` | Early termination when within N% of optimal (5%) |
+| `--min-util-floor` | `2` | Minimum combos each card must participate in (minmax only) |
+| `--min-coverage-ratio` | `0.1` | Minimum cards per requirement template (10% of combo count) |
+
+**Phase 2 Objectives:**
+
+- **`minmax` (default)**: Minimizes `max_utilization - min_utilization`. Much faster (15x fewer solver branches) with tighter LP bounds. Best for most use cases. Enforces a floor constraint so no card participates in fewer than `--min-util-floor` combos.
+
+- **`mad`**: Minimizes Mean Absolute Deviation from median utilization. Optimizes the entire distribution, not just extremes. Use when you need the smoothest possible utilization curve and have time to spare.
 
 **Single-Phase** (use `--single-phase`)
 - Maximizes combo count only
@@ -147,7 +163,8 @@ Detailed design documents are available in [docs/](docs/):
 
 Key concepts:
 - **Card Utilization**: Number of completable combos each card participates in
-- **MAD Minimization**: Phase 2 minimizes Mean Absolute Deviation of utilization
+- **Min-Max Range**: Phase 2 (default) minimizes the gap between highest and lowest utilized cards
+- **MAD Minimization**: Alternative Phase 2 objective that minimizes Mean Absolute Deviation
 - **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results
 
 ## Development

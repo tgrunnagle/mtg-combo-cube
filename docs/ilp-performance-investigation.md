@@ -82,23 +82,15 @@ Warm-start significantly improved search efficiency:
 - **Zero conflicts** (down from 12,572)
 - Phase 2 now explores only **2.3x more branches** than Phase 1 (vs 46.8x before)
 
-However, the solver still hits the time limit. The issue is now **proving optimality** rather than finding a good solution. The solver finds a good feasible solution quickly but spends remaining time trying to prove no better solution exists.
+However, the solver still hits the time limit. The issue is now **proving optimality** rather than finding a good solution.
 
 ---
 
-## Step 3: Early Termination via Gap Limit ✓ IMPLEMENTED
+## Step 3: Gap Limit Analysis ✓ IMPLEMENTED
 
-### Implementation
+Added `--gap-limit` CLI parameter (default: 5%) for early termination.
 
-Added `--gap-limit` CLI parameter (default: 5%) to enable early termination:
-```python
-if self.gap_limit > 0:
-    solver.parameters.relative_gap_limit = self.gap_limit
-```
-
-### Results
-
-Gap limit doesn't help because **the solver's bound is too loose**:
+### MAD Objective Gap
 
 | Metric | Value |
 |--------|-------|
@@ -106,61 +98,54 @@ Gap limit doesn't help because **the solver's bound is too loose**:
 | Best Bound | 13,903 |
 | **Relative Gap** | **43.8%** |
 
-The solver can't prove tight bounds for the MAD objective, so even a 20% gap limit won't trigger early termination.
-
-### Root Cause
-
-The MAD (Mean Absolute Deviation) objective creates a fundamentally hard problem for CP-SAT's bounding:
-1. **Large objective scale**: Deviation values are scaled by 100 for integer arithmetic
-2. **Weak LP relaxation**: The reified constraints (`only_enforce_if`) don't provide strong bounds
-3. **Symmetry**: Many card swaps produce similar deviation values, creating a flat objective landscape
+The MAD objective creates weak bounds, so even 20% gap limit won't trigger early termination.
 
 ---
 
-## Step 4: Solution Comparison
+## Step 4: Min-Max Range Objective ✓ IMPLEMENTED
 
-### Actual Quality (Not What Gap Suggests)
+### New Objective
 
-Despite the 43.8% gap, the solution quality is excellent:
+Replaced MAD with min-max range: `minimize(max_util - min_util)` with a minimum floor constraint.
 
-| Metric | Phase 1 | Phase 2 | Improvement |
-|--------|---------|---------|-------------|
-| Std Dev | 5.64 | 3.66-3.73 | ~35% better |
-| Util Range | 2-32 | 2-23 | 30% smaller |
-| Combos | 221 | 198 | -10% (within tolerance) |
+```python
+# Only 2 auxiliary variables instead of 2×cards
+max_util = model.new_int_var(0, max_combos, "max_util")
+min_util = model.new_int_var(0, max_combos, "min_util")
 
-The gap is a **bound quality issue**, not a solution quality issue. The solver finds good solutions quickly but can't prove they're optimal.
+# Link to card utilizations
+for card in cards:
+    model.add(max_util >= u[card]).only_enforce_if(x[card])
+    model.add(min_util <= u[card]).only_enforce_if(x[card])
 
----
+# Floor constraint
+model.add(min_util >= 2)
 
-## Step 5: Recommended Next Steps
+# Objective
+model.minimize(max_util - min_util)
+```
 
-### A. Satisficing Approach (Recommended)
+### Comparison Results (10s time limit)
 
-Since solution quality is already good, accept solutions faster:
+| Metric | MAD | Min-Max | Comparison |
+|--------|-----|---------|------------|
+| Phase 2 Branches | 8,103 | 552 | **15x fewer** |
+| Std Dev Improvement | 29.1% | 28.2% | Similar |
+| Range Improvement | 23.3% | 53.3% | **2.3x better** |
+| Relative Gap | 43.8% | 23.0% | **Much tighter** |
+| Final Range | 1-24 | 2-16 | Better extremes |
 
-1. **Solution callback**: Stop after finding first feasible solution
-   ```python
-   class FirstSolutionCallback(cp_model.CpSolverSolutionCallback):
-       def on_solution_callback(self):
-           self.stop_search()
-   ```
+### Key Insights
 
-2. **Quality threshold**: Stop when std_dev improvement exceeds target (e.g., 20%)
+1. **Min-max is much more efficient**: 15x fewer branches for similar std_dev improvement
+2. **Better range compression**: 53% vs 23% range reduction
+3. **Tighter bounds**: 23% gap vs 43.8% gap - gap limit can actually trigger
+4. **Trade-off**: MAD optimizes all cards equally; min-max focuses on extremes
 
-### B. Simpler Objective (Alternative)
+### When to Use Each
 
-Replace MAD with objectives that have better bounds:
-
-1. **Min-max range**: `minimize(max_util - min_util)` - only 2 auxiliary variables
-2. **Bound-only**: `minimize(max_util)` with `min_util >= threshold` constraint
-3. **Quadratic approximation**: Use sum of squared deviations (can be linearized)
-
-### C. Iterative Refinement
-
-Run multiple short Phase 2 attempts with progressively tighter constraints:
-1. First pass: Quick feasible solution (10s)
-2. If time remains: Add constraint to beat current objective, re-solve
+- **Min-Max (default)**: Fast results with good extremes, tighter bounds for gap-limit
+- **MAD (`--phase2-objective mad`)**: When you care about overall distribution smoothness and have time to spare
 
 ---
 
@@ -169,9 +154,19 @@ Run multiple short Phase 2 attempts with progressively tighter constraints:
 | Optimization | Status | Impact |
 |--------------|--------|--------|
 | Warm-start hints | ✓ Done | 12x fewer branches, 0 conflicts |
-| Gap limit CLI | ✓ Done | Works, but gap is 43.8% (too loose) |
-| Solution callback | Pending | Expected: immediate termination |
-| Simpler objective | Pending | Expected: faster bounds |
+| Gap limit CLI | ✓ Done | Works better with minmax (23% gap) |
+| Min-max objective | ✓ Done | 15x fewer branches, 2.3x better range |
+
+---
+
+## CLI Options Added
+
+```
+--phase2-objective    Phase 2 objective: 'minmax' (default) or 'mad'
+--min-util-floor      Minimum utilization floor for minmax (default: 2)
+--gap-limit           Early termination gap (default: 0.05 = 5%)
+--profile             Enable profiling output
+```
 
 ---
 
@@ -180,10 +175,26 @@ Run multiple short Phase 2 attempts with progressively tighter constraints:
 | File | Change |
 |------|--------|
 | `src/mtg_combo_cube/ilp/profiling.py` | ProfileResult, extract_solver_stats (with bounds) |
-| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Profiling + warm-start + gap_limit |
+| `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Added `_solve_phase2_minmax()`, warm-start, gap_limit |
 | `src/mtg_combo_cube/ilp/ilp_models.py` | Added profile_data field |
-| `src/mtg_combo_cube/ilp/ilp_runner.py` | Pass flags, output to stats JSON |
-| `src/mtg_combo_cube/runner.py` | Pass profile and gap_limit parameters |
-| `src/mtg_combo_cube/__main__.py` | Added --profile and --gap-limit flags |
+| `src/mtg_combo_cube/ilp/ilp_runner.py` | Pass all new flags |
+| `src/mtg_combo_cube/runner.py` | Pass all new parameters |
+| `src/mtg_combo_cube/__main__.py` | Added --phase2-objective, --min-util-floor, --gap-limit, --profile |
 | `Taskfile.yml` | --profile now default for build:ilp tasks |
-| `README.md` | Documented --gap-limit and --profile options |
+| `README.md` | Documented new options |
+
+---
+
+## Recommendations
+
+For **fast iteration** during development:
+```bash
+uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --phase2-objective minmax --read-api-cache
+```
+
+For **production quality** with more time:
+```bash
+uv run python -m src.mtg_combo_cube -c 300 --method ilp -t 600 -n 10000 --phase2-objective mad
+```
+
+The min-max objective provides a good balance of speed and quality for most use cases. Use MAD when you need the smoothest possible utilization distribution and have time to spare.

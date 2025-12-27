@@ -219,6 +219,8 @@ async def build_cube_ilp(
     blocklist: frozenset[str] = frozenset(),
     profile: bool = False,
     gap_limit: float = 0.05,
+    phase2_objective: str = "minmax",
+    min_utilization_floor: int = 2,
 ) -> tuple[list[str], int, OptimizationResult]:
     """
     Build cube using ILP optimization with optional API caching.
@@ -266,6 +268,8 @@ async def build_cube_ilp(
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
         gap_limit=gap_limit,
+        phase2_objective=phase2_objective,
+        min_utilization_floor=min_utilization_floor,
     )
 
     # Run optimization (two-phase by default)
@@ -306,6 +310,8 @@ async def run_ilp(
     blocklist: frozenset[str] = frozenset(),
     profile: bool = False,
     gap_limit: float = 0.05,
+    phase2_objective: str = "minmax",
+    min_utilization_floor: int = 2,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
@@ -321,6 +327,8 @@ async def run_ilp(
         blocklist=blocklist,
         profile=profile,
         gap_limit=gap_limit,
+        phase2_objective=phase2_objective,
+        min_utilization_floor=min_utilization_floor,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")

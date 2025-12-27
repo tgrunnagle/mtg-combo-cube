@@ -82,6 +82,21 @@ if __name__ == "__main__":
         help="Relative gap limit for Phase 2 early termination (default: 0.05 = 5%%). "
         "Solver stops when solution is within this %% of optimal. Set to 0 for exact optimal.",
     )
+    argparser.add_argument(
+        "--phase2-objective",
+        type=str,
+        choices=["mad", "minmax"],
+        default="minmax",
+        help="Phase 2 objective function: 'minmax' (minimize max-min range, default) or "
+        "'mad' (minimize mean absolute deviation). minmax is faster with tighter bounds.",
+    )
+    argparser.add_argument(
+        "--min-util-floor",
+        type=int,
+        default=2,
+        help="Minimum utilization floor for minmax objective (default: 2). "
+        "Cards must participate in at least this many combos.",
+    )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -101,5 +116,7 @@ if __name__ == "__main__":
             blocklist_path=args.blocklist,
             profile=args.profile,
             gap_limit=args.gap_limit,
+            phase2_objective=args.phase2_objective,
+            min_utilization_floor=args.min_util_floor,
         )
     )

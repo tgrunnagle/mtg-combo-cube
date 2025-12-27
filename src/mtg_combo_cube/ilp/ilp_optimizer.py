@@ -51,6 +51,8 @@ class ILPOptimizer:
         min_coverage_ratio: float = 0.1,
         min_combo_threshold: int = 10,
         gap_limit: float = 0.05,
+        phase2_objective: str = "minmax",
+        min_utilization_floor: int = 2,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -61,6 +63,8 @@ class ILPOptimizer:
         self.min_coverage_ratio = min_coverage_ratio
         self.min_combo_threshold = min_combo_threshold
         self.gap_limit = gap_limit
+        self.phase2_objective = phase2_objective  # "mad" or "minmax"
+        self.min_utilization_floor = min_utilization_floor  # for minmax objective
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -858,6 +862,305 @@ class ILPOptimizer:
             profile_data=profile_data,
         )
 
+    def _solve_phase2_minmax(
+        self,
+        target_combo_count: int,
+        phase1_result: OptimizationResult,
+        profile: bool = False,
+    ) -> OptimizationResult:
+        """
+        Phase 2 with min-max range objective: minimize(max_util - min_util).
+
+        Much faster than MAD because:
+        - Only 2 auxiliary variables (vs 2×cards for MAD)
+        - Tighter LP bounds
+        - Simpler constraint structure
+
+        Args:
+            target_combo_count: Target combo count from Phase 1
+            phase1_result: Result from Phase 1 optimization
+            profile: If True, collect detailed profiling statistics
+        """
+        logger.info(
+            f"Starting Phase 2 (minmax): balancing utilization (target: {target_combo_count} combos)"
+        )
+        start_time = time.perf_counter()
+        profile_result = ProfileResult(phase="Phase 2 (minmax)") if profile else None
+
+        model = cp_model.CpModel()
+        build_start = time.perf_counter()
+
+        # Decision variables (same as Phase 1)
+        x: dict[str, cp_model.IntVar] = {}
+        for card in self.all_cards:
+            x[card] = model.new_bool_var(f"card_{self.card_to_idx[card]}")
+
+        y: dict[str, cp_model.IntVar] = {}
+        for combo in self.combos:
+            y[combo.id] = model.new_bool_var(f"combo_{combo.id}")
+
+        if profile_result:
+            profile_result.counts["variables_card"] = len(x)
+            profile_result.counts["variables_combo"] = len(y)
+
+        # Base constraints (same as Phase 1)
+        model.add(sum(x[card] for card in self.all_cards) == self.cube_size)
+
+        required_constraint_count = 0
+        for combo in self.combos:
+            for card in combo.required_cards:
+                model.add(y[combo.id] <= x[card])
+                required_constraint_count += 1
+
+        options_constraint_count = 0
+        for combo in self.combos:
+            for opt in combo.requirement_options:
+                model.add(y[combo.id] <= sum(x[card] for card in opt.cards))
+                options_constraint_count += 1
+
+        if profile_result:
+            profile_result.counts["cube_size"] = 1
+            profile_result.counts["required_card"] = required_constraint_count
+            profile_result.counts["requirement_options"] = options_constraint_count
+
+        # Combo count constraints (with tolerance)
+        combo_sum = sum(y[combo.id] for combo in self.combos)
+
+        combo_count_constraints = 0
+        if self.combo_tolerance > 0:
+            min_combo_count = math.floor(target_combo_count * (1 - self.combo_tolerance))
+            max_combo_count = math.ceil(target_combo_count * (1 + self.combo_tolerance))
+
+            logger.info(
+                f"Phase 2 combo tolerance: {self.combo_tolerance:.1%} "
+                f"(range: {min_combo_count}-{max_combo_count})"
+            )
+
+            model.add(combo_sum >= min_combo_count)
+            model.add(combo_sum <= max_combo_count)
+            combo_count_constraints = 2
+        else:
+            model.add(combo_sum == target_combo_count)
+            combo_count_constraints = 1
+
+        if profile_result:
+            profile_result.counts["combo_count"] = combo_count_constraints
+
+        # Coverage constraints
+        coverage_constraints = 0
+        if self.min_coverage_ratio > 0:
+            requirement_pool_info = self._build_requirement_pool_info()
+            coverage_constraints = self._add_coverage_constraints(model, x, requirement_pool_info)
+            logger.info(
+                f"Phase 2: Added {coverage_constraints} coverage constraints "
+                f"(min_ratio={self.min_coverage_ratio}, min_combos={self.min_combo_threshold})"
+            )
+
+        if profile_result:
+            profile_result.counts["coverage"] = coverage_constraints
+
+        # Utilization variables
+        u: dict[str, cp_model.IntVar] = {}
+        for card in self.all_cards:
+            u[card] = model.new_int_var(0, len(self.combos), f"util_{self.card_to_idx[card]}")
+
+        if profile_result:
+            profile_result.counts["variables_utilization"] = len(u)
+
+        # Link utilization to combo participation
+        utilization_linking_count = 0
+        for card in self.all_cards:
+            card_combo_sum = sum(y[combo.id] for combo in self.card_to_combos[card])
+            model.add(u[card] == card_combo_sum).only_enforce_if(x[card])
+            model.add(u[card] == 0).only_enforce_if(x[card].Not())
+            utilization_linking_count += 2
+
+        if profile_result:
+            profile_result.counts["utilization_linking"] = utilization_linking_count
+
+        # Min-max range variables (only 2!)
+        max_util = model.new_int_var(0, len(self.combos), "max_util")
+        min_util = model.new_int_var(0, len(self.combos), "min_util")
+
+        if profile_result:
+            profile_result.counts["variables_minmax"] = 2
+
+        # Link max/min to card utilizations (only for selected cards)
+        minmax_constraint_count = 0
+        for card in self.all_cards:
+            model.add(max_util >= u[card]).only_enforce_if(x[card])
+            model.add(min_util <= u[card]).only_enforce_if(x[card])
+            minmax_constraint_count += 2
+
+        if profile_result:
+            profile_result.counts["minmax_linking"] = minmax_constraint_count
+
+        # Floor constraint: minimum utilization must be at least N
+        if self.min_utilization_floor > 0:
+            model.add(min_util >= self.min_utilization_floor)
+            logger.info(f"Phase 2: Minimum utilization floor = {self.min_utilization_floor}")
+            if profile_result:
+                profile_result.counts["min_floor"] = 1
+
+        # Objective: minimize range (max - min) with versatility bonus
+        range_term = max_util - min_util
+
+        # Add versatility bonus (subtract because we're minimizing)
+        versatility_bonus = sum(
+            int(
+                self.VERSATILITY_EPSILON
+                * math.log1p(self.candidate_cards[card].template_count)
+                * self.WEIGHT_SCALE
+            )
+            * x[card]
+            for card in self.all_cards
+        )
+
+        # Scale range to be comparable to bonus
+        model.minimize(range_term * self.WEIGHT_SCALE - versatility_bonus)
+
+        if profile_result:
+            profile_result.timings["model_build"] = time.perf_counter() - build_start
+
+        # Warm-start from Phase 1 solution
+        phase1_cards = {c.name for c in phase1_result.selected_cards}
+        phase1_combos = set(phase1_result.completable_combo_ids)
+        hints_added = 0
+
+        for card in self.all_cards:
+            model.add_hint(x[card], 1 if card in phase1_cards else 0)
+            hints_added += 1
+
+        for combo in self.combos:
+            model.add_hint(y[combo.id], 1 if combo.id in phase1_combos else 0)
+            hints_added += 1
+
+        if phase1_result.utilization_per_card:
+            for card in self.all_cards:
+                if card in phase1_cards:
+                    util_value = phase1_result.utilization_per_card.get(card, 0)
+                    model.add_hint(u[card], util_value)
+                else:
+                    model.add_hint(u[card], 0)
+                hints_added += 1
+
+        logger.info(f"Phase 2: Added {hints_added} warm-start hints from Phase 1 solution")
+
+        if profile_result:
+            profile_result.counts["warm_start_hints"] = hints_added
+
+        # Solve
+        solver = cp_model.CpSolver()
+        solver.parameters.max_time_in_seconds = self.time_limit
+        solver.parameters.num_workers = 8
+        solver.parameters.log_search_progress = logger.isEnabledFor(logging.DEBUG)
+
+        if self.gap_limit > 0:
+            solver.parameters.relative_gap_limit = self.gap_limit
+            logger.info(f"Phase 2: Early termination enabled (gap limit: {self.gap_limit:.1%})")
+
+        solve_start = time.perf_counter()
+        status = solver.solve(model)
+        solver_time = time.perf_counter() - solve_start
+
+        if profile_result:
+            profile_result.timings["solver"] = solver_time
+            profile_result.solver_stats = extract_solver_stats(solver)
+
+        phase2_time = time.perf_counter() - start_time
+        status_str = self._status_to_string(status)  # type: ignore[arg-type]
+
+        # If Phase 2 fails, fall back to Phase 1
+        if status not in (cp_model.OPTIMAL, cp_model.FEASIBLE):
+            logger.warning(f"Phase 2 failed ({status_str}), falling back to Phase 1 result")
+            return phase1_result
+
+        # Extract Phase 2 solution
+        extract_start = time.perf_counter()
+        selected_names = [card for card in self.all_cards if solver.value(x[card]) == 1]
+        selected = [self.candidate_cards[name] for name in selected_names]
+        completed = [combo.id for combo in self.combos if solver.value(y[combo.id]) == 1]
+
+        # Calculate Phase 2 utilization stats
+        utilization = self._calculate_utilization(selected_names, completed)
+        phase2_stats = self._compute_utilization_stats(utilization)
+
+        # Calculate requirement type stats
+        selected_name_set = set(selected_names)
+        completed_set = set(completed)
+        req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
+        coverage_stats = self._compute_coverage_stats(req_stats)
+
+        # Calculate cross-template stats
+        group_key_to_name = self._build_group_key_to_name_map(completed_set)
+        cross_template_stats = self._calculate_cross_template_stats(
+            selected_name_set, group_key_to_name
+        )
+
+        if profile_result:
+            profile_result.timings["extraction"] = time.perf_counter() - extract_start
+            profile_result.log_summary()
+
+        # Log improvement metrics
+        p1 = phase1_result.phase1_utilization_stats
+        std_improvement = (
+            100 * (1 - phase2_stats.std_deviation / p1.std_deviation)
+            if p1.std_deviation > 0
+            else 0.0
+        )
+        range_before = p1.max_utilization - p1.min_utilization
+        range_after = phase2_stats.max_utilization - phase2_stats.min_utilization
+        range_improvement = 100 * (1 - range_after / range_before) if range_before > 0 else 0.0
+
+        logger.info(
+            f"Phase 2 complete ({status_str}): "
+            f"std_dev {p1.std_deviation:.2f} → {phase2_stats.std_deviation:.2f} "
+            f"({std_improvement:.1f}% improvement) in {phase2_time:.1f}s"
+        )
+        logger.info(
+            f"Utilization range: {p1.min_utilization}-{p1.max_utilization} → "
+            f"{phase2_stats.min_utilization}-{phase2_stats.max_utilization} "
+            f"({range_improvement:.1f}% reduction)"
+        )
+
+        # Build combined profile data
+        profile_data = None
+        if profile_result:
+            profile_data = phase1_result.profile_data or {}
+            profile_data["phase2"] = {
+                "timings": profile_result.timings,
+                "counts": profile_result.counts,
+                "solver_stats": profile_result.solver_stats,
+            }
+            phase1_profile = ProfileResult(
+                phase="Phase 1",
+                timings=profile_data.get("phase1", {}).get("timings", {}),
+                counts=profile_data.get("phase1", {}).get("counts", {}),
+                solver_stats=profile_data.get("phase1", {}).get("solver_stats", {}),
+            )
+            log_profile_comparison(phase1_profile, profile_result)
+
+        return OptimizationResult(
+            selected_cards=selected,
+            completable_combo_ids=completed,
+            combo_count=len(completed),
+            objective_value=phase1_result.objective_value,
+            solve_time_seconds=phase1_result.phase1_solve_time + phase2_time,  # type: ignore
+            phase1_status=phase1_result.phase1_status,
+            utilization_per_card=utilization,
+            phase1_utilization_stats=phase1_result.phase1_utilization_stats,
+            phase2_utilization_stats=phase2_stats,
+            phase1_solve_time=phase1_result.phase1_solve_time,
+            phase2_solve_time=phase2_time,
+            phase2_status=status_str,
+            is_multi_objective=True,
+            requirement_type_stats=req_stats,
+            requirement_coverage_stats=coverage_stats,
+            cross_template_stats=cross_template_stats,
+            phase1_selected_cards=phase1_result.selected_cards,
+            profile_data=profile_data,
+        )
+
     def solve_two_phase(self, profile: bool = False) -> OptimizationResult:
         """
         Two-phase multi-objective optimization (recommended entry point).
@@ -882,12 +1185,19 @@ class ILPOptimizer:
             logger.warning("Phase 1 found 0 combos. Skipping Phase 2.")
             return phase1_result
 
-        # Phase 2: Balance utilization
-        return self._solve_phase2(
-            target_combo_count=phase1_result.combo_count,
-            phase1_result=phase1_result,
-            profile=profile,
-        )
+        # Phase 2: Balance utilization (choose objective based on setting)
+        if self.phase2_objective == "minmax":
+            return self._solve_phase2_minmax(
+                target_combo_count=phase1_result.combo_count,
+                phase1_result=phase1_result,
+                profile=profile,
+            )
+        else:  # default: "mad"
+            return self._solve_phase2(
+                target_combo_count=phase1_result.combo_count,
+                phase1_result=phase1_result,
+                profile=profile,
+            )
 
     @staticmethod
     def _status_to_string(status: int) -> str:

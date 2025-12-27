@@ -24,6 +24,8 @@ async def run(
     blocklist_path: str | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
+    phase2_objective: str = "minmax",
+    min_utilization_floor: int = 2,
 ):
     """
     Run the cube building algorithm.
@@ -43,6 +45,8 @@ async def run(
         blocklist_path: Path to blocklist file (default: data/blocklist.txt)
         profile: Enable detailed profiling of ILP optimization
         gap_limit: Relative gap limit for Phase 2 early termination (0.05 = 5%)
+        phase2_objective: Phase 2 objective: "mad" or "minmax"
+        min_utilization_floor: Minimum utilization floor for minmax objective
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -60,6 +64,8 @@ async def run(
             blocklist=blocklist,
             profile=profile,
             gap_limit=gap_limit,
+            phase2_objective=phase2_objective,
+            min_utilization_floor=min_utilization_floor,
         )
     elif method == "greedy":
         await run_greedy(
