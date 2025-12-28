@@ -986,10 +986,23 @@ class ILPOptimizer:
             profile_result.counts["variables_minmax"] = 2
 
         # Link max/min to card utilizations (only for selected cards)
+        # For max_util: max_util >= u[card] when x[card] = 1
+        # For min_util: min_util <= u[card] when x[card] = 1
+        #
+        # We use a Big-M formulation to avoid potential solver bugs with reified
+        # inequality constraints at scale:
+        #   max_util >= u[card] - M * (1 - x[card])  =>  when x=1: max_util >= u[card]
+        #   min_util <= u[card] + M * (1 - x[card])  =>  when x=1: min_util <= u[card]
+        #
+        # M = len(combos) is a safe upper bound since utilization can't exceed combo count
+        big_m = len(self.combos)
         minmax_constraint_count = 0
+
         for card in self.all_cards:
-            model.add(max_util >= u[card]).only_enforce_if(x[card])
-            model.add(min_util <= u[card]).only_enforce_if(x[card])
+            # max_util >= u[card] when selected (x[card] = 1)
+            model.add(max_util >= u[card] - big_m * (1 - x[card]))
+            # min_util <= u[card] when selected (x[card] = 1)
+            model.add(min_util <= u[card] + big_m * (1 - x[card]))
             minmax_constraint_count += 2
 
         if profile_result:

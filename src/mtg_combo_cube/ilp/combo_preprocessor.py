@@ -6,7 +6,10 @@ from collections import defaultdict
 import aiohttp
 
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, RequirementOption
-from mtg_combo_cube.ilp.requirement_normalizer import compute_requirement_group_key
+from mtg_combo_cube.ilp.requirement_normalizer import (
+    compute_requirement_group_key,
+    prepare_scryfall_url,
+)
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)
@@ -115,8 +118,8 @@ class ComboPreprocessor:
 
     async def _resolve_template(self, scryfall_api: str) -> list[str]:
         """Fetch cards matching a Scryfall template query."""
-        # Normalize URL for caching (same pattern as variant_tracker.py)
-        url = scryfall_api.replace("+legal%3Acommander", "") + "&order=edhrec"
+        # Prepare URL for caching and fetching
+        url = prepare_scryfall_url(scryfall_api)
 
         if url in self._scryfall_cache:
             return self._scryfall_cache[url]

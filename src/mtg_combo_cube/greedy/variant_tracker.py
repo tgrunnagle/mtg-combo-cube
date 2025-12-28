@@ -2,6 +2,7 @@ import logging
 
 import aiohttp
 
+from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
 
 logger = logging.getLogger(__name__)
@@ -35,10 +36,7 @@ class VariantTracker:
         for requirement in variant.requires:
             if requirement.template.scryfall_api is None:
                 continue
-            url = (
-                requirement.template.scryfall_api.replace("+legal%3Acommander", "")
-                + "&order=edhrec"
-            )
+            url = prepare_scryfall_url(requirement.template.scryfall_api)
             cards = await self._get_requirement_card_names(url)
             if not cards:
                 logger.debug(f"Skipping combo {variant.id}: all template satisfiers blocked")
@@ -57,10 +55,7 @@ class VariantTracker:
         for requirement in variant.requires:
             if requirement.template.scryfall_api is None:
                 continue
-            url = (
-                requirement.template.scryfall_api.replace("+legal%3Acommander", "")
-                + "&order=edhrec"
-            )
+            url = prepare_scryfall_url(requirement.template.scryfall_api)
             cards = await self._get_requirement_card_names(url)
             for card in cards:
                 if (count := self._card_counts.get(card)) is None:

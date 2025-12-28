@@ -422,7 +422,11 @@ class TestILPOptimizerTwoPhase:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=10,
+            min_utilization_floor=0,  # Disable floor since cards only in 1 combo each
         )
         result = optimizer.solve_two_phase()
 

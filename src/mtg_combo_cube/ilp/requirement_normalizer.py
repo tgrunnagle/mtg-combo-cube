@@ -1,7 +1,7 @@
 """Utilities for normalizing requirement identifiers for deduplication."""
 
 import re
-from urllib.parse import parse_qs, urlparse
+from urllib.parse import parse_qs, urlencode, urlparse, urlunparse
 
 
 def normalize_scryfall_url(scryfall_api: str) -> str:
@@ -81,3 +81,42 @@ def compute_requirement_group_key(scryfall_api: str | None, name: str) -> str:
         return f"scryfall:{normalize_scryfall_url(scryfall_api)}"
     else:
         return f"name:{normalize_template_name(name)}"
+
+
+def prepare_scryfall_url(scryfall_api: str) -> str:
+    """
+    Prepare a Scryfall API URL for fetching by ensuring proper ordering.
+
+    - Removes the legal:commander filter (we handle legality separately)
+    - Ensures order=edhrec is present (for consistent card ranking)
+
+    Args:
+        scryfall_api: The original Scryfall API URL
+
+    Returns:
+        A cleaned URL ready for fetching
+
+    Example:
+        Input:  "https://api.scryfall.com/cards/search?q=type:creature+legal%3Acommander"
+        Output: "https://api.scryfall.com/cards/search?q=type%3Acreature&order=edhrec"
+    """
+    # Remove legal:commander filter (URL-encoded as legal%3Acommander or +legal%3Acommander)
+    url = scryfall_api.replace("+legal%3Acommander", "").replace("legal%3Acommander", "")
+
+    # Parse the URL to check/add order parameter
+    parsed = urlparse(url)
+    params = parse_qs(parsed.query)
+
+    # Ensure order=edhrec is set
+    if "order" not in params:
+        params["order"] = ["edhrec"]
+    elif params["order"] != ["edhrec"]:
+        # Override any existing order with edhrec
+        params["order"] = ["edhrec"]
+
+    # Rebuild the URL with the updated params
+    # Use doseq=True to handle list values properly
+    new_query = urlencode(params, doseq=True)
+    new_parsed = parsed._replace(query=new_query)
+
+    return urlunparse(new_parsed)
