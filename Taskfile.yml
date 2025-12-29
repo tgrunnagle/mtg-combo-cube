@@ -75,7 +75,7 @@ tasks:
   build:ilp:
     desc: Build a cube using ILP two-phase optimization (default)
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "1800"}} -n {{.MAX_VARIANTS | default "10000"}} --profile --read-api-cache
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE | default "300"}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT | default "360"}} -n {{.MAX_VARIANTS | default "10000"}} --profile --read-api-cache
     deps:
       - install
 
