@@ -6,9 +6,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.ilp.ilp_models import OptimizationResult
+from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, OptimizationResult
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 
@@ -44,6 +45,25 @@ async def collect_variants(
     return variants
 
 
+def _optimization_method(result: OptimizationResult) -> str:
+    """Name the optimization that produced the result, for the stats file."""
+    if result.is_multi_objective:
+        return "two_phase"
+    if result.phase2_fell_back:
+        return "two_phase_fallback_to_phase1"
+    return "single_phase"
+
+
+def _phase2_objective_info(result: OptimizationResult) -> dict:
+    """The Phase 2 objective and its utilization cap, when the result records them."""
+    info: dict = {}
+    if result.phase2_objective is not None:
+        info["objective"] = result.phase2_objective
+    if result.phase2_util_cap is not None:
+        info["util_cap"] = result.phase2_util_cap
+    return info
+
+
 def write_stats(
     result: OptimizationResult,
     output_file: str,
@@ -60,7 +80,7 @@ def write_stats(
             "timestamp": datetime.now(UTC).isoformat(),
             "cube_size": cube_size,
             "combo_count": result.combo_count,
-            "optimization_method": "two_phase" if result.is_multi_objective else "single_phase",
+            "optimization_method": _optimization_method(result),
             "phase1_status": result.phase1_status,
             "total_solve_time_seconds": result.solve_time_seconds,
         },
@@ -96,6 +116,7 @@ def write_stats(
             "median_utilization": p2.median_utilization,
             "std_deviation": p2.std_deviation,
             "total_absolute_deviation": p2.total_absolute_deviation,
+            **_phase2_objective_info(result),
         }
 
         # Calculate improvement metrics
@@ -129,6 +150,15 @@ def write_stats(
                     "cards_removed": cards_removed,
                     "total_changed": len(cards_added) + len(cards_removed),
                 }
+
+    # Phase 2 ran but found no solution: the cube is the Phase 1 result
+    if result.phase2_fell_back:
+        stats["phase2"] = {
+            "solve_time_seconds": result.phase2_solve_time,
+            "status": result.phase2_status,
+            "fell_back_to_phase1": True,
+            **_phase2_objective_info(result),
+        }
 
     # Top and bottom utilized cards
     if result.utilization_per_card:
@@ -192,6 +222,10 @@ def write_stats(
             ],
         }
 
+    # Profiling data (when --profile was used)
+    if result.profile_data:
+        stats["profiling"] = result.profile_data
+
     # Create parent directory if it doesn't exist
     stats_file.parent.mkdir(parents=True, exist_ok=True)
 
@@ -201,30 +235,14 @@ def write_stats(
     logger.info(f"Utilization statistics written to {stats_file}")
 
 
-async def build_cube_ilp(
-    cube_size: int,
+async def load_instance(
     max_cards_in_combo: int = 4,
     max_variants: int = 10000,
-    time_limit_seconds: int = 300,
-    use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,
-    combo_tolerance: float = 0.1,
-    min_coverage_ratio: float = 0.1,
-    min_combo_threshold: int = 10,
     blocklist: frozenset[str] = frozenset(),
-) -> tuple[list[str], int, OptimizationResult]:
-    """
-    Build cube using ILP optimization with optional API caching.
-
-    Returns:
-        - List of card names in cube
-        - Number of completable combos
-        - Full optimization result with stats
-    """
-    logger.info(f"Building {cube_size}-card cube using ILP optimization...")
-
-    # Initialize cache
+) -> tuple[list[ComboData], dict[str, CandidateCard]]:
+    """Fetch the variants (with optional API caching) and preprocess them for the ILP."""
     cache = SpellbookCache(
         enable_write=enable_cache_write,
         enable_read=read_cache,
@@ -240,8 +258,47 @@ async def build_cube_ilp(
     )
 
     # Step 2: Preprocess for ILP
-    preprocessor = ComboPreprocessor(blocklist=blocklist)
-    combo_data, candidate_cards = await preprocessor.preprocess_variants(variants)
+    fetcher = ScryfallFetcher(enable_read=read_cache, enable_write=enable_cache_write)
+    preprocessor = ComboPreprocessor(blocklist=blocklist, fetcher=fetcher)
+    return await preprocessor.preprocess_variants(variants)
+
+
+async def build_cube_ilp(
+    cube_size: int,
+    max_cards_in_combo: int = 4,
+    max_variants: int = 10000,
+    time_limit_seconds: int = 300,
+    use_multi_objective: bool = True,
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
+    combo_tolerance: float = 0.1,
+    min_coverage_ratio: float = 0.1,
+    min_combo_threshold: int = 10,
+    blocklist: frozenset[str] = frozenset(),
+    profile: bool = False,
+    gap_limit: float = 0.05,
+    phase2_objective: str = "tiered",
+    min_utilization_floor: int = 2,
+    num_workers: int = 8,
+    util_cap: int | None = None,
+) -> tuple[list[str], int, OptimizationResult]:
+    """
+    Build cube using ILP optimization with optional API caching.
+
+    Returns:
+        - List of card names in cube
+        - Number of completable combos
+        - Full optimization result with stats
+    """
+    logger.info(f"Building {cube_size}-card cube using ILP optimization...")
+
+    combo_data, candidate_cards = await load_instance(
+        max_cards_in_combo=max_cards_in_combo,
+        max_variants=max_variants,
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+        blocklist=blocklist,
+    )
 
     if len(candidate_cards) < cube_size:
         logger.warning(
@@ -250,7 +307,7 @@ async def build_cube_ilp(
         )
         cube_size = len(candidate_cards)
 
-    # Step 3: Run ILP optimization
+    # Run ILP optimization
     optimizer = ILPOptimizer(
         combos=combo_data,
         candidate_cards=candidate_cards,
@@ -259,13 +316,18 @@ async def build_cube_ilp(
         combo_tolerance=combo_tolerance,
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
+        gap_limit=gap_limit,
+        phase2_objective=phase2_objective,
+        min_utilization_floor=min_utilization_floor,
+        num_workers=num_workers,
+        util_cap=util_cap,
     )
 
     # Run optimization (two-phase by default)
     if use_multi_objective:
-        result = optimizer.solve_two_phase()
+        result = optimizer.solve_two_phase(profile=profile)
     else:
-        result = optimizer.solve()
+        result = optimizer.solve(profile=profile)
 
     # Log utilization improvements if multi-objective
     if result.is_multi_objective and result.phase2_utilization_stats:
@@ -276,6 +338,11 @@ async def build_cube_ilp(
                 f"Utilization: std_dev {p1.std_deviation:.1f} → {p2.std_deviation:.1f} "
                 f"({100 * (1 - p2.std_deviation / p1.std_deviation):.1f}% improvement)"
             )
+
+    if result.phase2_fell_back:
+        logger.warning(
+            f"Phase 2 found no solution ({result.phase2_status}); the cube is the Phase 1 result"
+        )
 
     logger.info(
         f"ILP complete: {result.combo_count} combos, "
@@ -297,6 +364,12 @@ async def run_ilp(
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
     blocklist: frozenset[str] = frozenset(),
+    profile: bool = False,
+    gap_limit: float = 0.05,
+    phase2_objective: str = "tiered",
+    min_utilization_floor: int = 2,
+    num_workers: int = 8,
+    util_cap: int | None = None,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result = await build_cube_ilp(
@@ -310,6 +383,12 @@ async def run_ilp(
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
         blocklist=blocklist,
+        profile=profile,
+        gap_limit=gap_limit,
+        phase2_objective=phase2_objective,
+        min_utilization_floor=min_utilization_floor,
+        num_workers=num_workers,
+        util_cap=util_cap,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")

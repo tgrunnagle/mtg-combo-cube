@@ -1,5 +1,19 @@
 # Multi-Objective ILP: Combo Count + Card Utilization Balance
 
+> **Note (2026-10-05): historical design document.** It describes the original two-phase design
+> (MAD objective) and is kept unchanged except where marked "superseded". The current state of
+> the code, the benchmark numbers and the decisions are in
+> [ilp-improvement-plan.md](ilp-improvement-plan.md). The main differences today:
+>
+> - Phase 2 offers five objectives (`tiered`, the default, `softcap`, `maxutil`, `minmax`,
+>   `mad`); the MAD formulation below is the `mad` objective.
+> - Phase 2 makes `y[j]` exact (`y[j] = 1` if and only if the cube completes combo `j`); the
+>   constraints below only bound it from above.
+> - Phase 2 also has a utilization floor, coverage constraints, a combo count tolerance and a
+>   warm start from the Phase 1 cube.
+> - The definition of card utilization below is unchanged and is an open design question
+>   (see "Follow-ups" in the plan).
+
 ## Problem Statement
 
 Extend the ILP optimizer to jointly optimize two objectives:
@@ -253,6 +267,13 @@ model.minimize(sum(d_plus[card] + d_minus[card] for card in self.all_cards))
 ## Implementation Plan
 
 ### New/Modified Files
+
+*Superseded: the names in this section and in "Core Algorithm" and "CLI Integration" below are
+the planned ones and do not exist in the code. Actual names: `ILPOptimizer.solve_two_phase()`
+(two-phase entry point) and `ILPOptimizer._solve_phase2()`; `build_cube_ilp(...,
+use_multi_objective=True)` in `ilp_runner.py`; a single `OptimizationResult` in `ilp_models.py`.
+Two-phase is the CLI default and `--single-phase` turns it off (there is no `--multi-objective`
+flag).*
 
 | File | Changes |
 |------|---------|

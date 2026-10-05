@@ -1,18 +1,22 @@
 import logging
 
-import aiohttp
-
+from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 
 logger = logging.getLogger(__name__)
 
 
 class VariantTracker:
-    def __init__(self, blocklist: frozenset[str] = frozenset()):
+    def __init__(
+        self,
+        blocklist: frozenset[str] = frozenset(),
+        fetcher: ScryfallFetcher | None = None,
+    ):
         self._variants: dict[str, Variant] = {}
         self._card_counts: dict[str, int] = {}
-        self._requirement_cards_cache: dict[str, list[str]] = {}
         self._blocklist = blocklist
+        self._fetcher = fetcher if fetcher is not None else ScryfallFetcher()
 
     REQUIRED_CARD_RANK_LIMIT = 5
 
@@ -35,10 +39,7 @@ class VariantTracker:
         for requirement in variant.requires:
             if requirement.template.scryfall_api is None:
                 continue
-            url = (
-                requirement.template.scryfall_api.replace("+legal%3Acommander", "")
-                + "&order=edhrec"
-            )
+            url = prepare_scryfall_url(requirement.template.scryfall_api)
             cards = await self._get_requirement_card_names(url)
             if not cards:
                 logger.debug(f"Skipping combo {variant.id}: all template satisfiers blocked")
@@ -57,10 +58,7 @@ class VariantTracker:
         for requirement in variant.requires:
             if requirement.template.scryfall_api is None:
                 continue
-            url = (
-                requirement.template.scryfall_api.replace("+legal%3Acommander", "")
-                + "&order=edhrec"
-            )
+            url = prepare_scryfall_url(requirement.template.scryfall_api)
             cards = await self._get_requirement_card_names(url)
             for card in cards:
                 if (count := self._card_counts.get(card)) is None:
@@ -90,14 +88,10 @@ class VariantTracker:
         return list(cards)
 
     async def _get_requirement_card_names(self, scryfall_api: str) -> list[str]:
-        if (card_names := self._requirement_cards_cache.get(scryfall_api)) is None:
-            async with aiohttp.ClientSession() as session:
-                logger.debug(f"Fetching requirement card names for {scryfall_api}")
-                async with session.get(scryfall_api) as response:
-                    data = await response.json()
-                    card_names = [card["name"] for card in data["data"]]
-                    # Filter out blocked cards before applying limit
-                    card_names = [card for card in card_names if card not in self._blocklist]
-                    card_names = card_names[: self.REQUIRED_CARD_RANK_LIMIT]
-            self._requirement_cards_cache[scryfall_api] = card_names
-        return card_names
+        card_names = await self._fetcher.fetch_card_names(scryfall_api)
+        if card_names is None:
+            logger.warning(f"Scryfall fetch failed for {scryfall_api}")
+            return []
+        # Filter out blocked cards before applying limit
+        card_names = [card for card in card_names if card not in self._blocklist]
+        return card_names[: self.REQUIRED_CARD_RANK_LIMIT]

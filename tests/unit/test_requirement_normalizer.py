@@ -4,6 +4,7 @@ from mtg_combo_cube.ilp.requirement_normalizer import (
     compute_requirement_group_key,
     normalize_scryfall_url,
     normalize_template_name,
+    prepare_scryfall_url,
 )
 
 
@@ -142,3 +143,52 @@ class TestComputeRequirementGroupKey:
         key1 = compute_requirement_group_key(None, "Sac Outlet")
         key2 = compute_requirement_group_key(None, "sac outlet")
         assert key1 == key2
+
+
+class TestPrepareScryfallUrl:
+    """Test Scryfall URL preparation for fetching."""
+
+    def test_adds_order_edhrec_when_missing(self):
+        """Test that order=edhrec is added when not present."""
+        url = "https://api.scryfall.com/cards/search?q=type:creature"
+        result = prepare_scryfall_url(url)
+        assert "order=edhrec" in result
+
+    def test_preserves_order_edhrec_when_present(self):
+        """Test that order=edhrec is preserved when already present."""
+        url = "https://api.scryfall.com/cards/search?q=type:creature&order=edhrec"
+        result = prepare_scryfall_url(url)
+        assert result.count("order=edhrec") == 1
+
+    def test_replaces_other_order_with_edhrec(self):
+        """Test that other order values are replaced with edhrec."""
+        url = "https://api.scryfall.com/cards/search?q=type:creature&order=name"
+        result = prepare_scryfall_url(url)
+        assert "order=edhrec" in result
+        assert "order=name" not in result
+
+    def test_removes_legal_commander_encoded(self):
+        """Test that +legal%3Acommander is removed."""
+        url = "https://api.scryfall.com/cards/search?q=type:creature+legal%3Acommander"
+        result = prepare_scryfall_url(url)
+        assert "legal%3Acommander" not in result
+        assert "+legal%3Acommander" not in result
+
+    def test_removes_legal_commander_standalone(self):
+        """Test that standalone legal%3Acommander is removed."""
+        url = "https://api.scryfall.com/cards/search?q=legal%3Acommander+type:creature"
+        result = prepare_scryfall_url(url)
+        assert "legal%3Acommander" not in result
+
+    def test_preserves_query_params(self):
+        """Test that query parameters are preserved."""
+        url = "https://api.scryfall.com/cards/search?q=keyword:persist"
+        result = prepare_scryfall_url(url)
+        assert "q=" in result
+        assert "persist" in result
+
+    def test_returns_valid_url(self):
+        """Test that result is a valid URL."""
+        url = "https://api.scryfall.com/cards/search?q=type:creature"
+        result = prepare_scryfall_url(url)
+        assert result.startswith("https://api.scryfall.com")

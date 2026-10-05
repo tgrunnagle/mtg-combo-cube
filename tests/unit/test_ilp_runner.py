@@ -381,3 +381,118 @@ class TestWriteUtilizationStats:
             # improvement should exist but not have card_changes
             assert stats["improvement"] is not None
             assert "card_changes" not in stats["improvement"]
+
+    def test_write_stats_phase2_fallback(self):
+        """A failed Phase 2 is recorded instead of looking like a single-phase run."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=31.5,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 1, "Card C": 1},
+                phase1_utilization_stats=UtilizationStats(1, 2, 1.33, 0.47, 1, 1.0),
+                phase1_solve_time=1.5,
+                phase2_solve_time=30.0,
+                phase2_status="TIMEOUT",
+                is_multi_objective=False,
+                phase2_fell_back=True,
+                profile_data={"phase1": {"counts": {}}, "phase2": {"counts": {}}},
+            )
+
+            write_stats(result, output_file, 3)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            assert stats["metadata"]["optimization_method"] == "two_phase_fallback_to_phase1"
+            assert stats["metadata"]["total_solve_time_seconds"] == 31.5
+            assert stats["phase1"] is not None
+            assert stats["phase2"] == {
+                "solve_time_seconds": 30.0,
+                "status": "TIMEOUT",
+                "fell_back_to_phase1": True,
+            }
+            assert stats["improvement"] is None
+            assert set(stats["profiling"]) == {"phase1", "phase2"}
+
+    @pytest.mark.parametrize(
+        ("objective", "util_cap", "expected"),
+        [
+            ("softcap", 32, {"objective": "softcap", "util_cap": 32}),
+            ("maxutil", None, {"objective": "maxutil"}),
+            (None, None, {}),
+        ],
+    )
+    def test_write_stats_phase2_objective_and_cap(
+        self, objective: str | None, util_cap: int | None, expected: dict
+    ):
+        """The Phase 2 objective and the utilization cap it used are recorded."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=3.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 3, "Card C": 4},
+                phase1_utilization_stats=UtilizationStats(1, 5, 3.0, 1.5, 10, 3.0),
+                phase2_utilization_stats=UtilizationStats(2, 4, 3.0, 0.8, 6, 3.0),
+                phase1_solve_time=1.5,
+                phase2_solve_time=1.5,
+                phase2_status="OPTIMAL",
+                phase2_objective=objective,
+                phase2_util_cap=util_cap,
+                is_multi_objective=True,
+            )
+
+            write_stats(result, output_file, 3)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            recorded = {k: v for k, v in stats["phase2"].items() if k in ("objective", "util_cap")}
+            assert recorded == expected
+
+    def test_write_stats_phase2_fallback_records_objective_and_cap(self):
+        """A fallback keeps the objective and cap of the failed Phase 2 attempt."""
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_file = str(Path(tmpdir) / "data/cube.txt")
+            stats_file = str(Path(tmpdir) / "data/cube_stats.json")
+
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A"]),
+                completable_combo_ids=["combo1"],
+                combo_count=1,
+                objective_value=1.0,
+                solve_time_seconds=31.5,
+                phase1_status="OPTIMAL",
+                phase1_solve_time=1.5,
+                phase2_solve_time=30.0,
+                phase2_status="INFEASIBLE",
+                phase2_objective="softcap",
+                phase2_util_cap=12,
+                phase2_fell_back=True,
+            )
+
+            write_stats(result, output_file, 1)
+
+            with open(stats_file) as f:
+                stats = json.load(f)
+
+            assert stats["phase2"] == {
+                "solve_time_seconds": 30.0,
+                "status": "INFEASIBLE",
+                "fell_back_to_phase1": True,
+                "objective": "softcap",
+                "util_cap": 12,
+            }

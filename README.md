@@ -4,7 +4,7 @@ A tool for building Magic: The Gathering combo cubes by optimizing card selectio
 
 ## Summary
 
-Given a target cube size (e.g., 360 cards), this tool selects cards that maximize the number of completable combos while ensuring balanced card utilization. It fetches combo data from the [Commander Spellbook API](https://commanderspellbook.com/) and uses Integer Linear Programming (ILP) to find optimal solutions.
+Given a target cube size (e.g., 360 cards), this tool selects cards that maximize the number of completable combos while ensuring balanced card utilization. This problem is a variant of a **weighted maximum coverage** or **set cover**, which is NP-hard. It fetches combo data from the [Commander Spellbook API](https://commanderspellbook.com/) and uses Integer Linear Programming (ILP) to find optimal solutions.
 
 **The core optimization problem:**
 - Select exactly N cards for the cube
@@ -13,9 +13,9 @@ Given a target cube size (e.g., 360 cards), this tool selects cards that maximiz
 
 **Two-phase approach (default):**
 1. **Phase 1** - Maximize combo count using weighted optimization (popularity as tiebreaker)
-2. **Phase 2** - Minimize utilization variance while preserving combo count (within configurable tolerance)
+2. **Phase 2** - Balance card utilization while preserving combo count (within configurable tolerance)
 
-This produces cubes where every card pulls its weight, avoiding "dead" cards that don't contribute to any combos.
+This produces cubes where every card pulls its weight: in a two-phase result every card takes part in at least `--min-util-floor` completable combos (default 2), and over-used "hub" cards are pushed down.
 
 ## Setup
 
@@ -39,11 +39,13 @@ uv sync --dev
 
 ```bash
 # Build a 300-card cube using ILP (two-phase optimization, default)
-task build:ilp CARD_COUNT=300
+task build:ilp CUBE_SIZE=300
 # or
 uv run python -m src.mtg_combo_cube -c 300 --method ilp
 
 # Build using greedy method
+task build:greedy CUBE_SIZE=300
+# or
 uv run python -m src.mtg_combo_cube -c 300 --method greedy
 ```
 
@@ -51,17 +53,29 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 
 ```
 -c, --cube-size        Cube size (default: 300)
--m, --method           Optimization method: greedy or ilp (default: greedy)
+-m, --method           Optimization method: greedy or ilp (default: ilp)
 -o, --output-file      Output file path (default: data/cube.txt)
 -r, --ratio            Golden ratio for greedy method (default: 1.2)
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 10000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
 --combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
+--gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
+--phase2-objective     Phase 2 objective: tiered (default), softcap, maxutil, minmax or mad
+--util-cap             Utilization cap for softcap and tiered (default: 2 x Phase 1 median)
+--min-util-floor       Minimum utilization floor for Phase 2, any objective (default: 2)
+--min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
+--workers              Parallel search workers for the ILP solver (default: 8)
+--profile              Enable detailed profiling of ILP optimization
+--blocklist            Path to card blocklist file (default: data/blocklist.txt)
 --skip-api-caching     Skip writing API responses to cache files
 --read-api-cache       Read from cache if available, fall back to API if not
--d, --debug            Enable debug logging
+-d, --debug            Enable debug logging (includes the CP-SAT search log)
 ```
+
+`-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
+
+The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. `task build:ilp` uses a 360 s time limit unless `TIME_LIMIT` is given.
 
 ### Examples
 
@@ -74,11 +88,17 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp
 # Single-phase ILP (max combos only)
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --single-phase
 
-# Two-phase with strict combo count (no tolerance)
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0
+# Two-phase with 20% combo tolerance (trades more combos for a flatter cube)
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0.2
 
-# Two-phase with 25% combo tolerance (allows trading combos for better balance)
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0.25
+# Push the single most-used card down instead of the overall spread
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --phase2-objective maxutil
+
+# Penalize every card used in more than 40 combos
+uv run python -m src.mtg_combo_cube -c 300 --method ilp --util-cap 40
+
+# Small, fast configuration for trying things out (about 1 minute with a warm cache)
+uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache
 
 # Greedy with custom ratio
 uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
@@ -92,15 +112,55 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 - **data/cube.txt**: List of selected cards (one per line)
 - **data/cube_stats.json**: Utilization statistics and optimization metrics (ILP only)
 
+The stats file contains:
+
+- `metadata`: cube size, combo count, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
+- `phase1` / `phase2`: solve time and utilization statistics (min, max, mean, median, standard deviation). `phase2` also records `status`, the `objective` that ran and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
+- `improvement`: Phase 1 to Phase 2 changes, including the cards swapped.
+- `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
+- `profiling` (with `--profile`): per-phase timings, variable and constraint counts and solver statistics.
+
+Every combo count and utilization number is computed from the selected cards, not read from solver variables.
+
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 10,000 variants with the default settings.
+
+### Evaluating a Cube
+
+To score an existing cube list (true combo count and utilization statistics) against the cached data:
+
+```bash
+uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 10000
+```
+
+Use the same `-n` (and `--blocklist`) as the build you want to compare with. Cached data is read when present and fetched otherwise (nothing is written to the cache); cards that are not part of the instance are reported and count with utilization 0.
+
 ### API Caching
 
-The tool caches Commander Spellbook API responses to speed up repeated runs and reduce API load.
+Two kinds of API responses are cached in `data/cache/`:
+
+| Data | File | Used by |
+|------|------|---------|
+| Commander Spellbook combo variants | `variants_cards{max}_max{variants}.json` | ILP |
+| Scryfall template searches (the cards that satisfy a requirement such as "Persist Creature") | `scryfall_templates.json` | ILP and greedy |
 
 **Cache behavior:**
 - By default, API responses are written to `data/cache/` after fetching
 - Use `--read-api-cache` to read from cache when available (falls back to live API on cache miss)
 - Use `--skip-api-caching` to disable writing to cache
-- Cache files are named based on parameters: `variants_cards{max}_max{variants}.json`
+- Both flags cover both caches. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
+- Scryfall requests are rate-limited (about 10 per second) and retried on HTTP 429 / 5xx and network errors. Failed requests are not cached, so a later run retries them.
+- The greedy method always queries Commander Spellbook live; only its Scryfall lookups are cached.
+
+After preprocessing, the ILP method logs how many combos were left out and why, and how the Scryfall data was obtained:
+
+```
+Dropped 78 of 10000 combos (blocked_card=5, no_scryfall_api=73, scryfall_failure=0, empty_match=0); Scryfall: 0 network requests, 68 templates read from cache, 0 failed
+```
+
+- `blocked_card`: a required card is on the blocklist
+- `no_scryfall_api`: a requirement has no Scryfall query
+- `empty_match`: the query matches no card that is not blocked
+- `scryfall_failure`: the request failed. A warning is logged because the instance is then incomplete; re-running retries it.
 
 ```bash
 # First run: fetches from API and caches results
@@ -115,18 +175,57 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
 
 ## Optimization Methods
 
-### Greedy (Default CLI Method)
+### Greedy
 Fast heuristic approach that iteratively selects high-impact cards. Good for quick iterations.
 
-### ILP (Recommended)
-Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal solutions with two operational modes:
+### ILP (Recommended, default)
+Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to proven optimality at the tested sizes; Phase 2 returns the best cube found within the gap or time limit. Two operational modes:
 
 **Two-Phase (Default)**
 - Phase 1: Maximize combo count
-- Phase 2: Minimize card utilization variance while preserving combo count (within tolerance)
+- Phase 2: Balance card utilization while preserving combo count (within tolerance)
 - Produces balanced cubes where cards participate more evenly across combos
 - Outputs detailed statistics to `{output}_stats.json`
-- `--combo-tolerance` controls how much Phase 2 can deviate from Phase 1's combo count (default: 10%). Set to 0 for strict equality.
+
+**Phase 2 Options:**
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
+| `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
+| `--combo-tolerance` | `0.1` | How much Phase 2 can deviate from Phase 1's combo count (10%) |
+| `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
+| `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
+| `--min-coverage-ratio` | `0.1` | Minimum cards per requirement template (10% of the combos using it, at most the template's card pool; 0 disables) |
+
+**Phase 2 Objectives:**
+
+| Objective | Minimizes | Pick it when |
+|-----------|-----------|--------------|
+| `tiered` (default) | Total utilization above the cap `T`, counted again above `2T` and `4T` | You want the flattest overall distribution; a single outlier card may remain |
+| `softcap` | Total utilization above the cap `T` | As `tiered`, without the extra penalty for cards far above the cap |
+| `maxutil` | The highest utilization of any card | The single most-used card matters most |
+| `minmax` | `max_utilization - min_utilization` | As `maxutil`; this was the default before `tiered` |
+| `mad` | Total absolute deviation from the Phase 1 mean utilization | Comparison with older results |
+
+Measured at 300 cards / 10,000 variants with a 300 s limit (Phase 1 for comparison: maximum 348, standard deviation 41.85, 12 cards above 100):
+
+| Objective | Max utilization | Std deviation | Cards above 100 |
+|-----------|-----------------|---------------|-----------------|
+| `tiered` (two runs) | 255 | 28.6 / 29.1 | 7 / 8 |
+| `softcap` | 261 | 29.8 | 8 |
+| `mad` | 240 | 29.5 | 8 |
+| `maxutil` | 155 | 32.6 | 18 |
+| `minmax` | 155 | 32.2 | 19 |
+
+The objectives fall into two families: `tiered`, `softcap` and `mad` give a lower spread but leave one card far out; `maxutil` and `minmax` hold the worst card at about 155 but end with a plateau of cards just under it. All of them keep 2,223-2,224 of the 2,471 Phase 1 combos (the lower edge of the 10% tolerance), and none finishes before the time limit at this size. These are one or two runs each of a time-limited parallel search; differences inside a family are within run-to-run noise. Details are in the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md).
+
+Notes:
+
+- The floor (`--min-util-floor`) and the coverage rule (`--min-coverage-ratio`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
+- `--combo-tolerance 0` was infeasible at 300 cards / 10,000 variants: no cube with the full Phase 1 combo count also satisfies the floor and coverage constraints, so the run falls back to the Phase 1 cube. At 0.05 the result was less balanced than Phase 1; 0.2 gave a much flatter cube (standard deviation 20) for 20% of the combos.
+- For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.
+- If Phase 2 finds no solution (infeasible or out of time), the Phase 1 cube is written, a warning is logged and the stats file says `two_phase_fallback_to_phase1`.
 
 **Single-Phase** (use `--single-phase`)
 - Maximizes combo count only
@@ -134,16 +233,14 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Provides optimal soluti
 
 ## Design Documentation
 
-Detailed design documents are available in [docs/](docs/):
-
-- [ILP Design Doc](docs/ilp_design_doc.md) - Mathematical formulation and constraint design for Phase 1
-- [Multi-Objective Design Doc](docs/multi_objective_design_doc.md) - Two-phase optimization with utilization balancing
-- [Implementation Plans](docs/) - Step-by-step implementation guides for both approaches
+- [Architecture](docs/architecture.md) - The system as implemented: data pipeline, the two-phase ILP model and its objectives, outputs and known limitations
+- [Plans and design documents](docs/plans/README.md) - Working documents from each round of development, including the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md) with benchmark results and decisions
 
 Key concepts:
-- **Card Utilization**: Number of completable combos each card participates in
-- **MAD Minimization**: Phase 2 minimizes Mean Absolute Deviation of utilization
-- **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results
+- **Card Utilization**: Number of completable combos each card participates in. A card counts for a combo when it is one of the combo's required cards or belongs to the card pool of one of its requirement templates, whether or not it is the card that satisfies the template.
+- **Utilization Cap**: The `tiered` (default) and `softcap` objectives penalize utilization above a cap, by default twice the Phase 1 median
+- **Utilization Floor**: Every card in a Phase 2 cube takes part in at least `--min-util-floor` completable combos
+- **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results, marked as a fallback in the log and the stats file
 
 ## Development
 
@@ -169,8 +266,10 @@ task typecheck
 # Run all checks (lint, format, typecheck, tests)
 task check
 
-# Run the application
-task run
+# Build a cube (see Quick Start)
+task build:ilp
+task build:ilp-single
+task build:greedy
 ```
 
 ### Manual Commands
@@ -199,9 +298,13 @@ Tests focus on:
 - Data model validation and backward compatibility
 - Utilization calculation and statistics
 - Constraint satisfaction and optimization
-- Single-phase and two-phase solver behavior
+- Single-phase and two-phase solver behavior, with every Phase 2 objective checked against brute-force enumeration of a small instance
 - Edge cases (empty combos, insufficient cards, etc.)
 - Stats file generation and formatting
+- Scryfall fetching (cache, retries, rate limiting) against a fake HTTP session
+- CLI and runner plumbing
+
+The unit tests make no network requests.
 
 Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
 
@@ -221,7 +324,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (if enabled): Minimize utilization variance with fixed combo count
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with combo count held within tolerance of Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints and the chosen objective. It is warm-started from the Phase 1 cube, which is first repaired in a short extra solve if it breaks the floor or coverage constraints.
 5. Output optimized card list and statistics
 
 ### ILP Complexity
@@ -230,20 +333,24 @@ The ILP model scales as follows (where **Q** = cube size, **N** = number of comb
 
 | Aspect | Phase 1 | Phase 2 |
 |--------|---------|---------|
-| Binary variables | C + N | C + N |
-| Integer variables | 0 | 3C |
-| Constraints | O(N × R) | O(N × R + C) |
+| Binary variables | C + N | C + N + P |
+| Integer variables | 0 | C (utilization) + objective variables |
+| Constraints | O(N × R) | O(N × R + C + P × K) |
 
-Where **R** is the average number of optional requirements per combo.
+Where **R** is the average number of optional requirements per combo, **P** the number of distinct requirement card pools (48 at 200 cards / 5,000 variants) and **K** the cards per pool (at most 10). Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
 
-**Practical scaling behavior:**
-- **Model construction** is O(N × R × K) where K is cards per requirement
-- **Solve time** is bounded by `--time-limit` (default 300s), but typically:
-  - Small cubes (Q < 200, N < 1000): seconds
-  - Medium cubes (Q ~ 300, N ~ 5000): 10-60 seconds
-  - Large cubes (Q > 400, N > 8000): may hit time limit
+**Measured solve times** (8 workers, warm cache, default settings, October 2026; see the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md)):
 
-The solver uses 8 parallel workers and sophisticated pruning, so actual performance depends heavily on problem structure (card overlap between combos) rather than raw input size. Cube size **Q** primarily affects constraint tightness rather than model size.
+| Cube size | Variants | Phase 1 | Phase 2 (`tiered`) |
+|-----------|----------|---------|--------------------|
+| 100 | 1,000 | 0.2 s, optimal | runs to a 30 s limit |
+| 200 | 5,000 | about 3 s, optimal | about 80 s to reach the 5% gap limit (one run) |
+| 300 | 10,000 | about 5 s, optimal | runs to the 300 s limit (16-17.5% gap left) |
+
+- Phase 1 is solved to optimality in seconds. Phase 2 is the expensive part: at full size no objective reaches its stop rule within 300 s, so the result is the best cube found when the time limit expires. Most of the improvement happens in the first 3 minutes.
+- `--time-limit` (default 300 s) applies to each phase separately; the Phase 2 limit includes the warm-start repair.
+- Phase 2 timings vary noticeably between runs (the parallel search is not deterministic).
+- **Keep `--workers` at 8.** CP-SAT chooses its set of search strategies by worker count, so fewer workers is not just slower: with 4 workers Phase 1 did not prove optimality within the time limit at any tested size (8 workers: about 5 s at full size), and Phase 2 found no solution at all at 200 and 300 cards. More than 8 workers has not been measured.
 
 ## License
 

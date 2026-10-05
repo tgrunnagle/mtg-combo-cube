@@ -22,6 +22,12 @@ async def run(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     blocklist_path: str | None = None,
+    profile: bool = False,
+    gap_limit: float = 0.05,
+    phase2_objective: str = "tiered",
+    min_utilization_floor: int = 2,
+    num_workers: int = 8,
+    util_cap: int | None = None,
 ):
     """
     Run the cube building algorithm.
@@ -39,6 +45,12 @@ async def run(
         combo_tolerance: Tolerance for combo count deviation in phase 2
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
         blocklist_path: Path to blocklist file (default: data/blocklist.txt)
+        profile: Enable detailed profiling of ILP optimization
+        gap_limit: Relative gap limit for Phase 2 early termination (0.05 = 5%)
+        phase2_objective: Phase 2 objective: "minmax", "mad", "maxutil", "softcap" or "tiered"
+        min_utilization_floor: Minimum utilization floor for phase 2 (any objective)
+        num_workers: Number of parallel search workers for the ILP solver
+        util_cap: Utilization cap for "softcap" and "tiered" (None: 2 x Phase 1 median)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -54,6 +66,12 @@ async def run(
             combo_tolerance=combo_tolerance,
             min_coverage_ratio=min_coverage_ratio,
             blocklist=blocklist,
+            profile=profile,
+            gap_limit=gap_limit,
+            phase2_objective=phase2_objective,
+            min_utilization_floor=min_utilization_floor,
+            num_workers=num_workers,
+            util_cap=util_cap,
         )
     elif method == "greedy":
         await run_greedy(
@@ -61,6 +79,8 @@ async def run(
             output_file=output_file,
             golden_ratio=golden_ratio,
             blocklist=blocklist,
+            enable_cache_write=enable_cache_write,
+            read_cache=read_cache,
         )
     else:
         raise ValueError(f"Unknown method: {method}")

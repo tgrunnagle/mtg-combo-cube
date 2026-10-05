@@ -1,6 +1,8 @@
 data/*
 !data/.gitkeep
 !data/blocklist.txt
+!data/current_best_cube.txt
+!data/current_best_cube_stats.json
 .claude/settings.local.json
 
 # Byte-compiled / optimized / DLL files
