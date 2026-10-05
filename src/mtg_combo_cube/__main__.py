@@ -114,7 +114,17 @@ if __name__ == "__main__":
         help="Number of parallel search workers for the ILP solver (default: 8). "
         "Lower this to reduce CPU load.",
     )
+    argparser.add_argument(
+        "--max-color-ratio",
+        type=float,
+        default=2.0,
+        help="Color balance for phase 2: no color may have more than this many times the "
+        "cards of another color (default: 2.0). A card counts once for each color of its "
+        "color identity. Must be 0 or at least 1. Set to 0 to disable.",
+    )
     args = argparser.parse_args()
+    if 0 < args.max_color_ratio < 1:
+        argparser.error("--max-color-ratio must be 0 or at least 1")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -137,5 +147,6 @@ if __name__ == "__main__":
             min_utilization_floor=args.min_util_floor,
             num_workers=args.workers,
             util_cap=args.util_cap,
+            max_color_ratio=args.max_color_ratio,
         )
     )

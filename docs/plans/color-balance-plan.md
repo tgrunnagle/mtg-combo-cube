@@ -66,6 +66,26 @@ rule, solved for 120 s and not proven optimal, so the true cost is at most what 
 9. **Verification.** A full 300-card, 10,000-variant run. Success: the color rule holds in the
    result and the combo count stays inside the Phase 2 window.
 
+### Step 1 result
+
+Done. Full run at 300 cards, 10,000 variants, 8 workers, 300 s per phase, `tiered` objective:
+
+| | Phase 1 | Phase 2, no color rule | Phase 2, ratio 2 |
+|---|---|---|---|
+| Combos | 2,471 | 2,223 | 2,223 |
+| W / U / B / R / G | 66 / 39 / 97 / 24 / 110 | 69 / 58 / 71 / 20 / 94 | 74 / 45 / 74 / 37 / 74 |
+| Largest color / smallest color | 4.6 | 4.7 | 2.0 |
+| Std dev across colors | 32.8 | 24.2 | 16.4 |
+| Utilization std dev | 41.8 | 29.4 | 33.0 |
+| Highest utilization | 348 | 255 | 263 |
+
+- The rule holds exactly at its limit: 74 against 37.
+- The combo count is unchanged, because both Phase 2 runs end at the bottom of the 10% window.
+- Utilization balance is somewhat worse with the rule (std dev 33.0 against 29.4). One run
+  each, and 8-worker runs vary, so the size of that cost is not established.
+- The Phase 1 cube broke 10 coverage and 5 color constraints. The warm-start repair found a
+  cube with 2,289 combos in 17 s.
+
 ## Step 2: 20,000 variants
 
 1. Find out why the warm-start repair fails at this size. The utilization floor in the repair

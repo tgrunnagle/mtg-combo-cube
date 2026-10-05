@@ -69,6 +69,15 @@ class TestCliPlumbing:
 
         assert received["phase2_objective"] == objective
 
+    def test_max_color_ratio(self, monkeypatch: pytest.MonkeyPatch):
+        assert run_cli(monkeypatch)["max_color_ratio"] == 2.0
+        assert run_cli(monkeypatch, "--max-color-ratio", "1.5")["max_color_ratio"] == 1.5
+        assert run_cli(monkeypatch, "--max-color-ratio", "0")["max_color_ratio"] == 0
+
+    def test_max_color_ratio_below_one_is_rejected(self, monkeypatch: pytest.MonkeyPatch):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--max-color-ratio", "0.5")
+
     def test_unknown_objective_is_rejected(self, monkeypatch: pytest.MonkeyPatch):
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--phase2-objective", "maxmin")
@@ -133,11 +142,15 @@ class TestRunnerPlumbing:
             phase2_objective="softcap",
             util_cap=util_cap,
             num_workers=1,
+            max_color_ratio=0,
         )
 
         assert len(created) == 1
         assert created[0].util_cap == util_cap
         assert created[0].phase2_objective == "softcap"
+        # The colors of every candidate card reach the optimizer, with the ratio
+        assert created[0].card_colors == {"A": "W", "B": "WU", "C": ""}
+        assert created[0].max_color_ratio == 0
         # Every card of the triangle has utilization 2 in Phase 1: derived cap = 2 x 2
         assert results[0].phase2_util_cap == (4 if util_cap is None else util_cap)
         assert (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]

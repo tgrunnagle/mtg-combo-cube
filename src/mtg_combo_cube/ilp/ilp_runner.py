@@ -70,6 +70,8 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["objective"] = result.phase2_objective
     if result.phase2_util_cap is not None:
         info["util_cap"] = result.phase2_util_cap
+    if result.phase2_max_color_ratio is not None:
+        info["max_color_ratio"] = result.phase2_max_color_ratio
     return info
 
 
@@ -389,7 +391,8 @@ async def build_cube_ilp(
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
-) -> tuple[list[str], int, OptimizationResult]:
+    max_color_ratio: float = 2.0,
+) -> tuple[list[str], int, OptimizationResult, dict[str, str] | None]:
     """
     Build cube using ILP optimization with optional API caching.
 
@@ -397,6 +400,7 @@ async def build_cube_ilp(
         - List of card names in cube
         - Number of completable combos
         - Full optimization result with stats
+        - Color identity of every candidate card (None when no color data could be fetched)
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
@@ -415,6 +419,11 @@ async def build_cube_ilp(
         )
         cube_size = len(candidate_cards)
 
+    # Colors feed the Phase 2 color balance constraint and the color statistics
+    card_colors = await fetch_color_identities(
+        sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
+    )
+
     # Run ILP optimization
     optimizer = ILPOptimizer(
         combos=combo_data,
@@ -429,6 +438,8 @@ async def build_cube_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        card_colors=card_colors,
+        max_color_ratio=max_color_ratio,
     )
 
     # Run optimization (two-phase by default)
@@ -457,7 +468,7 @@ async def build_cube_ilp(
         f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.get_selected_card_names(), result.combo_count, result
+    return result.get_selected_card_names(), result.combo_count, result, card_colors
 
 
 async def run_ilp(
@@ -478,9 +489,10 @@ async def run_ilp(
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    max_color_ratio: float = 2.0,
 ):
     """Entry point for ILP-based cube building with caching support."""
-    cards, combo_count, result = await build_cube_ilp(
+    cards, combo_count, result, color_identities = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
@@ -497,6 +509,7 @@ async def run_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        max_color_ratio=max_color_ratio,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")
@@ -504,12 +517,6 @@ async def run_ilp(
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))
 
-    # Card colors are only needed for reporting, so they are looked up for the result alone
-    reported_cards = {card.name for card in result.selected_cards}
-    reported_cards.update(card.name for card in result.phase1_selected_cards or [])
-    color_identities = await fetch_color_identities(
-        sorted(reported_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
-    )
     log_phase_summary(result, color_identities)
 
     # Write utilization stats
