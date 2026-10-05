@@ -79,23 +79,40 @@ if __name__ == "__main__":
         "--gap-limit",
         type=float,
         default=0.05,
-        help="Relative gap limit for Phase 2 early termination (default: 0.05 = 5%%). "
-        "Solver stops when solution is within this %% of optimal. Set to 0 for exact optimal.",
+        help="Gap limit for Phase 2 early termination (default: 0.05 = 5%%). "
+        "Solver stops when solution is within this %% of optimal ('softcap' and 'tiered': "
+        "within this %% of the Phase 1 cube's overage). Set to 0 for exact optimal.",
     )
     argparser.add_argument(
         "--phase2-objective",
         type=str,
-        choices=["mad", "minmax"],
-        default="minmax",
-        help="Phase 2 objective function: 'minmax' (minimize max-min range, default) or "
-        "'mad' (minimize mean absolute deviation). minmax is faster with tighter bounds.",
+        choices=["mad", "minmax", "maxutil", "softcap", "tiered"],
+        default="tiered",
+        help="Phase 2 objective function: 'tiered' (default; minimize total utilization "
+        "above --util-cap, counted again above 2x and 4x the cap), 'softcap' (minimize total "
+        "utilization above --util-cap), 'maxutil' (minimize the maximum utilization), "
+        "'minmax' (minimize max-min range) or 'mad' (minimize mean absolute deviation).",
+    )
+    argparser.add_argument(
+        "--util-cap",
+        type=int,
+        default=None,
+        help="Utilization cap for the 'softcap' and 'tiered' phase 2 objectives: utilization "
+        "above this is penalized (default: 2 x the Phase 1 median utilization).",
     )
     argparser.add_argument(
         "--min-util-floor",
         type=int,
         default=2,
-        help="Minimum utilization floor for minmax objective (default: 2). "
-        "Cards must participate in at least this many combos.",
+        help="Minimum utilization floor for phase 2, any objective (default: 2). "
+        "Cards must participate in at least this many combos. Set to 0 to disable.",
+    )
+    argparser.add_argument(
+        "--workers",
+        type=int,
+        default=8,
+        help="Number of parallel search workers for the ILP solver (default: 8). "
+        "Lower this to reduce CPU load.",
     )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
@@ -118,5 +135,7 @@ if __name__ == "__main__":
             gap_limit=args.gap_limit,
             phase2_objective=args.phase2_objective,
             min_utilization_floor=args.min_util_floor,
+            num_workers=args.workers,
+            util_cap=args.util_cap,
         )
     )

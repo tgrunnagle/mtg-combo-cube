@@ -41,6 +41,34 @@ class TestILPOptimizerInit:
         assert optimizer.all_cards == []
         assert optimizer.card_to_combos == {}
 
+    def test_num_workers_default(self):
+        """Test default worker count."""
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
+        assert optimizer.num_workers == 8
+
+    def test_num_workers_stored(self):
+        """Test that the worker count parameter is accepted and stored."""
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10, num_workers=4)
+        assert optimizer.num_workers == 4
+
+    def test_phase2_objective_default(self):
+        """The default Phase 2 objective is "tiered" (Stage 4 decision)."""
+        optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
+        assert optimizer.phase2_objective == "tiered"
+        assert optimizer.util_cap is None
+
+    def test_unknown_phase2_objective_raises(self):
+        """An unknown Phase 2 objective is an error, not a silent fallback."""
+        with pytest.raises(ValueError, match="Unknown phase2_objective: 'maxmin'"):
+            ILPOptimizer(combos=[], candidate_cards={}, cube_size=10, phase2_objective="maxmin")
+
+    @pytest.mark.parametrize("objective", ["mad", "minmax", "maxutil", "softcap", "tiered"])
+    def test_known_phase2_objectives_accepted(self, objective: str):
+        optimizer = ILPOptimizer(
+            combos=[], candidate_cards={}, cube_size=10, phase2_objective=objective
+        )
+        assert optimizer.phase2_objective == objective
+
     def test_collect_all_cards(self):
         """Test card collection from combos."""
         combos = [
@@ -246,6 +274,8 @@ class TestILPOptimizerSolve:
         assert result.phase1_status == "OPTIMAL"
         assert result.combo_count == 0
         assert result.selected_cards == []
+        # Early return: elapsed time must come from a single clock
+        assert 0 <= result.solve_time_seconds < 1
 
     def test_solve_insufficient_cards(self):
         """Test solving when not enough cards available."""
@@ -265,6 +295,8 @@ class TestILPOptimizerSolve:
 
         assert result.phase1_status == "INFEASIBLE"
         assert result.combo_count == 0
+        # Early return: elapsed time must come from a single clock
+        assert 0 <= result.solve_time_seconds < 1
 
     def test_solve_simple_combo(self):
         """Test solving with a simple combo."""
@@ -403,6 +435,22 @@ class TestILPOptimizerTwoPhase:
         assert result.phase1_status == "OPTIMAL"
         assert result.combo_count == 0
         assert result.is_multi_objective is False  # Phase 2 skipped
+
+    @pytest.mark.parametrize("objective", ["mad", "minmax", "maxutil", "softcap", "tiered"])
+    def test_phase2_rejects_result_without_phase1_stats(self, objective: str):
+        """Every Phase 2 objective refuses a Phase 1 result that has no stats."""
+        optimizer = ILPOptimizer(
+            combos=[],
+            candidate_cards={},
+            cube_size=10,
+            time_limit_seconds=1,
+            phase2_objective=objective,
+        )
+        phase1_result = optimizer.solve()  # early return: no utilization stats
+        assert phase1_result.phase1_utilization_stats is None
+
+        with pytest.raises(ValueError, match="successful Phase 1 result"):
+            optimizer._solve_phase2(phase1_result=phase1_result)
 
     def test_solve_two_phase_simple(self):
         """Test two-phase with simple combos."""
@@ -577,6 +625,65 @@ class TestILPOptimizerTwoPhase:
                 p2.std_deviation <= p1.std_deviation + 0.1  # Allow small tolerance
                 or p2.total_absolute_deviation <= p1.total_absolute_deviation
             )
+
+
+class TestUtilizationFloor:
+    """The utilization floor applies to every Phase 2 objective."""
+
+    @staticmethod
+    def build_optimizer(objective: str, floor: int) -> ILPOptimizer:
+        # Phase 1 (5 cards) takes A, B, C, D and T: 5 combos, T alone completes three.
+        # Phase 2 may drop to 2 combos. For "mad", T (utilization 3, far above the mean of
+        # 1.4) is worse than an unused card of the 4-card combo (utilization 0), so without
+        # a floor it swaps T for a dead card.
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 100),
+            ComboData("cd", frozenset(["C", "D"]), [], 100),
+            ComboData("t1", frozenset(["T"]), [], 100),
+            ComboData("t2", frozenset(["T"]), [], 100),
+            ComboData("t3", frozenset(["T"]), [], 100),
+            ComboData("big", frozenset(["W", "X", "Y", "Z"]), [], 100),
+        ]
+        return ILPOptimizer(
+            combos=combos,
+            candidate_cards=build_candidate_cards(combos),
+            cube_size=5,
+            time_limit_seconds=30,
+            combo_tolerance=0.6,
+            min_coverage_ratio=0,
+            gap_limit=0,
+            phase2_objective=objective,
+            min_utilization_floor=floor,
+            num_workers=1,
+        )
+
+    def test_mad_without_floor_selects_dead_card(self):
+        result = self.build_optimizer("mad", floor=0).solve_two_phase()
+
+        assert result.phase2_status == "OPTIMAL"
+        assert result.phase2_utilization_stats is not None
+        assert result.phase2_utilization_stats.min_utilization == 0
+        assert "T" not in result.get_selected_card_names()
+
+    @pytest.mark.parametrize("objective", ["mad", "minmax", "maxutil", "softcap", "tiered"])
+    def test_floor_respected(self, objective: str):
+        result = self.build_optimizer(objective, floor=1).solve_two_phase()
+
+        assert result.phase2_status == "OPTIMAL"
+        assert result.utilization_per_card is not None
+        assert min(result.utilization_per_card.values()) >= 1
+        assert "T" in result.get_selected_card_names()  # every floor-1 cube needs T
+
+    @pytest.mark.parametrize("objective", ["mad", "minmax", "maxutil", "softcap", "tiered"])
+    def test_unreachable_floor_falls_back_with_trace(self, objective: str):
+        # Only T can reach utilization 2, so no 5-card cube satisfies the floor
+        result = self.build_optimizer(objective, floor=2).solve_two_phase()
+
+        assert result.phase2_fell_back is True
+        assert result.phase2_status == "INFEASIBLE"
+        assert result.phase2_solve_time is not None
+        assert result.is_multi_objective is False
+        assert result.combo_count == 5
 
 
 class TestCoverageConstraints:

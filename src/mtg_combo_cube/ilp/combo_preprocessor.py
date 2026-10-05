@@ -1,9 +1,8 @@
 """Converts Variant objects to ILP-ready ComboData."""
 
 import logging
-from collections import defaultdict
-
-import aiohttp
+from collections import Counter, defaultdict
+from enum import StrEnum
 
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, RequirementOption
 from mtg_combo_cube.ilp.requirement_normalizer import (
@@ -11,8 +10,18 @@ from mtg_combo_cube.ilp.requirement_normalizer import (
     prepare_scryfall_url,
 )
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 
 logger = logging.getLogger(__name__)
+
+
+class DropReason(StrEnum):
+    """Why a combo was left out of the ILP instance."""
+
+    BLOCKED_CARD = "blocked_card"
+    NO_SCRYFALL_API = "no_scryfall_api"
+    SCRYFALL_FAILURE = "scryfall_failure"
+    EMPTY_MATCH = "empty_match"
 
 
 class ComboPreprocessor:
@@ -20,9 +29,15 @@ class ComboPreprocessor:
 
     REQUIREMENT_CARD_LIMIT = 10  # Max cards per template requirement
 
-    def __init__(self, blocklist: frozenset[str] = frozenset()):
-        self._scryfall_cache: dict[str, list[str]] = {}
+    def __init__(
+        self,
+        blocklist: frozenset[str] = frozenset(),
+        fetcher: ScryfallFetcher | None = None,
+    ):
         self._blocklist = blocklist
+        # Without an explicit fetcher, results are not cached on disk
+        self._fetcher = fetcher if fetcher is not None else ScryfallFetcher()
+        self.drop_counts: Counter[DropReason] = Counter()
 
     async def preprocess_variants(
         self,
@@ -36,26 +51,30 @@ class ComboPreprocessor:
             - Dict of card_name -> CandidateCard with all relationships
         """
         combo_data_list: list[ComboData] = []
+        self.drop_counts = Counter()
 
         # Track relationships per card
         card_combo_ids: dict[str, set[str]] = defaultdict(set)
         card_requirement_keys: dict[str, set[str]] = defaultdict(set)
 
-        for variant in variants:
-            combo_data = await self._process_single_variant(variant)
-            if combo_data is None:
-                continue  # Skip unresolvable combos
+        # One shared HTTP session for the whole pass; the cache is flushed on exit
+        async with self._fetcher:
+            for variant in variants:
+                combo_data = await self._process_single_variant(variant)
+                if isinstance(combo_data, DropReason):
+                    self.drop_counts[combo_data] += 1
+                    continue  # Skip unresolvable combos
 
-            combo_data_list.append(combo_data)
+                combo_data_list.append(combo_data)
 
-            # Track direct combo participation
-            for card in combo_data.required_cards:
-                card_combo_ids[card].add(combo_data.id)
+                # Track direct combo participation
+                for card in combo_data.required_cards:
+                    card_combo_ids[card].add(combo_data.id)
 
-            # Track requirement template satisfaction
-            for opt in combo_data.requirement_options:
-                for card in opt.cards:
-                    card_requirement_keys[card].add(opt.group_key)
+                # Track requirement template satisfaction
+                for opt in combo_data.requirement_options:
+                    for card in opt.cards:
+                        card_requirement_keys[card].add(opt.group_key)
 
         # Build CandidateCard instances
         all_card_names = set(card_combo_ids.keys()) | set(card_requirement_keys.keys())
@@ -68,13 +87,30 @@ class ComboPreprocessor:
             for name in all_card_names
         }
 
+        self._log_summary(len(variants))
         logger.info(
             f"Preprocessed {len(combo_data_list)} combos with {len(candidate_cards)} unique cards"
         )
         return combo_data_list, candidate_cards
 
-    async def _process_single_variant(self, variant: Variant) -> ComboData | None:
-        """Convert a single Variant to ComboData."""
+    def _log_summary(self, variant_count: int) -> None:
+        """Log dropped combos per reason and how the Scryfall data was obtained."""
+        by_reason = ", ".join(f"{reason.value}={self.drop_counts[reason]}" for reason in DropReason)
+        logger.info(
+            f"Dropped {self.drop_counts.total()} of {variant_count} combos ({by_reason}); "
+            f"Scryfall: {self._fetcher.network_requests} network requests, "
+            f"{self._fetcher.cache_hits} templates read from cache, "
+            f"{self._fetcher.failed_url_count} failed"
+        )
+        if self._fetcher.failed_url_count:
+            logger.warning(
+                f"Scryfall fetch failed for {self._fetcher.failed_url_count} templates; "
+                f"{self.drop_counts[DropReason.SCRYFALL_FAILURE]} combos were dropped. "
+                "The instance is incomplete; failures are not cached, so re-run to retry them."
+            )
+
+    async def _process_single_variant(self, variant: Variant) -> ComboData | DropReason:
+        """Convert a single Variant to ComboData, or give the reason it is dropped."""
         # Extract required cards from 'uses'
         required_cards = frozenset(use.card.name for use in variant.uses)
 
@@ -82,7 +118,7 @@ class ComboPreprocessor:
         if required_cards & self._blocklist:
             blocked = required_cards & self._blocklist
             logger.debug(f"Skipping combo {variant.id}: blocked cards {blocked}")
-            return None
+            return DropReason.BLOCKED_CARD
 
         # Resolve template requirements
         requirement_options: list[RequirementOption] = []
@@ -90,12 +126,15 @@ class ComboPreprocessor:
             if req.template.scryfall_api is None:
                 # No API means unresolvable - skip this combo
                 logger.debug(f"Skipping combo {variant.id}: unresolvable requirement")
-                return None
+                return DropReason.NO_SCRYFALL_API
 
             cards = await self._resolve_template(req.template.scryfall_api)
+            if cards is None:
+                logger.debug(f"Skipping combo {variant.id}: Scryfall fetch failed")
+                return DropReason.SCRYFALL_FAILURE
             if not cards:
                 logger.debug(f"Skipping combo {variant.id}: empty requirement options")
-                return None
+                return DropReason.EMPTY_MATCH
 
             group_key = compute_requirement_group_key(
                 req.template.scryfall_api,
@@ -116,29 +155,12 @@ class ComboPreprocessor:
             popularity=variant.popularity or 0,
         )
 
-    async def _resolve_template(self, scryfall_api: str) -> list[str]:
-        """Fetch cards matching a Scryfall template query."""
-        # Prepare URL for caching and fetching
+    async def _resolve_template(self, scryfall_api: str) -> list[str] | None:
+        """Get cards matching a Scryfall template query, or None if the fetch failed."""
         url = prepare_scryfall_url(scryfall_api)
-
-        if url in self._scryfall_cache:
-            return self._scryfall_cache[url]
-
-        try:
-            async with aiohttp.ClientSession() as session:
-                logger.debug(f"Fetching template cards: {url}")
-                async with session.get(url) as response:
-                    if response.status != 200:
-                        logger.warning(f"Scryfall API error: {response.status}")
-                        return []
-                    data = await response.json()
-                    cards = [card["name"] for card in data.get("data", [])]
-                    # Filter out blocked cards before applying limit
-                    cards = [card for card in cards if card not in self._blocklist]
-                    cards = cards[: self.REQUIREMENT_CARD_LIMIT]
-
-            self._scryfall_cache[url] = cards
-            return cards
-        except Exception as e:
-            logger.warning(f"Error fetching template: {e}")
-            return []
+        cards = await self._fetcher.fetch_card_names(url)
+        if cards is None:
+            return None
+        # Filter out blocked cards before applying limit
+        cards = [card for card in cards if card not in self._blocklist]
+        return cards[: self.REQUIREMENT_CARD_LIMIT]

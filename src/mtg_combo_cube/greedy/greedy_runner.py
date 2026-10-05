@@ -5,6 +5,7 @@ from collections import Counter
 
 from mtg_combo_cube.greedy.variant_tracker import VariantTracker
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 
 logger = logging.getLogger(__name__)
@@ -16,12 +17,14 @@ class GreedyRunner:
         cube_size: int,
         spellbook: CommanderSpellbook | None = None,
         blocklist: frozenset[str] = frozenset(),
+        fetcher: ScryfallFetcher | None = None,
     ):
         self._cube_size = cube_size
         self._cube = []
         self._combos_cache = []
         self._combos_cache_lock = asyncio.Lock()
-        self._variant_tracker = VariantTracker(blocklist=blocklist)
+        self._fetcher = fetcher if fetcher is not None else ScryfallFetcher()
+        self._variant_tracker = VariantTracker(blocklist=blocklist, fetcher=self._fetcher)
         self._spellbook = spellbook if spellbook is not None else CommanderSpellbook()
         self._blocklist = blocklist
 
@@ -36,10 +39,12 @@ class GreedyRunner:
         self, max_cards_in_combo: int = 4, golden_ratio: float = GOLDEN_RATIO
     ) -> list[str]:
         logger.info("Looking for top combos...")
-        async for variant in self._spellbook.get_variants(
-            max_cards_in_combo=max_cards_in_combo, max_variants=10000
-        ):
-            await self._variant_tracker.process_variant(variant)
+        # One shared Scryfall session for the pass; the cache is flushed on exit
+        async with self._fetcher:
+            async for variant in self._spellbook.get_variants(
+                max_cards_in_combo=max_cards_in_combo, max_variants=10000
+            ):
+                await self._variant_tracker.process_variant(variant)
         logger.info(
             f"Found {self._variant_tracker.count_cards()} cards in "
             f"{self._variant_tracker.count_variants()} combos"
@@ -120,9 +125,12 @@ async def build_cube(
     cube_size: int,
     golden_ratio: float,
     blocklist: frozenset[str] = frozenset(),
+    enable_cache_write: bool = False,
+    read_cache: bool = False,
 ) -> tuple[list[str], int]:
     """Build a cube using the greedy algorithm."""
-    greedy_runner = GreedyRunner(cube_size, blocklist=blocklist)
+    fetcher = ScryfallFetcher(enable_read=read_cache, enable_write=enable_cache_write)
+    greedy_runner = GreedyRunner(cube_size, blocklist=blocklist, fetcher=fetcher)
     logger.info(f"Building {cube_size} card cube with golden ratio of {golden_ratio}...")
     await greedy_runner.build_cube(golden_ratio=golden_ratio)
     logger.info(f"Built cube of size {len(greedy_runner.get_cube())}")
@@ -152,10 +160,18 @@ async def run_greedy(
     output_file: str,
     golden_ratio: float | None = None,
     blocklist: frozenset[str] = frozenset(),
+    enable_cache_write: bool = False,
+    read_cache: bool = False,
 ):
     """Entry point for greedy-based cube building."""
     golden_ratio = golden_ratio if golden_ratio else GreedyRunner.GOLDEN_RATIO
-    result = await build_cube(cube_size, golden_ratio, blocklist=blocklist)
+    result = await build_cube(
+        cube_size,
+        golden_ratio,
+        blocklist=blocklist,
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+    )
 
     logger.info(f"Found {result[1]} combos with golden ratio {golden_ratio}")
     with open(output_file, "w", encoding="utf-8") as f:

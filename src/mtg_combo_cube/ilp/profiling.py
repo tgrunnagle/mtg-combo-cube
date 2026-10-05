@@ -94,18 +94,30 @@ def extract_solver_stats(solver: cp_model.CpSolver) -> dict[str, Any]:
 
     # Add objective value and bound if available
     try:
-        stats["objective_value"] = solver.ObjectiveValue()
-        stats["best_objective_bound"] = solver.BestObjectiveBound()
-        # Calculate relative gap
-        obj = solver.ObjectiveValue()
         bound = solver.BestObjectiveBound()
-        if obj != 0:
-            stats["relative_gap"] = abs(obj - bound) / abs(obj)
+        stats["best_objective_bound"] = bound
+        # The objective value is only meaningful when a solution was found
+        if solver.StatusName() in ("OPTIMAL", "FEASIBLE"):
+            obj = solver.ObjectiveValue()
+            stats["objective_value"] = obj
+            stats["relative_gap"] = relative_gap(obj, bound)
     except Exception:
         # Objective stats not available (e.g., for satisfaction problems)
         pass
 
     return stats
+
+
+def relative_gap(objective: float, bound: float) -> float:
+    """
+    Relative gap between an objective value and its best bound.
+
+    0.0 when they are equal. Otherwise |objective - bound| / max(1, |objective|), the
+    definition CP-SAT uses for its gap limit, which stays defined for an objective of 0.
+    """
+    if objective == bound:
+        return 0.0
+    return abs(objective - bound) / max(1.0, abs(objective))
 
 
 def log_profile_comparison(phase1: ProfileResult, phase2: ProfileResult | None) -> None:

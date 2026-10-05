@@ -1,5 +1,18 @@
 # ILP Performance Investigation Plan
 
+> **Note (2026-10-05): historical document.** It records the December 2025 investigation and is
+> kept unchanged except where marked "superseded". The current state of the code, the benchmark
+> numbers and the decisions are in [ilp-improvement-plan.md](ilp-improvement-plan.md). What
+> changed since this was written:
+>
+> - The Phase 2 model at the time could leave a completed combo uncounted, so the Phase 2 combo
+>   counts and utilization numbers below are under-reported and not comparable with current ones.
+> - The default Phase 2 objective is now `tiered`; `minmax` and `mad` remain available, along
+>   with `maxutil` and `softcap`.
+> - The utilization floor is a constraint for every objective, not part of `minmax`.
+> - The code shown in Steps 2 and 4 no longer exists in this form (see the superseded table
+>   under "Files Changed").
+
 ## Problem Statement
 
 Two-phase ILP optimization for a 300-card cube with 10,000 variants takes approximately **30 minutes** to run. This investigation aims to identify the primary bottleneck and guide optimization efforts.
@@ -144,7 +157,10 @@ model.minimize(max_util - min_util)
 
 ### When to Use Each
 
-- **Min-Max (default)**: Fast results with good extremes, tighter bounds for gap-limit
+*Superseded: `minmax` is no longer the default. See the objective comparison in
+[ilp-improvement-plan.md](ilp-improvement-plan.md), Stage 4, and the README.*
+
+- **Min-Max (default at the time)**: Fast results with good extremes, tighter bounds for gap-limit
 - **MAD (`--phase2-objective mad`)**: When you care about overall distribution smoothness and have time to spare
 
 ---
@@ -161,6 +177,9 @@ model.minimize(max_util - min_util)
 
 ## CLI Options Added
 
+*Superseded: as added in December 2025. Current options and defaults are in the README
+(`--phase2-objective` now defaults to `tiered`; the floor applies to every objective).*
+
 ```
 --phase2-objective    Phase 2 objective: 'minmax' (default) or 'mad'
 --min-util-floor      Minimum utilization floor for minmax (default: 2)
@@ -172,7 +191,11 @@ model.minimize(max_util - min_util)
 
 ## Files Changed
 
-| File | Change |
+*Superseded: `_solve_phase2_minmax()` was removed in the October 2026 refactor. Phase 2 is now
+one driver, `_solve_phase2()`, with the objectives registered in `_PHASE2_OBJECTIVES`
+(`ilp_optimizer.py`); see [ilp-improvement-plan.md](ilp-improvement-plan.md), Stage 2.*
+
+| File | Change (December 2025) |
 |------|--------|
 | `src/mtg_combo_cube/ilp/profiling.py` | ProfileResult, extract_solver_stats (with bounds) |
 | `src/mtg_combo_cube/ilp/ilp_optimizer.py` | Added `_solve_phase2_minmax()`, warm-start, gap_limit |
@@ -186,6 +209,9 @@ model.minimize(max_util - min_util)
 ---
 
 ## Recommendations
+
+*Superseded: see "Measured solve times" and "Phase 2 Objectives" in the README. `mad` is no
+longer the recommendation for production runs.*
 
 For **fast iteration** during development:
 ```bash
