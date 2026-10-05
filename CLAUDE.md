@@ -7,4 +7,4 @@
 
 ### Planning guidance
 
-1. After a planning session for a signficant feature, before starting implementation, ask to save the plan to a `.md` file in the `docs/` folder.
+1. After a planning session for a signficant feature, before starting implementation, ask to save the plan to a `.md` file in the `docs/plans/` folder.

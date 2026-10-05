@@ -650,8 +650,8 @@ Done when: a second run of rung L makes zero network requests.
 ## Stage 7: Docs, merge, wrap-up
 
 - [x] Update `README.md` (new flags, new default objective, corrected complexity table).
-- [x] Append results to `docs/ilp-performance-investigation.md` or link this plan from it.
-      Done as a dated note at the top of that file and of `docs/multi_objective_design_doc.md`,
+- [x] Append results to `docs/plans/ilp-performance-investigation.md` or link this plan from it.
+      Done as a dated note at the top of that file and of `docs/plans/multi_objective_design_doc.md`,
       with the misleading parts (old method names, "minmax is the default") marked superseded.
 - [x] Replace `data/current_best_cube*.{txt,json}` with a fresh rung L result.
 - [ ] Open a PR to `main` covering `perf_2025-12-25` plus this work (or two PRs, perf branch
@@ -785,7 +785,7 @@ Technical:
   - `profiling.timed_section` is unused (it predates this work).
   - `task build:ilp` defaults to `TIME_LIMIT=360` while the CLI default is 300 (set in an
     earlier commit by the owner; documented in the README).
-  - `docs/ilp_design_doc.md` has no "historical" note; its class sketch is the original plan,
+  - `docs/plans/ilp_design_doc.md` has no "historical" note; its class sketch is the original plan,
     not the current code.
 
 ## Decision log
@@ -831,7 +831,7 @@ Changed and new files, by theme (the stage that mainly owns each file):
 | Stage 2: refactor | `ilp/ilp_optimizer.py`; new `tests/unit/test_ilp_optimizer_characterization.py` |
 | Stage 3: exact Phase 2 and true numbers | new `ilp/cube_evaluation.py`, `ilp/evaluate_cube.py`; `ilp/ilp_optimizer.py`, `ilp/ilp_models.py` (`phase2_fell_back`), `ilp/profiling.py` (gap), `ilp/ilp_runner.py` (`load_instance`, fallback in the stats file); tests: new `test_cube_evaluation.py`, `test_profiling.py`, changed `test_ilp_optimizer.py`, `test_ilp_runner.py` |
 | Stage 4: objectives | `ilp/ilp_optimizer.py`, `ilp/ilp_models.py` (`phase2_objective`, `phase2_util_cap`), `__main__.py`, `runner.py`, `ilp/ilp_runner.py`; tests: new `test_ilp_phase2_objectives.py`, `test_runner.py` |
-| Stage 7: docs and wrap-up | `README.md`, `docs/ilp-improvement-plan.md` (new), `docs/ilp-performance-investigation.md`, `docs/multi_objective_design_doc.md`, `data/current_best_cube.txt`, `data/current_best_cube_stats.json`; small edits in `ilp/ilp_optimizer.py` (label), `__main__.py` (help text), `tests/unit/test_runner.py` |
+| Stage 7: docs and wrap-up | `README.md`, `docs/plans/ilp-improvement-plan.md` (new), `docs/plans/ilp-performance-investigation.md`, `docs/plans/multi_objective_design_doc.md`, `data/current_best_cube.txt`, `data/current_best_cube_stats.json`; small edits in `ilp/ilp_optimizer.py` (label), `__main__.py` (help text), `tests/unit/test_runner.py` |
 
 Not for commit (ignored by `.gitignore`): `data/bench_*`, `data/smoke_*`, `data/cache/`.
 

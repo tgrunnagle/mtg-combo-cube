@@ -524,7 +524,7 @@ class ILPOptimizer:
 
         Written as linear constraints. The equivalent clause form (add_bool_or /
         add_implication) was compared on rungs S and M and was not better; see
-        docs/ilp-improvement-plan.md, Stage 3.
+        docs/plans/ilp-improvement-plan.md, Stage 3.
         """
         model = base.model
         x = base.x

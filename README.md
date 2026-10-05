@@ -218,7 +218,7 @@ Measured at 300 cards / 10,000 variants with a 300 s limit (Phase 1 for comparis
 | `maxutil` | 155 | 32.6 | 18 |
 | `minmax` | 155 | 32.2 | 19 |
 
-The objectives fall into two families: `tiered`, `softcap` and `mad` give a lower spread but leave one card far out; `maxutil` and `minmax` hold the worst card at about 155 but end with a plateau of cards just under it. All of them keep 2,223-2,224 of the 2,471 Phase 1 combos (the lower edge of the 10% tolerance), and none finishes before the time limit at this size. These are one or two runs each of a time-limited parallel search; differences inside a family are within run-to-run noise. Details are in the [ILP Improvement Plan](docs/ilp-improvement-plan.md).
+The objectives fall into two families: `tiered`, `softcap` and `mad` give a lower spread but leave one card far out; `maxutil` and `minmax` hold the worst card at about 155 but end with a plateau of cards just under it. All of them keep 2,223-2,224 of the 2,471 Phase 1 combos (the lower edge of the 10% tolerance), and none finishes before the time limit at this size. These are one or two runs each of a time-limited parallel search; differences inside a family are within run-to-run noise. Details are in the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md).
 
 Notes:
 
@@ -233,14 +233,8 @@ Notes:
 
 ## Design Documentation
 
-Detailed design documents are available in [docs/](docs/):
-
-- [ILP Design Doc](docs/ilp_design_doc.md) - Mathematical formulation and constraint design for Phase 1
-- [Multi-Objective Design Doc](docs/multi_objective_design_doc.md) - Two-phase optimization with utilization balancing
-- [ILP Performance Investigation](docs/ilp-performance-investigation.md) - Phase 2 profiling and the minmax objective (December 2025, historical)
-- [ILP Improvement Plan](docs/ilp-improvement-plan.md) - Current state: the October 2026 rework, benchmark results, decisions and open follow-ups
-
-The first three describe the design as it was when they were written; where they differ from the improvement plan, the plan is current.
+- [Architecture](docs/architecture.md) - The system as implemented: data pipeline, the two-phase ILP model and its objectives, outputs and known limitations
+- [Plans and design documents](docs/plans/README.md) - Working documents from each round of development, including the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md) with benchmark results and decisions
 
 Key concepts:
 - **Card Utilization**: Number of completable combos each card participates in. A card counts for a combo when it is one of the combo's required cards or belongs to the card pool of one of its requirement templates, whether or not it is the card that satisfies the template.
@@ -345,7 +339,7 @@ The ILP model scales as follows (where **Q** = cube size, **N** = number of comb
 
 Where **R** is the average number of optional requirements per combo, **P** the number of distinct requirement card pools (48 at 200 cards / 5,000 variants) and **K** the cards per pool (at most 10). Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
 
-**Measured solve times** (8 workers, warm cache, default settings, October 2026; see the [ILP Improvement Plan](docs/ilp-improvement-plan.md)):
+**Measured solve times** (8 workers, warm cache, default settings, October 2026; see the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md)):
 
 | Cube size | Variants | Phase 1 | Phase 2 (`tiered`) |
 |-----------|----------|---------|--------------------|
