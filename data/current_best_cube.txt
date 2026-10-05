@@ -1,185 +1,190 @@
 Abdel Adrian, Gorion's Ward
 Abundance
 Academy Manufactor
-Acrobatic Maneuver
-Aerie Ouphes
 Ajani's Welcome
 Akroma's Will
 Altar of Dementia
 Amulet of Vigor
+Angel of Glory's Rise
+Angel of Indemnity
 Angelic Renewal
+Animate Dead
 Animation Module
 Anointed Procession
-Arcbound Ravager
-Archaeomancer
+Ant Queen
 Archangel of Thune
+Archelos, Lagoon Mystic
 Arid Archway
+Arwen, Weaver of Hope
 Ashaya, Soul of the Wild
 Ashnod's Altar
+Auriok Champion
 Azorius Chancery
 Ba Sing Se
-Badgermole Cub
 Bartolomé del Presidio
 Basking Broodscale
 Bastion of Remembrance
+Baylen, the Haymaker
 Beifong's Bounty Hunters
+Blade of the Bloodchief
 Blasting Station
 Blight Mound
 Blood Artist
+Bloodflow Connoisseur
 Bloodghast
 Bloodsoaked Champion
+Bloodspore Thrinax
+Bloodthrone Vampire
+Body Double
 Body Launderer
-Boromir, Warden of the Tower
+Boonweaver Giant
+Boros Charm
 Boros Garrison
 Branching Evolution
 Breath of Fury
 Broodhatch Nantuko
+Brotherhood Outcast
 Budoka Gardener // Dokai, Weaver of Life
 Butcher Ghoul
 Camellia, the Seedmiser
+Capture of Jingzhou
 Carrion Feeder
+Case of the Uneaten Feast
 Cathars' Crusade
 Cauldron Familiar
+Cayth, Famed Mechanist
 Chakram Retriever
-Chatterfang, Squirrel General
 Chocobo Racetrack
 Chulane, Teller of Tales
 Cleric Class
-Clever Conjurer
 Clock of Omens
-Cloudshift
-Cloudstone Curio
+Clockspinning
 Conclave Mentor
-Corpsejack Menace
-Crime Novelist
-Cruel Celebrant
 Cryptic Trilobite
 Crystalline Crawler
 Cult Conscript
+Dance of the Dead
+Danitha, Benalia's Hope
+Daxos, Blessed by the Sun
+Devoted Druid
 Dimir Aqueduct
-Displace
 Doubling Season
+Dragonback Assault
 Dryad of the Ilysian Grove
-Dualcaster Mage
-Dúnedain Rangers
 Earthcraft
 Eirdu, Carrier of Dawn // Isilu, Carrier of Twilight
+Elfsworn Giant
+Elspeth, Storm Slayer
 Elven Raft-Steerer
 Emeria Angel
 Emry, Lurker of the Loch
-Ephemerate
-Essence Flux
 Essence Warden
-Eternal Witness
-Evolving Wilds
+Evereth, Viceroy of Plunder
+Exalted Flamer of Tzeentch
+Exalted Sunborn
+Experiment Kraj
 Experimental Confectioner
-Fabled Passage
-Fatestitcher
+Faceless Butcher
 Felidar Guardian
 Felidar Retreat
 Field of the Dead
 Fiend Hunter
-Flicker of Fate
-Forensic Researcher
+First Day of Class
 Freed from the Real
+Fumulus, the Infestation
 Gatta and Luzzu
 Geralf's Messenger
+Gev, Scaled Scorch
 Ghave, Guru of Spores
 Ghost Town
-Ghostly Flicker
 Gift of Immortality
-Glaring Fleshraker
 Glen Elendra Archmage
-Glorious Protector
 Goblin Bombardment
 Golgari Rot Farm
-Gollum, Patient Plotter
+Good-Fortune Unicorn
 Gravecrawler
 Greensleeves, Maro-Sorcerer
-Grinding Station
+Grumgully, the Generous
 Gruul Turf
 Guildless Commons
+Haliya, Guided by Light
+Hardened Academic
 Hardened Scales
 Heliod, Sun-Crowned
 Herd Baloth
-High Tide
+Heroic Feast
+Hinterland Sanctifier
+Hollowhenge Overlord
 Horizon Explorer
 Icetill Explorer
-Icewind Stalwart
-Illusionist's Stratagem
 Innkeeper's Talent
+Insidious Roots
+Inspiring Refrain
 Intruder Alarm
-Ioreth of the Healing House
+Invisible Woman, Sue Storm
+Irenicus's Vile Duplication
 Ivy Lane Denizen
 Izzet Boilerworks
-Jaheira, Friend of the Forest
 Junji, the Midnight Sky
-Junk Diver
 Kami of Whispered Hopes
 Karmic Guide
 Kaya's Ghostform
-Kelpie Guide
-Kheru Goldkeeper
+Kefka, Court Mage // Kefka, Ruler of Ruin
 Kiki-Jiki, Mirror Breaker
-Kiora's Follower
+Kobolds of Kher Keep
 Kodama of the East Tree
-Krark-Clan Ironworks
+Koll, the Forgemaster
 Krenko, Mob Boss
 Lesser Masticore
+Leyline of Abundance
 Light of Promise
-Liliana, Untouched by Death
-Lion's Eye Diamond
-Lively Dirge
 Llanowar Scout
+Loading Zone
 Long Feng, Grand Secretariat
-Lonis, Genetics Expert
 Lotus Cobra
 Lotus Petal
-Lumbering Battlement
 Luminous Broodmoth
 Marath, Will of the Wild
 Marionette Apprentice
-Mazirek, Kraul Death Priest
+Marneus Calgar
+Master Chef
 Meloku the Clouded Mirror
+Metallic Mimic
+Metalwork Colossus
 Metamorphosis Fanatic
 Mikaeus, the Unhallowed
-Mirran Spy
-Mishra's Bauble
 Misty Rainforest
-Mnemonic Wall
-Momentary Blink
+Mole Man, Moloid Master
 Mondrak, Glory Dominus
+Morophon, the Boundless
 Murderous Redcap
-Mycosynth Golem
-Myr Retriever
-Naru Meha, Master Wizard
+Mystic Sanctuary
 Nazgûl
+Nesting Dragon
+Nether Traitor
 Nissa, Resurgent Animist
-North Pole Patrol
-Nuka-Cola Vending Machine
+Niv-Mizzet, Parun
+Niv-Mizzet, the Firemind
 Oboro Breezecaller
 Oboro, Palace in the Clouds
 Ogre Slumlord
+Ojer Taq, Deepest Foundation // Temple of Civilization
 Omnath, Locus of Rage
 Open the Graves
 Oracle of Mul Daya
 Ornithopter
 Orzhov Basilica
+Overlord of the Hauntwoods
 Ozolith, the Shattered Spire
-Palinchron
 Parallel Lives
 Patron of the Moon
-Pemmin's Aura
+Pawn of Ulamog
 Peregrin Took
-Peregrine Drake
 Perilous Forays
-Persist
 Persistent Constrictor
+Phantom Train
 Phyrexian Altar
 Pitiless Plunderer
-Plague Belcher
-Planar Incision
-Preston, the Vanisher
 Primal Vigor
 Prosperous Innkeeper
 PuPu UFO
@@ -189,112 +194,107 @@ Quina, Qu Gourmet
 Rakdos Carnarium
 Rampaging Baloths
 Ratadrabik of Urborg
+Reality Strobe
 Reassembling Skeleton
 Renata, Called to the Hunt
 Renegade Rallier
 Resourceful Defense
 Restoration Angel
 Retreat to Coralhelm
+Retreat to Emeria
 Reveillark
-Rising of the Day
+Rhythm of the Wild
 Rite of Passage
 River Kelpie
-Rooftop Storm
-Rosie Cotton of South Lane
+Sadistic Glee
 Saffi Eriksdotter
 Sakashima of a Thousand Faces
 Sakura-Tribe Scout
-Salvager of Ruin
-Salvager of Secrets
-Samwise Gamgee
-Samwise the Stouthearted
 Sapling Nursery
+Saw in Half
 Scaled Herbalist
-Scholar of New Horizons
-Scrap Trawler
-Scrollshift
 Scurry Oak
 Scute Swarm
+Scuzzback Marauders
+Sek'Kuar, Deathkeeper
 Selesnya Sanctuary
-Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel
-Sevinne's Reclamation
-Shipwreck Dowser
+Shalai and Hallar
+Shepherd of the Cosmos
+Shilgengar, Sire of Famine
 Shrieking Drake
 Simic Ascendancy
 Simic Growth Chamber
 Sister Hospitaller
-Skirk Prospector
+Skullclamp
 Skyshroud Ranger
-Slip On the Ring
-Sméagol, Helpful Guide
 Solemnity
 Soul Warden
 Soul's Attendant
 Spark Double
 Spawning Pit
-Spawnsire of Ulamog
 Spelunking
+Spider-Man, Peter Parker
+Splinter Twin
 Sporemound
 Springheart Nantuko
-Sprout Swarm
+Squee, Dubious Monarch
+Stadium Headliner
 Stone-Seeder Hierophant
-Storm Cauldron
-Strength of Will
+Stonecoil Serpent
 Stridehangar Automaton
 Sun Titan
+Sunbond
 Suture Priest
+Swiftfoot Boots
+Taigam, Master Opportunist
+Tandem Lookout
 Tarrian's Soulcleaver
+Taurean Mauler
+Tenacious Dead
+Terra, Magical Adept // Esper Terra
 Terramorphic Expanse
-Teshar, Ancestor's Apostle
-Teysa Karlov
 The Earth Crystal
+The Fire Crystal
+The Locust God
 The Necrobloom
+The Tenth Doctor
+The Underworld Cookbook
 The Wandering Minstrel
+There and Back Again
+Thermopod
 Thornbite Staff
 Thunderblust
 Tiller Engine
+Time Warp
 Tireless Provisioner
-Tireless Tracker
-Tormod's Crypt
+Tooth and Claw
+Toph, the First Metalbender
+Tormod, the Desecrator
+Tortured Existence
+Totentanz, Swarm Piper
 Trade Routes
-Transmutation Font
-Treebeard, Gracious Host
 Trench Behemoth
 Triskelion
-Trostani, Selesnya's Voice
 Twilight Shepherd
 Umbral Collar Zealot
-Unbreakable Formation
-Unctus, Grand Metatect
-Unearth
 Urabrask the Hidden
-Urza's Bauble
-Venerated Stormsinger
-Victimize
+Vengeful Bloodwitch
 Vigor
 Viscera Seer
 Vizier of Remedies
-Vizier of Tumbling Sands
 Vorinclex, Monstrous Raider
 Walking Atlas
 Walking Ballista
 Warren Soultrader
 Wayward Swordtooth
-Welding Jar
 Wight of the Reliquary
-Winding Constrictor
-Windswept Heath
-Wispweaver Angel
-Woe Strider
-Wooded Foothills
 Woodfall Primus
-Workshop Assistant
+Xavier Sal, Infested Captain
 Yahenni, Undying Partisan
 Ygra, Eater of All
-Young Wolf
 Zack Fair
 Zendikar's Roil
 Zimone and Dina
 Zimone, Quandrix Prodigy
-Zulaport Cutthroat
+Zurgo Stormrender
 Zurgo, Thunder's Decree

@@ -28,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def collect_variants(
     spellbook: CommanderSpellbook,
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     cache: SpellbookCache | None = None,
 ) -> list[Variant]:
     """Collect variants from Commander Spellbook API with optional caching."""
@@ -72,6 +72,8 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["util_cap"] = result.phase2_util_cap
     if result.phase2_max_color_ratio is not None:
         info["max_color_ratio"] = result.phase2_max_color_ratio
+    if result.phase2_reference_combo_count is not None:
+        info["reference_combo_count"] = result.phase2_reference_combo_count
     return info
 
 
@@ -122,8 +124,11 @@ def log_phase_summary(
     phase1_count = _phase1_combo_count(result)
     if result.is_multi_objective and phase1_count:
         change = 100 * (result.combo_count - phase1_count) / phase1_count
+        reference = result.phase2_reference_combo_count
+        constrained = f", best under coverage and color {reference}" if reference else ""
         logger.info(
-            f"Combos: Phase 1 {phase1_count}, Phase 2 {result.combo_count} ({change:+.1f}%)"
+            f"Combos: Phase 1 {phase1_count}{constrained}, "
+            f"Phase 2 {result.combo_count} ({change:+.1f}% from Phase 1)"
         )
     elif phase1_count is not None:
         logger.info(f"Combos: Phase 1 {phase1_count}")
@@ -329,7 +334,7 @@ def write_stats(
 
 async def load_instance(
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     enable_cache_write: bool = True,
     read_cache: bool = False,
     blocklist: frozenset[str] = frozenset(),
@@ -376,7 +381,7 @@ async def fetch_color_identities(
 async def build_cube_ilp(
     cube_size: int,
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     time_limit_seconds: int = 300,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
@@ -475,7 +480,7 @@ async def run_ilp(
     cube_size: int,
     output_file: str,
     time_limit_seconds: int = 300,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,

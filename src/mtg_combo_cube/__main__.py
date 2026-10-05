@@ -34,8 +34,8 @@ if __name__ == "__main__":
         "-n",
         "--max-variants",
         type=int,
-        default=10000,
-        help="Maximum number of combo variants to fetch (default: 10000)",
+        default=20000,
+        help="Maximum number of combo variants to fetch (default: 20000)",
     )
     argparser.add_argument(
         "--single-phase",
@@ -46,8 +46,9 @@ if __name__ == "__main__":
         "--combo-tolerance",
         type=float,
         default=0.1,
-        help="Tolerance for combo count deviation in phase 2 (default: 0.1 = 10%%). "
-        "Set to 0 for strict equality constraint.",
+        help="Tolerance for combo count deviation in phase 2 (default: 0.1 = 10%%), measured "
+        "from the most combos found for a cube that satisfies the coverage and color balance "
+        "constraints. Set to 0 for strict equality constraint.",
     )
     argparser.add_argument(
         "--min-coverage-ratio",

@@ -170,8 +170,9 @@ Popularity is a tiebreak only. Weights are scaled to integers for CP-SAT.
 
 Phase 2 builds a fresh model: the base model plus the following, in this order.
 
-1. **Combo count window.** The combo count must stay within `--combo-tolerance` of the Phase 1
-   count (10% by default).
+1. **Combo count window.** The combo count must stay within `--combo-tolerance` (10% by
+   default) of the reference count: the most combos found for a cube that satisfies coverage
+   and color balance (see "Reference cube and warm start").
 2. **Coverage constraints.** For each template group used by at least 10 combos, the cube must
    contain at least `--min-coverage-ratio` x (combos using it) cards from the group's pool,
    capped at the pool size.
@@ -220,13 +221,26 @@ within `--gap-limit` of optimal (5% by default). For `softcap` and `tiered` the 
 near zero, where a relative gap is meaningless, so the limit is measured as a fraction of the
 Phase 1 cube's overage instead.
 
-#### Warm start
+#### Reference cube and warm start
 
-The Phase 1 cube usually violates the coverage or color balance constraints, which would make it an infeasible
-hint. `_build_warm_start` checks this. When the cube is infeasible, it solves the small Phase 1
-model with the coverage, color balance, combo-window and floor constraints added, stops at the first solution,
-and uses that cube as the hint. This repair takes at most 10% of the Phase 2 time limit and
-counts against it.
+Phase 1 ignores the coverage and color balance constraints, and at larger pool sizes those cost
+close to 10% of the combos by themselves. Measuring the combo window from the Phase 1 count then
+leaves no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2
+model is built, both in the small Phase 1 model with coverage and color balance added:
+
+1. **Reference cube** (`_best_constrained_cube`). If the Phase 1 cube breaks coverage or color
+   balance, the combo count is maximized under those constraints, hinted with the Phase 1 cube,
+   for at most 10% of the Phase 2 time limit. The combo count of the result is the reference
+   the window is measured from. It is the best cube found in that time, not a proven maximum.
+   If the Phase 1 cube already satisfies both, it is the reference.
+2. **Floor repair** (`_repair_floor`). If the reference cube has cards below the utilization
+   floor, the lower edge of the window and the floor as a penalty are added, the total
+   shortfall is minimized, and the search stops at the first cube with none. This takes at
+   most 20% of the time limit.
+
+The floor is a penalty in step 2 because as a hard constraint it makes even a first solution
+hard to find at larger pool sizes. Both steps count against the Phase 2 time limit. The Phase 2
+model is hinted with the repaired cube, or with the reference cube if the repair found none.
 
 #### Fallback
 
@@ -306,8 +320,9 @@ These are open design questions rather than defects. Details are in
 - **Color balance is all or nothing.** The rule requires every color to be present and is a
   hard constraint. Mono-colored counts are not balanced separately, and colorless cards have
   no limit. See [plans/color-balance-plan.md](plans/color-balance-plan.md).
-- **Coverage is Phase 2 only.** Phase 1 does not see the coverage constraints, so a combo
-  tolerance of 0 can be infeasible.
+- **The reference count is not a proven maximum.** It comes from a time-limited solve, so it
+  varies a little between runs, and with it the combo window. A combo tolerance of 0 can
+  still be infeasible because of the utilization floor.
 - **Phase 2 does not finish early at full size.** At 300 cards and 10,000 variants it runs to
   its time limit and returns the best cube found.
 - **Run-to-run variation.** A time-limited parallel search does not return the same cube twice.

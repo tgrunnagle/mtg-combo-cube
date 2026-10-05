@@ -97,7 +97,81 @@ Done. Full run at 300 cards, 10,000 variants, 8 workers, 300 s per phase, `tiere
 Already done as groundwork: the Spellbook client retries on HTTP 429 and 5xx for up to about
 seven minutes and pauses half a second between pages.
 
+### Step 2 findings
+
+The repair was a symptom. At 20,000 variants the Phase 2 rules leave almost no room inside the
+combo window:
+
+- Phase 1 finds 4,145 combos, so a 10% window needs at least 3,730.
+- Coverage and color balance together allow about 3,800. Coverage alone costs about 6%.
+- With the floor added, no valid cube was found at 3,730 or above in any experiment.
+
+What was tried on the repair, all at 20,000 variants:
+
+| Approach | Outcome |
+|----------|---------|
+| Single solve with every constraint (the original) | Nothing in 90 s |
+| Without the floor, then the floor as a hard constraint hinted with that cube | Second solve found nothing in 90 s |
+| Ban cards below the floor and re-solve | New cards fall below each round; infeasible after four rounds |
+| Floor as a penalty, stop at zero shortfall, loose window | Valid cube in 22 s |
+| Floor as a penalty, current tight window | Still 7 cards short after 96 s |
+
+The cards below the floor are not filler. Coverage and color balance force them in.
+
+**Implemented:** a two-stage repair. Stage 1 maximizes combos under coverage and color (10% of
+the time limit). Stage 2 adds the window and a soft floor, minimizes the shortfall and stops at
+zero (up to 20%).
+
+Full runs with the new repair, 300 cards, 8 workers, 300 s per phase, `tiered`, ratio 2:
+
+| | 10,000 variants, tolerance 0.10 | 20,000 variants, tolerance 0.18 |
+|---|---|---|
+| Phase 1 combos | 2,471 | 4,145 |
+| Repair | 2,286 combos in 35 s | 3,423 combos in 80 s |
+| Phase 2 combos | 2,223 | 3,398 |
+| W / U / B / R / G | 66 / 43 / 73 / 42 / 84 | 76 / 50 / 78 / 50 / 100 |
+| Utilization range | 2 to 270 | 2 to 384 |
+| Utilization std dev | 34.2 | 53.0 |
+
+With the default tolerance of 0.10, a 20,000-variant run still fails.
+
+**Open decision before changing the default:** how the combo window is defined.
+
+1. Measure the tolerance from the best cube that satisfies coverage and color (the stage 1
+   result). Phase 2 then has room at any pool size. At 10,000 variants the minimum drops from
+   2,223 to about 2,060 combos.
+2. Keep measuring from Phase 1 and raise the default tolerance to about 0.18. Needs retuning
+   when the pool size or the color ratio changes.
+
+### Step 2 result
+
+Decision: option 1. The combo window is measured from the best cube found under coverage and
+color balance (`reference_combo_count` in the stats file). `--max-variants` now defaults to
+20,000, and the tracked best cube is the 20,000-variant run below.
+
+Full runs with the defaults, 300 cards, 8 workers, 300 s per phase, `tiered`, ratio 2,
+tolerance 0.10:
+
+| | 10,000 variants | 20,000 variants (default) |
+|---|---|---|
+| Phase 1 combos | 2,471 | 4,145 |
+| Reference: best under coverage and color | 2,334 | 3,611 |
+| Warm start preparation | 36 s | 64 s |
+| Phase 2 combos | 2,100 | 3,249 |
+| W / U / B / R / G | 68 / 57 / 64 / 41 / 82 | 78 / 50 / 77 / 50 / 100 |
+| Utilization range | 2 to 184 | 2 to 326 |
+| Utilization std dev | 24.6 | 54.1 |
+
+- The reference solve gets 10% of the time limit. At 20,000 variants it reached 3,611 combos
+  in 30 s; a 60 s solve reached about 3,800, so a longer time limit raises the window.
+- Phase 2 again ends at the bottom of its window in both runs.
+- At 10,000 variants the wider room improves balance markedly (std dev 24.6 against 33 to 34
+  with the old window) for 123 fewer combos.
+
 ## Open questions
+
+- Phase 2 always settles at the bottom of the combo window, because fewer combos means lower
+  utilization. Whether the objective should value combos is worth a look.
 
 - Should mono-colored counts also be balanced? The rule as decided allows a color to be made up
   mostly of multicolor cards.

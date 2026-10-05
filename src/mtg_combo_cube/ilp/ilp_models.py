@@ -170,6 +170,9 @@ class OptimizationResult:
     phase2_objective: str | None = None  # name of the Phase 2 objective that ran
     phase2_util_cap: int | None = None  # utilization cap T used ("softcap" and "tiered" only)
     phase2_max_color_ratio: float | None = None  # color balance ratio applied, if any
+    # Combo count the Phase 2 combo window is measured from: the best cube found under the
+    # coverage and color balance constraints
+    phase2_reference_combo_count: int | None = None
     is_multi_objective: bool = False
     # True when Phase 2 ran but found no solution, so this is the Phase 1 cube. phase2_status
     # and phase2_solve_time then describe the failed Phase 2 attempt.

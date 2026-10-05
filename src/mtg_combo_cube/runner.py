@@ -15,7 +15,7 @@ async def run(
     output_file: str,
     golden_ratio: float | None = None,
     time_limit_seconds: int = 300,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,

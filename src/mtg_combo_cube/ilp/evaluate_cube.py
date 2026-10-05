@@ -1,7 +1,7 @@
 """Evaluate an existing cube list: true combo count and utilization statistics.
 
 Usage:
-    uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 10000
+    uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
 
 The instance is loaded through the same path as a build (cached API data, blocklist,
 preprocessing), so the numbers are comparable with a build that used the same settings.
@@ -37,7 +37,7 @@ def read_cube_file(path: str) -> list[str]:
 
 async def evaluate_cube(
     cube_file: str,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     blocklist: frozenset[str] = frozenset(),
 ) -> tuple[int, int, UtilizationStats]:
     """
@@ -77,8 +77,8 @@ if __name__ == "__main__":
         "-n",
         "--max-variants",
         type=int,
-        default=10000,
-        help="Maximum number of combo variants, as used for the build (default: 10000)",
+        default=20000,
+        help="Maximum number of combo variants, as used for the build (default: 20000)",
     )
     argparser.add_argument(
         "--blocklist",
