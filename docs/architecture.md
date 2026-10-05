@@ -63,11 +63,12 @@ All code lives under `src/mtg_combo_cube/`.
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
+| `scryfall/card_color_fetcher.py` | `CardColorFetcher`: color identities of named cards, with its own disk cache. Used for reporting only. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
-| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed combos, utilization, statistics. |
+| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed combos, utilization, statistics, color distribution. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -120,10 +121,17 @@ blocklist and limit afterwards, so the cache stays valid when those change.
 - **Outcomes:** a 404 means "no cards match" and is cached as an empty result. A failure is
   never cached.
 
+`CardColorFetcher` looks up color identities for the reported cubes after the solve, in batches
+of 75 names through the Scryfall collection endpoint. It sends its requests through a
+`ScryfallFetcher`, so the same politeness and retry rules apply, and caches results in
+`data/cache/scryfall_card_colors.json`. Colors do not enter the model. A failed lookup only
+removes the color statistics from the output.
+
 ### Cache flags
 
-Both caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
-unless `--skip-api-caching` is given. With a warm cache, an ILP run makes no network requests.
+All caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
+unless `--skip-api-caching` is given. With a warm cache, an ILP run makes no network requests
+unless the result contains a card whose colors are not cached yet.
 The greedy builder uses the Scryfall cache but always calls the Spellbook API live.
 
 ## The ILP optimizer
@@ -252,10 +260,14 @@ It ignores the ILP-only flags, including `--max-variants`.
 | File | Written by | Contents |
 |------|------------|----------|
 | `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 utilization statistics, improvement and card changes, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 combo counts, utilization statistics and color distribution, improvement and card changes, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective and the cap T used.
+
+Each phase block has a `colors` entry computed from card color identities: cards per color
+(a multicolor card counts once per color), the split into mono-colored, multicolor and
+colorless cards, and the variance and standard deviation of the five per-color counts.
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result. Everything else
 under `data/` is ignored by git, including `data/cache/`.

@@ -89,6 +89,19 @@ class UtilizationStats:
 
 
 @dataclass
+class ColorStats:
+    """How a set of cards is distributed over the five colors, by color identity."""
+
+    cards_per_color: dict[str, int]  # W/U/B/R/G; a card counts once per color in its identity
+    mono_colored: dict[str, int]  # W/U/B/R/G; cards whose identity is exactly that color
+    multicolor: int
+    colorless: int
+    unknown: int  # cards without color data
+    variance: float  # population variance of cards_per_color
+    std_deviation: float
+
+
+@dataclass
 class RequirementTypeStats:
     """Statistics for a single requirement type in the final cube."""
 
@@ -164,6 +177,7 @@ class OptimizationResult:
     requirement_coverage_stats: RequirementCoverageStats | None = None
     cross_template_stats: CrossTemplateStats | None = None
     phase1_selected_cards: list[CandidateCard] | None = None  # Cards from Phase 1 (before Phase 2)
+    phase1_combo_count: int | None = None  # Combos the Phase 1 cube completes
 
     # Profiling data (populated when --profile is used)
     profile_data: dict[str, Any] | None = None

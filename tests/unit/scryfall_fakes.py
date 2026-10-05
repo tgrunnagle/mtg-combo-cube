@@ -17,14 +17,18 @@ class FakeResponse:
         status: int = 200,
         card_names: list[str] | None = None,
         headers: dict[str, str] | None = None,
+        payload: dict | None = None,
     ):
         self.status = status
         self.headers = headers or {}
         self._card_names = card_names or []
+        self._payload = payload
 
     async def json(self) -> dict:
         if self.status != 200:
             return {"object": "error", "status": self.status}
+        if self._payload is not None:
+            return self._payload
         return {"object": "list", "data": [{"name": name} for name in self._card_names]}
 
     async def __aenter__(self) -> "FakeResponse":
@@ -45,6 +49,11 @@ class FakeSession:
     def __init__(self, responses: dict[str, list[FakeResponse | Exception]] | None = None):
         self._responses = {url: list(items) for url, items in (responses or {}).items()}
         self.requests: list[str] = []
+        self.bodies: list[dict] = []
+
+    def post(self, url: str, json: dict) -> FakeResponse:
+        self.bodies.append(json)
+        return self.get(url)
 
     def get(self, url: str) -> FakeResponse:
         self.requests.append(url)

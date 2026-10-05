@@ -1239,6 +1239,7 @@ class ILPOptimizer:
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=utilization_stats,
             phase1_solve_time=solve_time,
+            phase1_combo_count=len(solution.completable_combo_ids),
             is_multi_objective=False,
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
@@ -1409,6 +1410,7 @@ class ILPOptimizer:
             requirement_coverage_stats=solution.requirement_coverage_stats,
             cross_template_stats=solution.cross_template_stats,
             phase1_selected_cards=phase1_result.selected_cards,
+            phase1_combo_count=phase1_result.combo_count,
             profile_data=profile_data,
         )
 

@@ -1,8 +1,11 @@
 """Unit tests for the ground-truth cube evaluation functions."""
 
+import pytest
+
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
+    compute_color_stats,
     compute_utilization_stats,
 )
 from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
@@ -132,3 +135,35 @@ class TestComputeUtilizationStats:
         assert stats.mean_utilization == 4.0
         assert stats.median_utilization == 4.0
         assert stats.total_absolute_deviation == 8
+
+
+class TestComputeColorStats:
+    """Test compute_color_stats."""
+
+    def test_counts_and_categories(self):
+        identities = {"Mono W": "W", "Mono U": "U", "Azorius": "WU", "Rock": "", "Five": "WUBRG"}
+
+        stats = compute_color_stats([*identities, "Mystery"], identities)
+
+        assert stats.cards_per_color == {"W": 3, "U": 3, "B": 1, "R": 1, "G": 1}
+        assert stats.mono_colored == {"W": 1, "U": 1, "B": 0, "R": 0, "G": 0}
+        assert stats.multicolor == 2
+        assert stats.colorless == 1
+        assert stats.unknown == 1
+        # Counts 3, 3, 1, 1, 1: mean 1.8, squared deviations 2 x 1.44 + 3 x 0.64 = 4.8
+        assert stats.variance == pytest.approx(0.96)
+        assert stats.std_deviation == pytest.approx(0.96**0.5)
+
+    def test_even_distribution_has_zero_variance(self):
+        identities = {color: color for color in "WUBRG"}
+
+        stats = compute_color_stats(list(identities), identities)
+
+        assert stats.variance == 0.0
+        assert stats.std_deviation == 0.0
+
+    def test_empty(self):
+        stats = compute_color_stats([], {})
+
+        assert sum(stats.cards_per_color.values()) == 0
+        assert stats.variance == 0.0

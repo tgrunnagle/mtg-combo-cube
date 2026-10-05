@@ -1,6 +1,7 @@
 """Tests that CLI options reach the ILP optimizer (CLI -> runner -> ilp_runner -> optimizer)."""
 
 import inspect
+import json
 import runpy
 import sys
 from pathlib import Path
@@ -118,8 +119,12 @@ class TestRunnerPlumbing:
                 results.append(super().solve_two_phase(profile=profile))
                 return results[-1]
 
+        async def fake_fetch_color_identities(card_names: Any, **kwargs: Any) -> dict[str, str]:
+            return {"A": "W", "B": "WU", "C": ""}
+
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_color_identities", fake_fetch_color_identities)
 
         await ilp_runner.run_ilp(
             cube_size=3,
@@ -136,3 +141,15 @@ class TestRunnerPlumbing:
         # Every card of the triangle has utilization 2 in Phase 1: derived cap = 2 x 2
         assert results[0].phase2_util_cap == (4 if util_cap is None else util_cap)
         assert (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]
+
+        # The stats file reports the combo count and color distribution of both phases
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        for phase in ("phase1", "phase2"):
+            assert stats[phase]["combo_count"] == 3
+            assert stats[phase]["colors"]["cards_per_color"] == {
+                "W": 2,
+                "U": 1,
+                "B": 0,
+                "R": 0,
+                "G": 0,
+            }

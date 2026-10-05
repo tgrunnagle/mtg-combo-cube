@@ -203,22 +203,37 @@ class ScryfallFetcher:
 
     async def _fetch_with_retries(self, url: str) -> list[str] | None:
         """Fetch one URL. Returns None after a non-retryable error or the last failed attempt."""
+        data = await self.request_json(url)
+        if data is None:
+            return None
+        return [card["name"] for card in data.get("data", [])]
+
+    async def request_json(self, url: str, json_body: dict | None = None) -> dict | None:
+        """
+        Request one URL with throttling and retries: a GET, or a POST when json_body is given.
+
+        Returns:
+            The response JSON (an empty dict for 404), or None after a non-retryable error
+            or the last failed attempt.
+        """
         session = self._get_session()
         problem = ""
         for attempt in range(1, self._max_attempts + 1):
             retry_after: str | None = None
             await self._throttle()
             self.network_requests += 1
-            logger.debug(f"Fetching template cards: {url}")
+            logger.debug(f"Scryfall request: {url}")
             try:
-                async with session.get(url) as response:
+                request = (
+                    session.get(url) if json_body is None else session.post(url, json=json_body)
+                )
+                async with request as response:
                     status = response.status
                     if status == 200:
-                        data = await response.json()
-                        return [card["name"] for card in data.get("data", [])]
+                        return await response.json()
                     if status == 404:
                         # Scryfall answers a search without matches with 404
-                        return []
+                        return {}
                     if status != 429 and status < 500:
                         logger.warning(f"Scryfall API error {status} (not retried): {url}")
                         return None

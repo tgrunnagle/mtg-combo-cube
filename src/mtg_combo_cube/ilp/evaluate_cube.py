@@ -16,10 +16,15 @@ from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
+    compute_color_stats,
     compute_utilization_stats,
 )
 from mtg_combo_cube.ilp.ilp_models import UtilizationStats
-from mtg_combo_cube.ilp.ilp_runner import load_instance
+from mtg_combo_cube.ilp.ilp_runner import (
+    fetch_color_identities,
+    format_color_stats,
+    load_instance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,3 +104,9 @@ if __name__ == "__main__":
         f"mean={stats.mean_utilization:.2f}, median={stats.median_utilization:.1f}, "
         f"std_dev={stats.std_deviation:.2f}"
     )
+
+    cube_cards = read_cube_file(args.cube_file)
+    color_identities = asyncio.run(fetch_color_identities(cube_cards, read_cache=True))
+    if color_identities is not None:
+        color_stats = compute_color_stats(cube_cards, color_identities)
+        print(f"Colors (by color identity): {format_color_stats(color_stats)}")

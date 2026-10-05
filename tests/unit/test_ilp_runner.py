@@ -496,3 +496,89 @@ class TestWriteUtilizationStats:
                 "objective": "softcap",
                 "util_cap": 12,
             }
+
+
+class TestWriteStatsCombosAndColors:
+    """Per-phase combo counts and color distributions in the stats file."""
+
+    @staticmethod
+    def _two_phase_result() -> OptimizationResult:
+        return OptimizationResult(
+            selected_cards=make_candidate_cards(["Card A", "Card B", "Card D"]),
+            completable_combo_ids=["combo1", "combo2", "combo3"],
+            combo_count=3,
+            objective_value=4.0,
+            solve_time_seconds=3.0,
+            phase1_status="OPTIMAL",
+            utilization_per_card={"Card A": 2, "Card B": 2, "Card D": 2},
+            phase1_utilization_stats=UtilizationStats(1, 5, 3.0, 1.5, 10, 3.0),
+            phase2_utilization_stats=UtilizationStats(2, 4, 3.0, 0.8, 6, 3.0),
+            phase1_solve_time=1.5,
+            phase2_solve_time=1.5,
+            phase2_status="OPTIMAL",
+            is_multi_objective=True,
+            phase1_selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+            phase1_combo_count=4,
+        )
+
+    @staticmethod
+    def _write(result: OptimizationResult, tmp_path: Path, **kwargs) -> dict:
+        write_stats(result, str(tmp_path / "cube.txt"), 3, **kwargs)
+        with open(tmp_path / "cube_stats.json") as f:
+            return json.load(f)
+
+    def test_combo_counts_per_phase(self, tmp_path: Path):
+        stats = self._write(self._two_phase_result(), tmp_path)
+
+        assert stats["phase1"]["combo_count"] == 4
+        assert stats["phase2"]["combo_count"] == 3
+        assert stats["improvement"]["combo_count_before"] == 4
+        assert stats["improvement"]["combo_count_after"] == 3
+        assert stats["improvement"]["combo_count_change_percent"] == pytest.approx(-25.0)
+
+    def test_single_phase_combo_count(self, tmp_path: Path):
+        result = OptimizationResult(
+            selected_cards=make_candidate_cards(["Card A"]),
+            completable_combo_ids=["combo1"],
+            combo_count=1,
+            objective_value=1.0,
+            solve_time_seconds=1.0,
+            phase1_status="OPTIMAL",
+            phase1_utilization_stats=UtilizationStats(1, 1, 1.0, 0.0, 0, 1.0),
+        )
+
+        stats = self._write(result, tmp_path, color_identities={"Card A": "G"})
+
+        assert stats["phase1"]["combo_count"] == 1
+        assert stats["phase1"]["colors"]["mono_colored"]["G"] == 1
+
+    def test_colors_per_phase(self, tmp_path: Path):
+        identities = {"Card A": "W", "Card B": "WU", "Card C": "", "Card D": "U"}
+
+        stats = self._write(self._two_phase_result(), tmp_path, color_identities=identities)
+
+        # Phase 1 cube: Card A, Card B, Card C
+        assert stats["phase1"]["colors"] == {
+            "cards_per_color": {"W": 2, "U": 1, "B": 0, "R": 0, "G": 0},
+            "mono_colored": {"W": 1, "U": 0, "B": 0, "R": 0, "G": 0},
+            "multicolor": 1,
+            "colorless": 1,
+            "unknown": 0,
+            "variance": pytest.approx(0.64),
+            "std_deviation": pytest.approx(0.8),
+        }
+        # Phase 2 cube: Card A, Card B, Card D
+        assert stats["phase2"]["colors"]["cards_per_color"] == {
+            "W": 2,
+            "U": 2,
+            "B": 0,
+            "R": 0,
+            "G": 0,
+        }
+        assert stats["phase2"]["colors"]["colorless"] == 0
+
+    def test_no_colors_without_color_data(self, tmp_path: Path):
+        stats = self._write(self._two_phase_result(), tmp_path)
+
+        assert "colors" not in stats["phase1"]
+        assert "colors" not in stats["phase2"]

@@ -115,24 +115,32 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 The stats file contains:
 
 - `metadata`: cube size, combo count, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
-- `phase1` / `phase2`: solve time and utilization statistics (min, max, mean, median, standard deviation). `phase2` also records `status`, the `objective` that ran and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
-- `improvement`: Phase 1 to Phase 2 changes, including the cards swapped.
+- `phase1` / `phase2`: `combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation) and `colors`, the color distribution of that phase's cube (see below). `phase2` also records `status`, the `objective` that ran and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
+- `improvement`: Phase 1 to Phase 2 changes, including the combo count before and after and the cards swapped.
 - `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
 - `profiling` (with `--profile`): per-phase timings, variable and constraint counts and solver statistics.
 
 Every combo count and utilization number is computed from the selected cards, not read from solver variables.
 
+`colors` is based on each card's color identity, looked up on Scryfall for the selected cards and cached in `data/cache/scryfall_card_colors.json`:
+
+- `cards_per_color`: cards per color (W, U, B, R, G). A multicolor card counts once for each of its colors.
+- `mono_colored`, `multicolor`, `colorless`: the cube split into exclusive groups. `unknown` counts cards without color data.
+- `variance` / `std_deviation`: spread of the five `cards_per_color` counts. Zero means the colors are evenly represented.
+
+The log prints the same combo counts and color distribution at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
+
 [data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 10,000 variants with the default settings.
 
 ### Evaluating a Cube
 
-To score an existing cube list (true combo count and utilization statistics) against the cached data:
+To score an existing cube list (true combo count, utilization statistics and color distribution) against the cached data:
 
 ```bash
 uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 10000
 ```
 
-Use the same `-n` (and `--blocklist`) as the build you want to compare with. Cached data is read when present and fetched otherwise (nothing is written to the cache); cards that are not part of the instance are reported and count with utilization 0.
+Use the same `-n` (and `--blocklist`) as the build you want to compare with. Cached data is read when present and fetched otherwise (only card colors are written to the cache); cards that are not part of the instance are reported and count with utilization 0.
 
 ### API Caching
 
