@@ -76,7 +76,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 
 `-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
 
-The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. `task build:ilp` uses a 360 s time limit unless `TIME_LIMIT` is given.
+The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
 
 ### Examples
 
