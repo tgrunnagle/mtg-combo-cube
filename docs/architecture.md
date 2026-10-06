@@ -60,6 +60,7 @@ All code lives under `src/mtg_combo_cube/`.
 | `runner.py` | Loads the blocklist and dispatches to the ILP or greedy runner. |
 | `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...). |
 | `blocklist.py` | Reads `data/blocklist.txt`: one card name per line, `#` comments allowed. |
+| `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
@@ -136,6 +137,21 @@ and the color statistics. After a failed lookup the run continues without either
 All caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
 unless `--skip-api-caching` is given. With a warm cache, an ILP run makes no network requests.
 The greedy builder uses the Scryfall cache but always calls the Spellbook API live.
+
+### Precaching
+
+`precache.py` (`task precache`) fills all three caches for one configuration without solving
+anything. It runs the same steps as a build: fetch the variants, preprocess them with the
+blocklist, look up the colors of the candidate cards. Its arguments are the values that decide
+what a build reads: `--max-variants` and `--max-cards-in-combo` name the variants file, and
+`--blocklist` decides which templates and cards are looked up.
+
+By default it reads nothing from the cache, so the variants file and every entry of the
+configuration are fetched again and overwritten; `--keep-existing` reads the cache and fetches
+only what is missing. The clients retry single requests themselves. On top of that, a stage
+that still has failed requests is run again, up to `--max-passes` times with a doubling wait,
+and only the failures are requested again. The script exits with status 1 when a request kept
+failing, so the cache is known to be incomplete.
 
 ## The ILP optimizer
 

@@ -182,6 +182,26 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --read-api-cache
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
 ```
 
+#### Precaching
+
+To download everything a build reads ahead of time, so that the build itself makes no network requests:
+
+```bash
+task precache                                   # 20,000 variants
+task precache MAX_VARIANTS=10000                # what the task build:ilp* targets use by default
+task precache -- --keep-existing                # only fetch what is missing
+
+uv run python -m mtg_combo_cube.precache -n 20000 --max-cards-in-combo 4 --blocklist data/blocklist.txt
+```
+
+It fills the variants file, the Scryfall template searches and the card colors. Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`) and `--blocklist` (`BLOCKLIST`) as the build: the first two name the variants file, and the blocklist decides which templates and card colors the build asks for. Note that `task precache` defaults to 20,000 variants while the `task build:ilp*` targets default to 10,000.
+
+- **Existing data is overwritten.** The variants file is replaced, and so is every template and card color entry of the configuration. Entries that only other configurations use are left alone. A failed download leaves the existing variants file in place.
+- `--keep-existing` keeps the entries already in the cache and fetches only what is missing, which finishes an incomplete run without starting over.
+- **Retries:** each client retries single requests with backoff (see above). On top of that, a stage whose requests still failed is run again, up to `--max-passes` times (default 3), waiting `--retry-wait` seconds (default 30) before the second pass and twice as long before each further one.
+- The script prints a summary and exits with status 1 when the cache is incomplete. Cards that Scryfall does not know are reported but do not count as a failure.
+- `--cache-dir` writes somewhere other than `data/cache/`; a build only reads `data/cache/`.
+
 ## Optimization Methods
 
 ### Greedy
@@ -282,6 +302,9 @@ task check
 task build:ilp
 task build:ilp-single
 task build:greedy
+
+# Download the API data for a build into data/cache (see API Caching)
+task precache
 ```
 
 ### Manual Commands

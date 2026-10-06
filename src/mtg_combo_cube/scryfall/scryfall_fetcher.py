@@ -81,11 +81,17 @@ class ScryfallFetcher:
 
         self.network_requests = 0
         self.cache_hits = 0
+        self.failed_requests = 0
 
     @property
     def failed_url_count(self) -> int:
         """Number of distinct URLs that could not be fetched in this run."""
         return len(self._failed_urls)
+
+    def clear_failures(self) -> None:
+        """Forget the failed URLs and requests, so that they are tried again when asked for."""
+        self._failed_urls.clear()
+        self.failed_requests = 0
 
     async def __aenter__(self) -> Self:
         return self
@@ -236,6 +242,7 @@ class ScryfallFetcher:
                         return {}
                     if status != 429 and status < 500:
                         logger.warning(f"Scryfall API error {status} (not retried): {url}")
+                        self.failed_requests += 1
                         return None
                     problem = f"HTTP {status}"
                     retry_after = response.headers.get("Retry-After")
@@ -252,4 +259,5 @@ class ScryfallFetcher:
         logger.warning(
             f"Scryfall fetch failed after {self._max_attempts} attempts ({problem}): {url}"
         )
+        self.failed_requests += 1
         return None

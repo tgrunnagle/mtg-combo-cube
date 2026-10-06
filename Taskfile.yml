@@ -86,6 +86,13 @@ tasks:
     deps:
       - install
 
+  precache:
+    desc: Download the Commander Spellbook and Scryfall data for a build into data/cache
+    cmds:
+      - uv run python -m src.mtg_combo_cube.precache -n {{.MAX_VARIANTS | default "20000"}} --max-cards-in-combo {{.MAX_CARDS_IN_COMBO | default "4"}} {{if .BLOCKLIST}}--blocklist "{{.BLOCKLIST}}"{{end}} {{.CLI_ARGS}}
+    deps:
+      - install
+
   help:
     desc: Show available tasks
     cmds:
