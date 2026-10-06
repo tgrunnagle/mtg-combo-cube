@@ -2,13 +2,22 @@
 
 import json
 import logging
+from collections.abc import Iterable, Mapping
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, OptimizationResult
+from mtg_combo_cube.ilp.cube_evaluation import compute_color_stats
+from mtg_combo_cube.ilp.ilp_models import (
+    CandidateCard,
+    ColorStats,
+    ComboData,
+    OptimizationResult,
+)
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.models import Variant
+from mtg_combo_cube.scryfall.card_color_fetcher import CardColorFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
@@ -19,7 +28,7 @@ logger = logging.getLogger(__name__)
 async def collect_variants(
     spellbook: CommanderSpellbook,
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     cache: SpellbookCache | None = None,
 ) -> list[Variant]:
     """Collect variants from Commander Spellbook API with optional caching."""
@@ -61,15 +70,90 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["objective"] = result.phase2_objective
     if result.phase2_util_cap is not None:
         info["util_cap"] = result.phase2_util_cap
+    if result.phase2_max_color_ratio is not None:
+        info["max_color_ratio"] = result.phase2_max_color_ratio
+    if result.phase2_reference_combo_count is not None:
+        info["reference_combo_count"] = result.phase2_reference_combo_count
     return info
+
+
+def _phase1_cards(result: OptimizationResult) -> list[CandidateCard] | None:
+    """The Phase 1 cube, when the result records it."""
+    if result.phase1_selected_cards is not None:
+        return result.phase1_selected_cards
+    return None if result.is_multi_objective else result.selected_cards
+
+
+def _phase1_combo_count(result: OptimizationResult) -> int | None:
+    """The number of combos the Phase 1 cube completes, when the result records it."""
+    if result.phase1_combo_count is not None:
+        return result.phase1_combo_count
+    return None if result.is_multi_objective else result.combo_count
+
+
+def _color_stats(
+    cards: list[CandidateCard] | None, color_identities: Mapping[str, str] | None
+) -> ColorStats | None:
+    if cards is None or color_identities is None:
+        return None
+    return compute_color_stats([card.name for card in cards], color_identities)
+
+
+def _colors_block(
+    cards: list[CandidateCard] | None, color_identities: Mapping[str, str] | None
+) -> dict:
+    """The "colors" entry of a phase block, empty when there is no color data."""
+    stats = _color_stats(cards, color_identities)
+    return {"colors": asdict(stats)} if stats is not None else {}
+
+
+def format_color_stats(stats: ColorStats) -> str:
+    """One-line summary of a color distribution."""
+    per_color = ", ".join(f"{color}={count}" for color, count in stats.cards_per_color.items())
+    unknown = f", unknown={stats.unknown}" if stats.unknown else ""
+    return (
+        f"{per_color}, colorless={stats.colorless}, multicolor={stats.multicolor}{unknown}; "
+        f"across colors: variance={stats.variance:.1f}, std_dev={stats.std_deviation:.1f}"
+    )
+
+
+def log_phase_summary(
+    result: OptimizationResult, color_identities: Mapping[str, str] | None
+) -> None:
+    """Log the combo count and color distribution of each phase's cube."""
+    phase1_count = _phase1_combo_count(result)
+    if result.is_multi_objective and phase1_count:
+        change = 100 * (result.combo_count - phase1_count) / phase1_count
+        reference = result.phase2_reference_combo_count
+        constrained = f", best under coverage and color {reference}" if reference else ""
+        logger.info(
+            f"Combos: Phase 1 {phase1_count}{constrained}, "
+            f"Phase 2 {result.combo_count} ({change:+.1f}% from Phase 1)"
+        )
+    elif phase1_count is not None:
+        logger.info(f"Combos: Phase 1 {phase1_count}")
+
+    phase1_colors = _color_stats(_phase1_cards(result), color_identities)
+    if phase1_colors is not None:
+        logger.info(f"Colors, Phase 1: {format_color_stats(phase1_colors)}")
+    if result.is_multi_objective:
+        phase2_colors = _color_stats(result.selected_cards, color_identities)
+        if phase2_colors is not None:
+            logger.info(f"Colors, Phase 2: {format_color_stats(phase2_colors)}")
 
 
 def write_stats(
     result: OptimizationResult,
     output_file: str,
     cube_size: int,
+    color_identities: Mapping[str, str] | None = None,
 ) -> None:
-    """Write utilization statistics to JSON file."""
+    """
+    Write utilization statistics to JSON file.
+
+    color_identities (card name -> WUBRG letters) adds the color distribution of each
+    phase's cube when given.
+    """
     # Derive stats filename: data/cube.txt -> data/cube_stats.json
     output_path = Path(output_file)
     stats_file = output_path.with_stem(f"{output_path.stem}_stats").with_suffix(".json")
@@ -95,6 +179,7 @@ def write_stats(
     if result.phase1_utilization_stats:
         p1 = result.phase1_utilization_stats
         stats["phase1"] = {
+            "combo_count": _phase1_combo_count(result),
             "solve_time_seconds": result.phase1_solve_time,
             "min_utilization": p1.min_utilization,
             "max_utilization": p1.max_utilization,
@@ -102,12 +187,14 @@ def write_stats(
             "median_utilization": p1.median_utilization,
             "std_deviation": p1.std_deviation,
             "total_absolute_deviation": p1.total_absolute_deviation,
+            **_colors_block(_phase1_cards(result), color_identities),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
     if result.is_multi_objective and result.phase2_utilization_stats:
         p2 = result.phase2_utilization_stats
         stats["phase2"] = {
+            "combo_count": result.combo_count,
             "solve_time_seconds": result.phase2_solve_time,
             "status": result.phase2_status,
             "min_utilization": p2.min_utilization,
@@ -117,6 +204,7 @@ def write_stats(
             "std_deviation": p2.std_deviation,
             "total_absolute_deviation": p2.total_absolute_deviation,
             **_phase2_objective_info(result),
+            **_colors_block(result.selected_cards, color_identities),
         }
 
         # Calculate improvement metrics
@@ -136,6 +224,15 @@ def write_stats(
                 "range_before": p1.max_utilization - p1.min_utilization,
                 "range_after": p2.max_utilization - p2.min_utilization,
             }
+            phase1_count = _phase1_combo_count(result)
+            if phase1_count is not None:
+                stats["improvement"]["combo_count_before"] = phase1_count
+                stats["improvement"]["combo_count_after"] = result.combo_count
+                stats["improvement"]["combo_count_change_percent"] = (
+                    100 * (result.combo_count - phase1_count) / phase1_count
+                    if phase1_count > 0
+                    else 0.0
+                )
 
             # Add card changes between Phase 1 and Phase 2
             if result.phase1_selected_cards is not None:
@@ -237,7 +334,7 @@ def write_stats(
 
 async def load_instance(
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     enable_cache_write: bool = True,
     read_cache: bool = False,
     blocklist: frozenset[str] = frozenset(),
@@ -263,10 +360,28 @@ async def load_instance(
     return await preprocessor.preprocess_variants(variants)
 
 
+async def fetch_color_identities(
+    card_names: Iterable[str],
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
+) -> dict[str, str] | None:
+    """
+    Look up the color identity (WUBRG letters) of each card on Scryfall.
+
+    Returns None when no color data could be fetched, so callers can leave colors out.
+    """
+    async with ScryfallFetcher() as fetcher:
+        color_fetcher = CardColorFetcher(
+            fetcher, enable_read=read_cache, enable_write=enable_cache_write
+        )
+        identities = await color_fetcher.fetch_color_identities(card_names)
+    return identities or None
+
+
 async def build_cube_ilp(
     cube_size: int,
     max_cards_in_combo: int = 4,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     time_limit_seconds: int = 300,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
@@ -281,7 +396,8 @@ async def build_cube_ilp(
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
-) -> tuple[list[str], int, OptimizationResult]:
+    max_color_ratio: float = 2.0,
+) -> tuple[list[str], int, OptimizationResult, dict[str, str] | None]:
     """
     Build cube using ILP optimization with optional API caching.
 
@@ -289,6 +405,7 @@ async def build_cube_ilp(
         - List of card names in cube
         - Number of completable combos
         - Full optimization result with stats
+        - Color identity of every candidate card (None when no color data could be fetched)
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
@@ -307,6 +424,11 @@ async def build_cube_ilp(
         )
         cube_size = len(candidate_cards)
 
+    # Colors feed the Phase 2 color balance constraint and the color statistics
+    card_colors = await fetch_color_identities(
+        sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
+    )
+
     # Run ILP optimization
     optimizer = ILPOptimizer(
         combos=combo_data,
@@ -321,6 +443,8 @@ async def build_cube_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        card_colors=card_colors,
+        max_color_ratio=max_color_ratio,
     )
 
     # Run optimization (two-phase by default)
@@ -349,14 +473,14 @@ async def build_cube_ilp(
         f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.get_selected_card_names(), result.combo_count, result
+    return result.get_selected_card_names(), result.combo_count, result, card_colors
 
 
 async def run_ilp(
     cube_size: int,
     output_file: str,
     time_limit_seconds: int = 300,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,
@@ -370,9 +494,10 @@ async def run_ilp(
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    max_color_ratio: float = 2.0,
 ):
     """Entry point for ILP-based cube building with caching support."""
-    cards, combo_count, result = await build_cube_ilp(
+    cards, combo_count, result, color_identities = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
@@ -389,6 +514,7 @@ async def run_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        max_color_ratio=max_color_ratio,
     )
 
     logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")
@@ -396,5 +522,7 @@ async def run_ilp(
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))
 
+    log_phase_summary(result, color_identities)
+
     # Write utilization stats
-    write_stats(result, output_file, cube_size)
+    write_stats(result, output_file, cube_size, color_identities)

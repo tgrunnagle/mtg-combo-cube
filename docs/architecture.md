@@ -63,11 +63,12 @@ All code lives under `src/mtg_combo_cube/`.
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
+| `scryfall/card_color_fetcher.py` | `CardColorFetcher`: color identities of named cards, with its own disk cache. Used by the color balance constraint and the color statistics. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
-| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed combos, utilization, statistics. |
+| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed combos, utilization, statistics, color distribution. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -82,6 +83,10 @@ All code lives under `src/mtg_combo_cube/`.
 combos of at most four cards and skipping any that need a specific commander. It stops after
 `--max-variants` combos. `SpellbookCache` stores the result in
 `data/cache/variants_cards{K}_max{N}.json`.
+
+The API rate-limits bursts and blocks for several minutes, so the client pauses half a second
+between pages and retries HTTP 429 and 5xx responses with doubling backoff for up to about
+seven minutes. A first download of 20,000 variants takes about 13 minutes.
 
 ### 2. Preprocess into an ILP instance
 
@@ -120,9 +125,15 @@ blocklist and limit afterwards, so the cache stays valid when those change.
 - **Outcomes:** a 404 means "no cards match" and is cached as an empty result. A failure is
   never cached.
 
+`CardColorFetcher` looks up the color identity of every candidate card before the solve, in batches
+of 75 names through the Scryfall collection endpoint. It sends its requests through a
+`ScryfallFetcher`, so the same politeness and retry rules apply, and caches results in
+`data/cache/scryfall_card_colors.json`. The colors feed the Phase 2 color balance constraint
+and the color statistics. After a failed lookup the run continues without either.
+
 ### Cache flags
 
-Both caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
+All caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
 unless `--skip-api-caching` is given. With a warm cache, an ILP run makes no network requests.
 The greedy builder uses the Scryfall cache but always calls the Spellbook API live.
 
@@ -159,8 +170,9 @@ Popularity is a tiebreak only. Weights are scaled to integers for CP-SAT.
 
 Phase 2 builds a fresh model: the base model plus the following, in this order.
 
-1. **Combo count window.** The combo count must stay within `--combo-tolerance` of the Phase 1
-   count (10% by default).
+1. **Combo count window.** The combo count must stay within `--combo-tolerance` (10% by
+   default) of the reference count: the most combos found for a cube that satisfies coverage
+   and color balance (see "Reference cube and warm start").
 2. **Coverage constraints.** For each template group used by at least 10 combos, the cube must
    contain at least `--min-coverage-ratio` x (combos using it) cards from the group's pool,
    capped at the pool size.
@@ -174,8 +186,13 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    one of the combo's template pools. `u[c]` is bounded by the number of combos c appears in.
 5. **Utilization floor.** Every selected card must have `u[c] >= --min-util-floor` (default 2).
    A card that can never reach the floor is excluded outright.
-6. **The objective**, chosen with `--phase2-objective`.
-7. **Warm start.** The model is hinted with a starting cube.
+6. **Color balance.** For every ordered pair of colors, `count[a] <= ratio * count[b]`, with
+   `--max-color-ratio` (default 2) written as an integer fraction. `count` is the number of
+   selected cards whose color identity includes the color, so a multicolor card counts once
+   per color. Colorless cards are unconstrained. The rule is skipped when the ratio is 0 or
+   no color data could be fetched.
+7. **The objective**, chosen with `--phase2-objective`.
+8. **Warm start.** The model is hinted with a starting cube.
 
 #### Objectives
 
@@ -204,13 +221,26 @@ within `--gap-limit` of optimal (5% by default). For `softcap` and `tiered` the 
 near zero, where a relative gap is meaningless, so the limit is measured as a fraction of the
 Phase 1 cube's overage instead.
 
-#### Warm start
+#### Reference cube and warm start
 
-The Phase 1 cube usually violates the coverage constraints, which would make it an infeasible
-hint. `_build_warm_start` checks this. When the cube is infeasible, it solves the small Phase 1
-model with the coverage, combo-window and floor constraints added, stops at the first solution,
-and uses that cube as the hint. This repair takes at most 10% of the Phase 2 time limit and
-counts against it.
+Phase 1 ignores the coverage and color balance constraints, and at larger pool sizes those cost
+close to 10% of the combos by themselves. Measuring the combo window from the Phase 1 count then
+leaves no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2
+model is built, both in the small Phase 1 model with coverage and color balance added:
+
+1. **Reference cube** (`_best_constrained_cube`). If the Phase 1 cube breaks coverage or color
+   balance, the combo count is maximized under those constraints, hinted with the Phase 1 cube,
+   for at most 10% of the Phase 2 time limit. The combo count of the result is the reference
+   the window is measured from. It is the best cube found in that time, not a proven maximum.
+   If the Phase 1 cube already satisfies both, it is the reference.
+2. **Floor repair** (`_repair_floor`). If the reference cube has cards below the utilization
+   floor, the lower edge of the window and the floor as a penalty are added, the total
+   shortfall is minimized, and the search stops at the first cube with none. This takes at
+   most 20% of the time limit.
+
+The floor is a penalty in step 2 because as a hard constraint it makes even a first solution
+hard to find at larger pool sizes. Both steps count against the Phase 2 time limit. The Phase 2
+model is hinted with the repaired cube, or with the reference cube if the repair found none.
 
 #### Fallback
 
@@ -252,10 +282,14 @@ It ignores the ILP-only flags, including `--max-variants`.
 | File | Written by | Contents |
 |------|------------|----------|
 | `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 utilization statistics, improvement and card changes, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 combo counts, utilization statistics and color distribution, improvement and card changes, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective and the cap T used.
+
+Each phase block has a `colors` entry computed from card color identities: cards per color
+(a multicolor card counts once per color), the split into mono-colored, multicolor and
+colorless cards, and the variance and standard deviation of the five per-color counts.
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result. Everything else
 under `data/` is ignored by git, including `data/cache/`.
@@ -283,8 +317,12 @@ These are open design questions rather than defects. Details are in
   contains it, even when a different card fills that slot. Combined with the coverage
   constraints, this gives every card in a popular pool a high utilization that no objective can
   lower.
-- **Coverage is Phase 2 only.** Phase 1 does not see the coverage constraints, so a combo
-  tolerance of 0 can be infeasible.
+- **Color balance is all or nothing.** The rule requires every color to be present and is a
+  hard constraint. Mono-colored counts are not balanced separately, and colorless cards have
+  no limit. See [plans/color-balance-plan.md](plans/color-balance-plan.md).
+- **The reference count is not a proven maximum.** It comes from a time-limited solve, so it
+  varies a little between runs, and with it the combo window. A combo tolerance of 0 can
+  still be infeasible because of the utilization floor.
 - **Phase 2 does not finish early at full size.** At 300 cards and 10,000 variants it runs to
   its time limit and returns the best cube found.
 - **Run-to-run variation.** A time-limited parallel search does not return the same cube twice.

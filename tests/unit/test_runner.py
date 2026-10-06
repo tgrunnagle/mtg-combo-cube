@@ -1,6 +1,7 @@
 """Tests that CLI options reach the ILP optimizer (CLI -> runner -> ilp_runner -> optimizer)."""
 
 import inspect
+import json
 import runpy
 import sys
 from pathlib import Path
@@ -68,6 +69,15 @@ class TestCliPlumbing:
 
         assert received["phase2_objective"] == objective
 
+    def test_max_color_ratio(self, monkeypatch: pytest.MonkeyPatch):
+        assert run_cli(monkeypatch)["max_color_ratio"] == 2.0
+        assert run_cli(monkeypatch, "--max-color-ratio", "1.5")["max_color_ratio"] == 1.5
+        assert run_cli(monkeypatch, "--max-color-ratio", "0")["max_color_ratio"] == 0
+
+    def test_max_color_ratio_below_one_is_rejected(self, monkeypatch: pytest.MonkeyPatch):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--max-color-ratio", "0.5")
+
     def test_unknown_objective_is_rejected(self, monkeypatch: pytest.MonkeyPatch):
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--phase2-objective", "maxmin")
@@ -118,8 +128,12 @@ class TestRunnerPlumbing:
                 results.append(super().solve_two_phase(profile=profile))
                 return results[-1]
 
+        async def fake_fetch_color_identities(card_names: Any, **kwargs: Any) -> dict[str, str]:
+            return {"A": "W", "B": "WU", "C": ""}
+
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_color_identities", fake_fetch_color_identities)
 
         await ilp_runner.run_ilp(
             cube_size=3,
@@ -128,11 +142,27 @@ class TestRunnerPlumbing:
             phase2_objective="softcap",
             util_cap=util_cap,
             num_workers=1,
+            max_color_ratio=0,
         )
 
         assert len(created) == 1
         assert created[0].util_cap == util_cap
         assert created[0].phase2_objective == "softcap"
+        # The colors of every candidate card reach the optimizer, with the ratio
+        assert created[0].card_colors == {"A": "W", "B": "WU", "C": ""}
+        assert created[0].max_color_ratio == 0
         # Every card of the triangle has utilization 2 in Phase 1: derived cap = 2 x 2
         assert results[0].phase2_util_cap == (4 if util_cap is None else util_cap)
         assert (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]
+
+        # The stats file reports the combo count and color distribution of both phases
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        for phase in ("phase1", "phase2"):
+            assert stats[phase]["combo_count"] == 3
+            assert stats[phase]["colors"]["cards_per_color"] == {
+                "W": 2,
+                "U": 1,
+                "B": 0,
+                "R": 0,
+                "G": 0,
+            }

@@ -1,16 +1,19 @@
 """ILP-based cube optimizer using OR-Tools CP-SAT solver."""
 
+import itertools
 import logging
 import math
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, replace
+from fractions import Fraction
 from typing import Any
 
 from ortools.sat.python import cp_model
 
 from mtg_combo_cube.ilp.cube_evaluation import (
+    COLORS,
     card_utilization,
     completable_combo_ids,
     compute_utilization_stats,
@@ -51,6 +54,18 @@ class _BaseModel:
     absolute_gap_limit: float | None = None
     # Phase 2 only: utilization of the warm-start cube, for hinting objective variables
     hint_utilization: dict[str, int] = field(default_factory=dict)
+
+
+class _StopAtZero(cp_model.CpSolverSolutionCallback):
+    """Stops the search at the first solution in which the watched expression is 0."""
+
+    def __init__(self, expression: cp_model.LinearExprT):
+        super().__init__()
+        self._expression = expression
+
+    def on_solution_callback(self) -> None:
+        if self.value(self._expression) == 0:
+            self.stop_search()
 
 
 @dataclass
@@ -103,7 +118,9 @@ class ILPOptimizer:
     DEFAULT_TIME_LIMIT = 300  # 5 minutes
     TIEBREAK_EPSILON = 0.001  # Small weight for popularity tiebreaker
     VERSATILITY_EPSILON = 0.0001  # Small bonus for multi-template cards
-    WARM_START_REPAIR_FRACTION = 0.1  # Share of the Phase 2 time limit for the hint repair
+    # Shares of the Phase 2 time limit for the two warm-start repair stages
+    WARM_START_MAXIMIZE_FRACTION = 0.1
+    WARM_START_FLOOR_FRACTION = 0.2
     TIER_MULTIPLES = (1, 2, 4)  # "tiered" objective: overage is counted above each multiple of T
     WEIGHT_SCALE = 10000  # Scale for integer conversion
 
@@ -122,6 +139,8 @@ class ILPOptimizer:
         min_utilization_floor: int = 2,
         num_workers: int = 8,
         util_cap: int | None = None,
+        card_colors: Mapping[str, str] | None = None,
+        max_color_ratio: float = 2.0,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -143,6 +162,12 @@ class ILPOptimizer:
         if util_cap is not None and util_cap < 0:
             raise ValueError(f"util_cap must be >= 0, got {util_cap}")
         self.util_cap = util_cap  # "softcap" and "tiered"; None = derive from Phase 1
+        if 0 < max_color_ratio < 1:
+            raise ValueError(f"max_color_ratio must be 0 or >= 1, got {max_color_ratio}")
+        # Phase 2 color balance: card name -> WUBRG letters of its color identity. Without
+        # color data, or with a ratio of 0, there is no color constraint.
+        self.card_colors = card_colors
+        self.max_color_ratio = max_color_ratio
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -917,6 +942,54 @@ class ILPOptimizer:
             utilization=card_utilization(cards, self.combos),
         )
 
+    def _color_balance_ratio(self) -> Fraction | None:
+        """The color balance ratio as an integer fraction, or None when there is no constraint."""
+        if self.card_colors is None or self.max_color_ratio <= 0:
+            return None
+        return Fraction(self.max_color_ratio).limit_denominator(100)
+
+    def _cards_of_color(self, color: str, cards: Collection[str]) -> list[str]:
+        """The given cards whose color identity includes the color."""
+        colors = self.card_colors or {}
+        return [card for card in cards if color in colors.get(card, "")]
+
+    def _add_color_balance(self, base: _BaseModel) -> None:
+        """
+        Add the color balance constraints: no color has more than max_color_ratio times the
+        cards of another color.
+
+        A card counts once for each color of its identity. Colorless cards, and cards
+        without color data, are not constrained.
+        """
+        ratio = self._color_balance_ratio()
+        if ratio is None:
+            return
+        counts = {
+            color: sum(base.x[card] for card in self._cards_of_color(color, self.all_cards))
+            for color in COLORS
+        }
+        constraints = 0
+        for larger, smaller in itertools.permutations(COLORS, 2):
+            base.model.add(ratio.denominator * counts[larger] <= ratio.numerator * counts[smaller])
+            constraints += 1
+        logger.info(
+            f"Phase 2: Added {constraints} color balance constraints "
+            f"(max ratio {self.max_color_ratio:g})"
+        )
+        base.counts["color_balance"] = constraints
+
+    def _color_violations(self, cards: Collection[str]) -> int:
+        """Number of color balance constraints (_add_color_balance) a cube breaks."""
+        ratio = self._color_balance_ratio()
+        if ratio is None:
+            return 0
+        counts = {color: len(self._cards_of_color(color, cards)) for color in COLORS}
+        return sum(
+            1
+            for larger, smaller in itertools.permutations(COLORS, 2)
+            if ratio.denominator * counts[larger] > ratio.numerator * counts[smaller]
+        )
+
     def _coverage_violations(self, cards: set[str]) -> int:
         """Number of Phase 2 coverage constraints (_add_coverage_constraints) a cube breaks."""
         if self.min_coverage_ratio <= 0:
@@ -933,86 +1006,163 @@ class ILPOptimizer:
                 violations += 1
         return violations
 
-    def _repair_warm_start(
-        self, phase1_result: OptimizationResult, phase1_start: _WarmStart
-    ) -> tuple[_WarmStart | None, str]:
-        """
-        Find a cube near the Phase 1 cube that satisfies every Phase 2 constraint.
-
-        Solved in the small Phase 1 model (one-sided y) with the coverage constraints, the
-        lower edge of the combo count window, and the utilization floor written on y:
-        floor * x[c] <= sum(y over the combos of c). With one-sided y that sum never
-        exceeds the true utilization, so the true floor holds. The search is hinted with
-        the Phase 1 cube and stops at the first solution. Returns the cube (None if none
-        was found) and the solver status.
-        """
+    def _repair_model(self, hint: _WarmStart) -> _BaseModel:
+        """The Phase 1 model with the coverage and color balance constraints, hinted with a cube."""
         base = self._build_base_model()
         self._add_phase2_coverage(base)
+        self._add_color_balance(base)
         self._add_combo_count_objective(base)
-        min_combo_count, _ = self._combo_count_window(phase1_result.combo_count)
-        base.model.add(sum(base.y[combo.id] for combo in self.combos) >= min_combo_count)
-        if self.min_utilization_floor > 0:
-            for card in self.all_cards:
-                base.model.add(
-                    self.min_utilization_floor * base.x[card]
-                    <= sum(base.y[combo.id] for combo in self.card_to_combos[card])
-                )
         for card in self.all_cards:
-            base.model.add_hint(base.x[card], 1 if card in phase1_start.cards else 0)
+            base.model.add_hint(base.x[card], 1 if card in hint.cards else 0)
         for combo in self.combos:
-            base.model.add_hint(base.y[combo.id], 1 if combo.id in phase1_start.combo_ids else 0)
+            base.model.add_hint(base.y[combo.id], 1 if combo.id in hint.combo_ids else 0)
+        return base
 
-        solver = self._make_solver(time_limit=self.time_limit * self.WARM_START_REPAIR_FRACTION)
-        solver.parameters.stop_after_first_solution = True
+    def _solve_repair(
+        self,
+        base: _BaseModel,
+        time_fraction: float,
+        callback: cp_model.CpSolverSolutionCallback | None = None,
+    ) -> tuple[_WarmStart | None, str]:
+        """Solve a repair model. Returns the cube found (None if none) and the solver status."""
+        solver = self._make_solver(time_limit=self.time_limit * time_fraction)
         # CpSolverStatus is int at runtime, type stubs are incomplete
-        status_str = self._status_to_string(solver.solve(base.model))  # type: ignore[arg-type]
+        status_str = self._status_to_string(solver.solve(base.model, callback))  # type: ignore[arg-type]
         if status_str not in ("OPTIMAL", "FEASIBLE"):
             return None, status_str
         cards = {card for card in self.all_cards if solver.value(base.x[card]) == 1}
         return self._warm_start_for(cards), status_str
 
+    def _satisfies_window_and_floor(self, cube: _WarmStart, min_combo_count: int) -> bool:
+        return len(cube.combo_ids) >= min_combo_count and all(
+            value >= self.min_utilization_floor for value in cube.utilization.values()
+        )
+
+    def _best_constrained_cube(self, phase1_start: _WarmStart) -> tuple[_WarmStart | None, str]:
+        """
+        Find the cube with the most combos that satisfies coverage and color balance.
+
+        Solved in the small Phase 1 model (one-sided y), hinted with the Phase 1 cube, for at
+        most WARM_START_MAXIMIZE_FRACTION of the time limit, so the result is the best cube
+        found and not a proven maximum. Returns the cube (None if none was found) and the
+        solver status.
+        """
+        return self._solve_repair(
+            self._repair_model(phase1_start), self.WARM_START_MAXIMIZE_FRACTION
+        )
+
+    def _repair_floor(
+        self, hint: _WarmStart, min_combo_count: int
+    ) -> tuple[_WarmStart | None, str]:
+        """
+        Find a cube that satisfies every Phase 2 constraint, starting from a hint cube.
+
+        Solved in the small Phase 1 model (one-sided y) with the coverage and color balance
+        constraints, the lower edge of the combo window, and a soft floor on y:
+        floor * x[c] <= sum(y over the combos of c) + shortfall[c]. The total shortfall is
+        minimized and the search stops at the first cube with none. With one-sided y the sum
+        never exceeds the true utilization, so zero shortfall means the true floor holds.
+
+        As a hard constraint the floor makes even a first solution hard to find; as a penalty
+        a cube that satisfies everything else is a valid start and the solver only has to
+        work the shortfall down.
+
+        Returns the cube (None if none satisfies every constraint) and the solver status.
+        """
+        base = self._repair_model(hint)
+        base.model.add(sum(base.y[combo.id] for combo in self.combos) >= min_combo_count)
+        shortfalls = []
+        for card in self.all_cards:
+            shortfall = base.model.new_int_var(0, self.min_utilization_floor, f"short_{card}")
+            base.model.add(
+                self.min_utilization_floor * base.x[card]
+                <= sum(base.y[combo.id] for combo in self.card_to_combos[card]) + shortfall
+            )
+            hinted = self.min_utilization_floor - hint.utilization.get(card, 0)
+            base.model.add_hint(shortfall, max(0, hinted) if card in hint.cards else 0)
+            shortfalls.append(shortfall)
+        base.model.minimize(sum(shortfalls))
+
+        repaired, status_str = self._solve_repair(
+            base, self.WARM_START_FLOOR_FRACTION, _StopAtZero(sum(shortfalls))
+        )
+        if repaired is None or not self._satisfies_window_and_floor(repaired, min_combo_count):
+            return None, status_str
+        return repaired, status_str
+
     def _build_warm_start(
         self,
         phase1_result: OptimizationResult,
         profile_result: ProfileResult | None,
-    ) -> _WarmStart:
+    ) -> tuple[_WarmStart, int]:
         """
-        Choose the cube Phase 2 is hinted with.
+        Choose the cube Phase 2 is hinted with and the combo count its window is measured from.
 
-        The Phase 1 cube when it satisfies the Phase 2 coverage and floor constraints.
-        Otherwise CP-SAT would first have to repair the hint inside the much larger
-        Phase 2 model, so a feasible cube is searched for in the small Phase 1 model
-        instead (_repair_warm_start). If that finds none, the Phase 1 cube is used.
+        The reference combo count is the most combos a cube can complete under the coverage
+        and color balance constraints. Phase 1 ignores those constraints, so measuring the
+        combo tolerance from the Phase 1 count can leave no feasible cube at all.
+
+        - The Phase 1 cube satisfies coverage and color balance: it is the reference.
+        - Otherwise the best constrained cube is searched for (_best_constrained_cube) and
+          becomes the reference. If none is found, the Phase 1 count is kept.
+
+        The hint is the reference cube when it also satisfies the combo window and the
+        utilization floor. Otherwise CP-SAT would first have to repair the hint inside the
+        much larger Phase 2 model, so a feasible cube is searched for in the small Phase 1
+        model instead (_repair_floor). If that finds none, the reference cube is used.
         """
-        warm_start = self._warm_start_for({card.name for card in phase1_result.selected_cards})
-        coverage_violations = self._coverage_violations(warm_start.cards)
-        below_floor = sum(
-            1 for value in warm_start.utilization.values() if value < self.min_utilization_floor
-        )
-        if not coverage_violations and not below_floor:
-            return warm_start
-
-        problem = (
-            f"Phase 1 cube breaks {coverage_violations} coverage constraints and has "
-            f"{below_floor} cards below the utilization floor"
-        )
+        phase1_start = self._warm_start_for({card.name for card in phase1_result.selected_cards})
+        coverage_violations = self._coverage_violations(phase1_start.cards)
+        color_violations = self._color_violations(phase1_start.cards)
         repair_start = time.perf_counter()
-        repaired, status_str = self._repair_warm_start(phase1_result, warm_start)
-        repair_time = time.perf_counter() - repair_start
-        if profile_result:
-            profile_result.timings["warm_start_repair"] = repair_time
 
-        if repaired is None:
-            logger.warning(
-                f"Phase 2: {problem}; no repaired warm start found ({status_str}, "
-                f"{repair_time:.1f}s), hinting with the Phase 1 cube"
+        reference = phase1_start
+        reference_count = phase1_result.combo_count
+        if coverage_violations or color_violations:
+            problem = (
+                f"Phase 1 cube breaks {coverage_violations} coverage and {color_violations} "
+                f"color balance constraints"
             )
-            return warm_start
-        logger.info(
-            f"Phase 2: {problem}; repaired warm start has {len(repaired.combo_ids)} combos, "
-            f"{len(repaired.cards - warm_start.cards)} cards swapped ({repair_time:.1f}s)"
-        )
-        return repaired
+            best, status_str = self._best_constrained_cube(phase1_start)
+            if best is None:
+                logger.warning(
+                    f"Phase 2: {problem}; no cube satisfying them was found ({status_str}), "
+                    f"measuring the combo window from the Phase 1 count"
+                )
+            else:
+                reference = best
+                reference_count = len(best.combo_ids)
+                logger.info(
+                    f"Phase 2: {problem}; best cube satisfying them has {reference_count} "
+                    f"combos ({len(best.cards - phase1_start.cards)} cards swapped), "
+                    f"which the combo window is measured from"
+                )
+
+        min_combo_count, _ = self._combo_count_window(reference_count)
+        warm_start = reference
+        if not self._satisfies_window_and_floor(reference, min_combo_count):
+            below_floor = sum(
+                1 for value in reference.utilization.values() if value < self.min_utilization_floor
+            )
+            repaired, status_str = self._repair_floor(reference, min_combo_count)
+            if repaired is None:
+                logger.warning(
+                    f"Phase 2: warm start has {below_floor} cards below the utilization floor; "
+                    f"no repaired warm start found ({status_str})"
+                )
+            else:
+                warm_start = repaired
+                logger.info(
+                    f"Phase 2: warm start had {below_floor} cards below the utilization floor; "
+                    f"repaired warm start has {len(repaired.combo_ids)} combos"
+                )
+
+        if warm_start is not phase1_start:
+            repair_time = time.perf_counter() - repair_start
+            logger.info(f"Phase 2: warm start preparation took {repair_time:.1f}s")
+            if profile_result:
+                profile_result.timings["warm_start_repair"] = repair_time
+        return warm_start, reference_count
 
     def _add_warm_start(
         self,
@@ -1239,6 +1389,7 @@ class ILPOptimizer:
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=utilization_stats,
             phase1_solve_time=solve_time,
+            phase1_combo_count=len(solution.completable_combo_ids),
             is_multi_objective=False,
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
@@ -1311,8 +1462,10 @@ class ILPOptimizer:
         Phase 2: balance card utilization using the configured phase2_objective.
 
         The model is the base model plus:
-        - Combo count held at the Phase 1 count (within combo_tolerance)
+        - Combo count held at the reference count (within combo_tolerance): the most combos
+          a cube completes under coverage and color balance (_build_warm_start)
         - Minimum coverage ratio constraints
+        - Color balance constraints, when color data and a ratio are configured
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j
         - Utilization variables: u[c] = completed combos card c participates in
         - The utilization floor for selected cards
@@ -1325,25 +1478,28 @@ class ILPOptimizer:
         """
         objective = self._get_phase2_objective()
         p1, phase1_solve_time = self._require_phase1_stats(phase1_result)
-        target_combo_count = phase1_result.combo_count
         logger.info(
             f"Starting {objective.label}: balancing utilization "
-            f"(target: {target_combo_count} combos)"
+            f"(Phase 1: {phase1_result.combo_count} combos)"
         )
         start_time = time.perf_counter()
         profile_result = ProfileResult(phase=objective.label) if profile else None
         util_cap = self._resolve_util_cap(p1) if objective.uses_util_cap else None
+        color_ratio = self.max_color_ratio if self._color_balance_ratio() is not None else None
+        if self.card_colors is None and self.max_color_ratio > 0:
+            logger.warning("Phase 2: no card color data; color balance is not enforced")
         if util_cap is not None:
             source = "--util-cap" if self.util_cap is not None else "2 x Phase 1 median"
             logger.info(f"Phase 2: utilization cap T = {util_cap} ({source})")
 
-        warm_start = self._build_warm_start(phase1_result, profile_result)
+        warm_start, target_combo_count = self._build_warm_start(phase1_result, profile_result)
 
         build_start = time.perf_counter()
         base = self._build_base_model()
         base.hint_utilization = warm_start.utilization
         self._add_combo_count_window(base, target_combo_count)
         self._add_phase2_coverage(base)
+        self._add_color_balance(base)
         self._add_exact_combo_linking(base)
         u = self._add_utilization_vars(base)
         self._add_utilization_floor(base, u)
@@ -1378,6 +1534,8 @@ class ILPOptimizer:
                 phase2_fell_back=True,
                 phase2_objective=self.phase2_objective,
                 phase2_util_cap=util_cap,
+                phase2_max_color_ratio=color_ratio,
+                phase2_reference_combo_count=target_combo_count,
                 profile_data=profile_data,
             )
 
@@ -1404,11 +1562,14 @@ class ILPOptimizer:
             phase2_status=status_str,
             phase2_objective=self.phase2_objective,
             phase2_util_cap=util_cap,
+            phase2_max_color_ratio=color_ratio,
+            phase2_reference_combo_count=target_combo_count,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
             cross_template_stats=solution.cross_template_stats,
             phase1_selected_cards=phase1_result.selected_cards,
+            phase1_combo_count=phase1_result.combo_count,
             profile_data=profile_data,
         )
 

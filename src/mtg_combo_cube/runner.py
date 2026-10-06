@@ -15,7 +15,7 @@ async def run(
     output_file: str,
     golden_ratio: float | None = None,
     time_limit_seconds: int = 300,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     use_multi_objective: bool = True,
     enable_cache_write: bool = True,
     read_cache: bool = False,
@@ -28,6 +28,7 @@ async def run(
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    max_color_ratio: float = 2.0,
 ):
     """
     Run the cube building algorithm.
@@ -51,6 +52,8 @@ async def run(
         min_utilization_floor: Minimum utilization floor for phase 2 (any objective)
         num_workers: Number of parallel search workers for the ILP solver
         util_cap: Utilization cap for "softcap" and "tiered" (None: 2 x Phase 1 median)
+        max_color_ratio: Phase 2 limit on how many times larger one color may be than another
+            (0 disables)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -72,6 +75,7 @@ async def run(
             min_utilization_floor=min_utilization_floor,
             num_workers=num_workers,
             util_cap=util_cap,
+            max_color_ratio=max_color_ratio,
         )
     elif method == "greedy":
         await run_greedy(

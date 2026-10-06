@@ -57,13 +57,14 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -o, --output-file      Output file path (default: data/cube.txt)
 -r, --ratio            Golden ratio for greedy method (default: 1.2)
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
--n, --max-variants     Max combo variants to fetch (default: 10000)
+-n, --max-variants     Max combo variants to fetch (default: 20000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
---combo-tolerance      Phase 2 combo count tolerance (default: 0.1 = 10%)
+--combo-tolerance      Phase 2 combo count tolerance, measured from the best cube under coverage and color balance (default: 0.1 = 10%)
 --gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
 --phase2-objective     Phase 2 objective: tiered (default), softcap, maxutil, minmax or mad
 --util-cap             Utilization cap for softcap and tiered (default: 2 x Phase 1 median)
 --min-util-floor       Minimum utilization floor for Phase 2, any objective (default: 2)
+--max-color-ratio      Phase 2 color balance: largest color at most this many times the smallest (default: 2.0, 0 disables)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization
@@ -115,24 +116,32 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 The stats file contains:
 
 - `metadata`: cube size, combo count, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
-- `phase1` / `phase2`: solve time and utilization statistics (min, max, mean, median, standard deviation). `phase2` also records `status`, the `objective` that ran and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
-- `improvement`: Phase 1 to Phase 2 changes, including the cards swapped.
+- `phase1` / `phase2`: `combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation) and `colors`, the color distribution of that phase's cube (see below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the `reference_combo_count` the tolerance was measured from and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
+- `improvement`: Phase 1 to Phase 2 changes, including the combo count before and after and the cards swapped.
 - `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
 - `profiling` (with `--profile`): per-phase timings, variable and constraint counts and solver statistics.
 
 Every combo count and utilization number is computed from the selected cards, not read from solver variables.
 
-[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 10,000 variants with the default settings.
+`colors` is based on each card's color identity, looked up on Scryfall for the selected cards and cached in `data/cache/scryfall_card_colors.json`:
+
+- `cards_per_color`: cards per color (W, U, B, R, G). A multicolor card counts once for each of its colors.
+- `mono_colored`, `multicolor`, `colorless`: the cube split into exclusive groups. `unknown` counts cards without color data.
+- `variance` / `std_deviation`: spread of the five `cards_per_color` counts. Zero means the colors are evenly represented.
+
+The log prints the same combo counts and color distribution at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
+
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings.
 
 ### Evaluating a Cube
 
-To score an existing cube list (true combo count and utilization statistics) against the cached data:
+To score an existing cube list (true combo count, utilization statistics and color distribution) against the cached data:
 
 ```bash
-uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 10000
+uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
 ```
 
-Use the same `-n` (and `--blocklist`) as the build you want to compare with. Cached data is read when present and fetched otherwise (nothing is written to the cache); cards that are not part of the instance are reported and count with utilization 0.
+Use the same `-n` (and `--blocklist`) as the build you want to compare with. Cached data is read when present and fetched otherwise (only card colors are written to the cache); cards that are not part of the instance are reported and count with utilization 0.
 
 ### API Caching
 
@@ -193,9 +202,10 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to pr
 |--------|---------|-------------|
 | `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
-| `--combo-tolerance` | `0.1` | How much Phase 2 can deviate from Phase 1's combo count (10%) |
+| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo count (10%). The reference is the most combos found for a cube that satisfies coverage and color balance, which is lower than the Phase 1 count |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
+| `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
 | `--min-coverage-ratio` | `0.1` | Minimum cards per requirement template (10% of the combos using it, at most the template's card pool; 0 disables) |
 
 **Phase 2 Objectives:**
@@ -222,8 +232,9 @@ The objectives fall into two families: `tiered`, `softcap` and `mad` give a lowe
 
 Notes:
 
-- The floor (`--min-util-floor`) and the coverage rule (`--min-coverage-ratio`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
-- `--combo-tolerance 0` was infeasible at 300 cards / 10,000 variants: no cube with the full Phase 1 combo count also satisfies the floor and coverage constraints, so the run falls back to the Phase 1 cube. At 0.05 the result was less balanced than Phase 1; 0.2 gave a much flatter cube (standard deviation 20) for 20% of the combos.
+- The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`) and the color balance (`--max-color-ratio`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
+- Color balance counts a card once for each color of its color identity, so a white-blue card counts as white and as blue. Colorless cards are not limited. The rule needs every color to be present; if it cannot be met within the combo tolerance, Phase 2 fails and the Phase 1 cube is returned. If card colors cannot be fetched from Scryfall, a warning is logged and the run continues without the rule.
+- The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under coverage and color balance, so the same value allows fewer combos than it did then.
 - For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.
 - If Phase 2 finds no solution (infeasible or out of time), the Phase 1 cube is written, a warning is logged and the stats file says `two_phase_fallback_to_phase1`.
 
@@ -240,6 +251,7 @@ Key concepts:
 - **Card Utilization**: Number of completable combos each card participates in. A card counts for a combo when it is one of the combo's required cards or belongs to the card pool of one of its requirement templates, whether or not it is the card that satisfies the template.
 - **Utilization Cap**: The `tiered` (default) and `softcap` objectives penalize utilization above a cap, by default twice the Phase 1 median
 - **Utilization Floor**: Every card in a Phase 2 cube takes part in at least `--min-util-floor` completable combos
+- **Color Balance**: In a Phase 2 cube no color has more than `--max-color-ratio` times the cards of another color
 - **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results, marked as a fallback in the log and the stats file
 
 ## Development
@@ -324,7 +336,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with combo count held within tolerance of Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints and the chosen objective. It is warm-started from the Phase 1 cube, which is first repaired in a short extra solve if it breaks the floor or coverage constraints.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with combo count held within tolerance of the reference count: the most combos found for a cube that satisfies the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity

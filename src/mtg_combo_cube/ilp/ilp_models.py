@@ -89,6 +89,19 @@ class UtilizationStats:
 
 
 @dataclass
+class ColorStats:
+    """How a set of cards is distributed over the five colors, by color identity."""
+
+    cards_per_color: dict[str, int]  # W/U/B/R/G; a card counts once per color in its identity
+    mono_colored: dict[str, int]  # W/U/B/R/G; cards whose identity is exactly that color
+    multicolor: int
+    colorless: int
+    unknown: int  # cards without color data
+    variance: float  # population variance of cards_per_color
+    std_deviation: float
+
+
+@dataclass
 class RequirementTypeStats:
     """Statistics for a single requirement type in the final cube."""
 
@@ -156,6 +169,10 @@ class OptimizationResult:
     phase2_status: str | None = None
     phase2_objective: str | None = None  # name of the Phase 2 objective that ran
     phase2_util_cap: int | None = None  # utilization cap T used ("softcap" and "tiered" only)
+    phase2_max_color_ratio: float | None = None  # color balance ratio applied, if any
+    # Combo count the Phase 2 combo window is measured from: the best cube found under the
+    # coverage and color balance constraints
+    phase2_reference_combo_count: int | None = None
     is_multi_objective: bool = False
     # True when Phase 2 ran but found no solution, so this is the Phase 1 cube. phase2_status
     # and phase2_solve_time then describe the failed Phase 2 attempt.
@@ -164,6 +181,7 @@ class OptimizationResult:
     requirement_coverage_stats: RequirementCoverageStats | None = None
     cross_template_stats: CrossTemplateStats | None = None
     phase1_selected_cards: list[CandidateCard] | None = None  # Cards from Phase 1 (before Phase 2)
+    phase1_combo_count: int | None = None  # Combos the Phase 1 cube completes
 
     # Profiling data (populated when --profile is used)
     profile_data: dict[str, Any] | None = None

@@ -354,8 +354,9 @@ class TestWarmStart:
         optimizer = make_optimizer(9)  # Phase 1 at 9 cards: every card in at least 2 combos
         phase1 = optimizer.solve()
 
-        warm_start = optimizer._build_warm_start(phase1, None)
+        warm_start, reference_count = optimizer._build_warm_start(phase1, None)
 
+        assert reference_count == phase1.combo_count
         assert warm_start.cards == set(phase1.get_selected_card_names())
         assert warm_start.combo_ids == set(phase1.completable_combo_ids)
         assert warm_start.utilization == phase1.utilization_per_card
@@ -368,8 +369,10 @@ class TestWarmStart:
         assert phase1.utilization_per_card is not None
         assert min(phase1.utilization_per_card.values()) < 2
 
-        warm_start = optimizer._build_warm_start(phase1, None)
+        warm_start, reference_count = optimizer._build_warm_start(phase1, None)
 
+        # The Phase 1 cube breaks only the floor, so the window is still measured from it
+        assert reference_count == phase1.combo_count
         combos = build_instance()
         assert len(warm_start.cards) == 10
         assert warm_start.utilization == card_utilization(warm_start.cards, combos)
@@ -388,19 +391,29 @@ class TestWarmStart:
         phase1 = optimizer.solve()
         assert optimizer._coverage_violations(set(phase1.get_selected_card_names())) == 1
 
-        warm_start = optimizer._build_warm_start(phase1, None)
+        warm_start, reference_count = optimizer._build_warm_start(phase1, None)
 
         assert optimizer._coverage_violations(warm_start.cards) == 0
         assert {"S1", "S2"} <= warm_start.cards
-        assert len(warm_start.combo_ids) >= math.floor(phase1.combo_count * 0.75)
+        # The window is measured from the best cube that satisfies coverage, by enumeration
+        combos = build_instance()
+        best_with_coverage = max(
+            len(completable_combo_ids(cube, combos))
+            for cube in itertools.combinations(sorted(build_candidate_cards(combos)), 8)
+            if optimizer._coverage_violations(set(cube)) == 0
+        )
+        assert reference_count == best_with_coverage
+        assert reference_count < phase1.combo_count
+        assert len(warm_start.combo_ids) >= math.floor(reference_count * 0.75)
 
     def test_unrepairable_cube_falls_back_to_phase1_cube(self):
         # At 8 cards and no tolerance no cube satisfies the floor
         optimizer = make_optimizer(8, min_utilization_floor=2)
         phase1 = optimizer.solve()
 
-        warm_start = optimizer._build_warm_start(phase1, None)
+        warm_start, reference_count = optimizer._build_warm_start(phase1, None)
 
+        assert reference_count == phase1.combo_count
         assert warm_start.cards == set(phase1.get_selected_card_names())
 
     def test_coverage_violations_disabled_without_ratio(self):

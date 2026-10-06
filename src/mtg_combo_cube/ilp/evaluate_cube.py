@@ -1,7 +1,7 @@
 """Evaluate an existing cube list: true combo count and utilization statistics.
 
 Usage:
-    uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 10000
+    uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
 
 The instance is loaded through the same path as a build (cached API data, blocklist,
 preprocessing), so the numbers are comparable with a build that used the same settings.
@@ -16,10 +16,15 @@ from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
+    compute_color_stats,
     compute_utilization_stats,
 )
 from mtg_combo_cube.ilp.ilp_models import UtilizationStats
-from mtg_combo_cube.ilp.ilp_runner import load_instance
+from mtg_combo_cube.ilp.ilp_runner import (
+    fetch_color_identities,
+    format_color_stats,
+    load_instance,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +37,7 @@ def read_cube_file(path: str) -> list[str]:
 
 async def evaluate_cube(
     cube_file: str,
-    max_variants: int = 10000,
+    max_variants: int = 20000,
     blocklist: frozenset[str] = frozenset(),
 ) -> tuple[int, int, UtilizationStats]:
     """
@@ -72,8 +77,8 @@ if __name__ == "__main__":
         "-n",
         "--max-variants",
         type=int,
-        default=10000,
-        help="Maximum number of combo variants, as used for the build (default: 10000)",
+        default=20000,
+        help="Maximum number of combo variants, as used for the build (default: 20000)",
     )
     argparser.add_argument(
         "--blocklist",
@@ -99,3 +104,9 @@ if __name__ == "__main__":
         f"mean={stats.mean_utilization:.2f}, median={stats.median_utilization:.1f}, "
         f"std_dev={stats.std_deviation:.2f}"
     )
+
+    cube_cards = read_cube_file(args.cube_file)
+    color_identities = asyncio.run(fetch_color_identities(cube_cards, read_cache=True))
+    if color_identities is not None:
+        color_stats = compute_color_stats(cube_cards, color_identities)
+        print(f"Colors (by color identity): {format_color_stats(color_stats)}")

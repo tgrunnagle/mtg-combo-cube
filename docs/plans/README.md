@@ -6,6 +6,7 @@ today, see [../architecture.md](../architecture.md).
 
 | Document | Written | What it covers |
 |----------|---------|----------------|
+| [color-balance-plan.md](color-balance-plan.md) | October 2026 | A color balance constraint for Phase 2 and the move to a 20,000-variant default: decisions, measurements, steps and open questions. |
 | [ilp-improvement-plan.md](ilp-improvement-plan.md) | October 2026 | The staged rework of the ILP optimizer: goals, per-stage results, benchmark tables, decision log and open follow-ups. |
 | [ilp-performance-investigation.md](ilp-performance-investigation.md) | December 2025 | Profiling that identified Phase 2 as the bottleneck, and the warm start, gap limit and minmax objective added in response. |
 | [multi_objective_design_doc.md](multi_objective_design_doc.md) | December 2025 | The original two-phase design: card utilization, why variance needs linearizing, and the MAD formulation for Phase 2. |
