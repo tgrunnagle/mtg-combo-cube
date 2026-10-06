@@ -76,7 +76,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 
 `-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
 
-The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. `task build:ilp` uses a 360 s time limit unless `TIME_LIMIT` is given.
+The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
 
 ### Examples
 
@@ -182,6 +182,26 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --read-api-cache
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
 ```
 
+#### Precaching
+
+To download everything a build reads ahead of time, so that the build itself makes no network requests:
+
+```bash
+task precache                                   # 20,000 variants, as the task build:ilp* targets use by default
+task precache MAX_VARIANTS=1000                 # a smaller configuration
+task precache -- --keep-existing                # only fetch what is missing
+
+uv run python -m mtg_combo_cube.precache -n 20000 --max-cards-in-combo 4 --blocklist data/blocklist.txt
+```
+
+It fills the variants file, the Scryfall template searches and the card colors. Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`) and `--blocklist` (`BLOCKLIST`) as the build: the first two name the variants file, and the blocklist decides which templates and card colors the build asks for. `task precache` and the `task build:ilp*` targets both default to 20,000 variants.
+
+- **Existing data is overwritten.** The variants file is replaced, and so is every template and card color entry of the configuration. Entries that only other configurations use are left alone. A failed download leaves the existing variants file in place.
+- `--keep-existing` keeps the entries already in the cache and fetches only what is missing, which finishes an incomplete run without starting over.
+- **Retries:** each client retries single requests with backoff (see above). On top of that, a stage whose requests still failed is run again, up to `--max-passes` times (default 3), waiting `--retry-wait` seconds (default 30) before the second pass and twice as long before each further one.
+- The script prints a summary and exits with status 1 when the cache is incomplete. Cards that Scryfall does not know are reported but do not count as a failure.
+- `--cache-dir` writes somewhere other than `data/cache/`; a build only reads `data/cache/`.
+
 ## Optimization Methods
 
 ### Greedy
@@ -282,6 +302,9 @@ task check
 task build:ilp
 task build:ilp-single
 task build:greedy
+
+# Download the API data for a build into data/cache (see API Caching)
+task precache
 ```
 
 ### Manual Commands

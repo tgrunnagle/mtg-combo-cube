@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 from collections.abc import AsyncIterator
 from pathlib import Path
 
@@ -35,7 +36,7 @@ class SpellbookCache:
         if enable_write:
             self.cache_dir.mkdir(parents=True, exist_ok=True)
 
-    def _get_variants_cache_path(self, max_cards_in_combo: int, max_variants: int) -> Path:
+    def variants_cache_path(self, max_cards_in_combo: int, max_variants: int) -> Path:
         """Get cache file path for get_variants() results."""
         filename = f"variants_cards{max_cards_in_combo}_max{max_variants}.json"
         return self.cache_dir / filename
@@ -63,16 +64,28 @@ class SpellbookCache:
             logger.warning(f"Cache read error for {cache_path.name}: {e}")
             return None
 
-    def write_variants_cache(self, cache_path: Path, variants: list[Variant]) -> None:
-        """Write variants to cache file."""
+    def write_variants_cache(self, cache_path: Path, variants: list[Variant]) -> bool:
+        """
+        Write variants to cache file, replacing an existing file.
+
+        The data goes to a temporary file that is then swapped in, so a failed write leaves
+        an existing cache file as it was.
+
+        Returns:
+            True when the file was written.
+        """
+        temp_path = cache_path.with_name(f"{cache_path.name}.tmp")
         try:
             logger.info(f"Writing {len(variants)} variants to cache: {cache_path.name}")
             data = [v.model_dump(by_alias=True) for v in variants]
-            with open(cache_path, "w", encoding="utf-8") as f:
+            with open(temp_path, "w", encoding="utf-8") as f:
                 json.dump(data, f, indent=2)
+            os.replace(temp_path, cache_path)
             logger.debug(f"Cache written: {cache_path.name}")
+            return True
         except Exception as e:
             logger.warning(f"Cache write error for {cache_path.name}: {e}")
+            return False
 
     async def get_variants_cached(
         self,
@@ -87,7 +100,7 @@ class SpellbookCache:
         If cache miss or enable_read is False, fetches from API.
         If enable_write is True, writes API results to cache.
         """
-        cache_path = self._get_variants_cache_path(max_cards_in_combo, max_variants)
+        cache_path = self.variants_cache_path(max_cards_in_combo, max_variants)
 
         # Try reading from cache if enabled
         if self.enable_read:
