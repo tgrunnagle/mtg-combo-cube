@@ -4,9 +4,12 @@ import pytest
 
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
+    combo_group_sizes,
     completable_combo_ids,
+    completable_group_keys,
     compute_color_stats,
     compute_utilization_stats,
+    largest_combo_groups,
 )
 from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -14,7 +17,10 @@ from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 
 def make_combo(
-    combo_id: str, required: list[str], options: list[list[str]] | None = None
+    combo_id: str,
+    required: list[str],
+    options: list[list[str]] | None = None,
+    group: str = "",
 ) -> ComboData:
     return ComboData(
         id=combo_id,
@@ -24,7 +30,57 @@ def make_combo(
             for i, cards in enumerate(options or [])
         ],
         popularity=1,
+        group_key=group,
     )
+
+
+GROUPED = [
+    make_combo("h1", ["H", "P1"], group="big"),
+    make_combo("h2", ["H", "P2"], group="big"),
+    make_combo("h3", ["H"], [["S1", "S2"]], group="big"),
+    make_combo("ab", ["A", "B"]),
+    make_combo("cd", ["C", "D"]),
+]
+
+
+class TestComboGroups:
+    """Test completable_group_keys, combo_group_sizes and largest_combo_groups."""
+
+    def test_group_keys_in_order_of_first_completed_variant(self):
+        assert completable_group_keys({"H", "P1", "P2", "A", "B"}, GROUPED) == ["big", "ab"]
+        assert completable_group_keys({"A", "B", "H", "S2"}, GROUPED) == ["big", "ab"]
+        assert completable_group_keys({"C", "D"}, GROUPED) == ["cd"]
+        assert completable_group_keys(set(), GROUPED) == []
+
+    def test_group_key_defaults_to_the_variant_id(self):
+        assert GROUPED[3].group_key == "ab"
+        assert GROUPED[0].group_key == "big"
+
+    def test_group_sizes_count_completed_variants(self):
+        assert combo_group_sizes({"H", "P1", "P2", "S1", "A", "B"}, GROUPED) == {
+            "big": 3,
+            "ab": 1,
+        }
+        assert combo_group_sizes({"H", "P1"}, GROUPED) == {"big": 1}
+        assert combo_group_sizes({"P1", "P2"}, GROUPED) == {}
+
+    def test_largest_groups_rank_by_variants_then_key(self):
+        groups = largest_combo_groups(["H", "P1", "P2", "S2", "A", "B", "C", "D"], GROUPED)
+
+        assert [(g.group_key, g.variant_count) for g in groups] == [
+            ("big", 3),
+            ("ab", 1),
+            ("cd", 1),
+        ]
+        # Selected pool cards count, unselected ones (S1) do not
+        assert groups[0].cards == ["H", "P1", "P2", "S2"]
+        assert groups[1].cards == ["A", "B"]
+
+    def test_largest_groups_limit(self):
+        groups = largest_combo_groups(["H", "P1", "A", "B", "C", "D"], GROUPED, limit=2)
+
+        # All three groups have one variant: ties are ordered by key
+        assert [g.group_key for g in groups] == ["ab", "big"]
 
 
 class TestCompletableComboIds:

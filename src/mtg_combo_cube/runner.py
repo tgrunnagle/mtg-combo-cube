@@ -29,6 +29,7 @@ async def run(
     num_workers: int = 8,
     util_cap: int | None = None,
     max_color_ratio: float = 2.0,
+    variant_weight: float = 0.1,
 ):
     """
     Run the cube building algorithm.
@@ -54,6 +55,8 @@ async def run(
         util_cap: Utilization cap for "softcap" and "tiered" (None: 2 x Phase 1 median)
         max_color_ratio: Phase 2 limit on how many times larger one color may be than another
             (0 disables)
+        variant_weight: Value of each further completed variant of a combo the cube already
+            completes, relative to the first (1 counts variants, 0 counts distinct combos)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -76,6 +79,7 @@ async def run(
             num_workers=num_workers,
             util_cap=util_cap,
             max_color_ratio=max_color_ratio,
+            variant_weight=variant_weight,
         )
     elif method == "greedy":
         await run_greedy(

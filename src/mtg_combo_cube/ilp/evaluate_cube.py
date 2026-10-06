@@ -10,19 +10,23 @@ preprocessing), so the numbers are comparable with a build that used the same se
 import argparse
 import asyncio
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
+    completable_group_keys,
     compute_color_stats,
     compute_utilization_stats,
+    largest_combo_groups,
 )
-from mtg_combo_cube.ilp.ilp_models import UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import ComboGroupStats, UtilizationStats
 from mtg_combo_cube.ilp.ilp_runner import (
     fetch_color_identities,
     format_color_stats,
+    format_combo_count,
     load_instance,
 )
 
@@ -35,19 +39,23 @@ def read_cube_file(path: str) -> list[str]:
         return [line.strip() for line in f if line.strip()]
 
 
+@dataclass
+class CubeEvaluation:
+    """What a cube list completes and how its cards are used."""
+
+    card_count: int
+    combo_count: int  # completed variants
+    distinct_combo_count: int  # combo groups with a completed variant
+    utilization_stats: UtilizationStats
+    largest_combo_groups: list[ComboGroupStats]
+
+
 async def evaluate_cube(
     cube_file: str,
     max_variants: int = 20000,
     blocklist: frozenset[str] = frozenset(),
-) -> tuple[int, int, UtilizationStats]:
-    """
-    Evaluate a cube list against the instance built from the cached API data.
-
-    Returns:
-        - Number of cards in the cube
-        - Number of combos the cube completes
-        - Utilization statistics over the cube's cards
-    """
+) -> CubeEvaluation:
+    """Evaluate a cube list against the instance built from the cached API data."""
     cards = read_cube_file(cube_file)
     combos, candidate_cards = await load_instance(
         max_variants=max_variants,
@@ -63,9 +71,13 @@ async def evaluate_cube(
             f"(they count with utilization 0): {unknown[:5]}"
         )
 
-    combo_count = len(completable_combo_ids(cards, combos))
-    stats = compute_utilization_stats(card_utilization(cards, combos))
-    return len(cards), combo_count, stats
+    return CubeEvaluation(
+        card_count=len(cards),
+        combo_count=len(completable_combo_ids(cards, combos)),
+        distinct_combo_count=len(completable_group_keys(cards, combos)),
+        utilization_stats=compute_utilization_stats(card_utilization(cards, combos)),
+        largest_combo_groups=largest_combo_groups(cards, combos),
+    )
 
 
 if __name__ == "__main__":
@@ -89,15 +101,23 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     logging.basicConfig(level=logging.WARNING)
 
-    card_count, combo_count, stats = asyncio.run(
+    evaluation = asyncio.run(
         evaluate_cube(
             cube_file=args.cube_file,
             max_variants=args.max_variants,
             blocklist=load_blocklist(args.blocklist),
         )
     )
-    print(f"Cube: {Path(args.cube_file)} ({card_count} cards)")
-    print(f"Combos completed: {combo_count}")
+    stats = evaluation.utilization_stats
+    print(f"Cube: {Path(args.cube_file)} ({evaluation.card_count} cards)")
+    print(
+        "Combos completed: "
+        f"{format_combo_count(evaluation.combo_count, evaluation.distinct_combo_count)}"
+    )
+    for group in evaluation.largest_combo_groups:
+        print(
+            f"  combo {group.group_key}: {group.variant_count} variants, {len(group.cards)} cards"
+        )
     print(
         f"Utilization: min={stats.min_utilization}, max={stats.max_utilization}, "
         f"range={stats.max_utilization - stats.min_utilization}, "

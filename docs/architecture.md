@@ -96,6 +96,10 @@ seven minutes. A first download of 20,000 variants takes about 13 minutes.
 - `required_cards`: the specific cards the combo names.
 - `requirement_options`: one entry per template requirement. Each holds the pool of cards that
   can satisfy it, and a `group_key` that identifies the same template across combos.
+- `group_key`: the combo the variant is one way of assembling, from the variant's `of` ids
+  (sorted and joined with `+`, so a variant of two combos combined is a group of its own).
+  Variants sharing a key are the same combo with a piece swapped. At 20,000 variants there
+  are about 8,700 groups; 7,400 have a single variant and the largest has 301.
 
 A template's pool is the first ten cards Scryfall returns for the template's search, ordered by
 EDHREC rank, after removing blocklisted cards.
@@ -164,31 +168,52 @@ Shared by every phase, built by `_build_base_model`:
 
 ```
 x[c] in {0,1}     card c is in the cube
-y[j] in {0,1}     combo j is counted as complete
+y[j] in {0,1}     variant j is counted as complete
+g[k] in {0,1}     combo group k has a complete variant
 
 sum_c x[c] = N                                  cube size
-y[j] <= x[c]            for each required card c of combo j
-y[j] <= sum x[c]        over the pool of each template requirement of combo j
+y[j] <= x[c]            for each required card c of variant j
+y[j] <= sum x[c]        over the pool of each template requirement of variant j
+g[k] <= sum_{j in k} y[j],  g[k] >= y[j]        for each group k of two or more variants
 ```
 
-These constraints only stop `y[j]` from being 1 when the cube is missing something. That is
-sufficient whenever `y` is being maximized.
+The `y` constraints only stop `y[j]` from being 1 when the cube is missing something. That is
+sufficient whenever `y` is being maximized. `g` is exact in both directions; the group
+variables exist only when `--variant-weight` is below 1 (otherwise they are not needed).
+
+### Combo score
+
+The quantity Phase 1 maximizes and the Phase 2 window holds. With `v = --variant-weight`:
+
+```
+score = sum_k [ (1 - v) * g[k] + v * sum_{j in k} y[j] ]
+```
+
+The first completed variant of a group is worth 1 and each further one `v`, so with `v = 1`
+the score is the variant count and with `v = 0` the number of distinct combos. Groups of one
+variant contribute `y[j]` directly. The score is scaled by `WEIGHT_SCALE` (10,000) to stay
+integer. `_combo_score` computes the same number from a set of completed variant ids, for the
+reference cube and the warm-start checks.
 
 ### Phase 1: maximize combo count
 
 ```
-maximize  sum_j w[j] * y[j]        w[j] = 1 + 0.001 * log(1 + popularity[j])
+maximize  WEIGHT_SCALE * score + sum_j t[j] * y[j]        t[j] = 0.001 * log(1 + popularity[j])
 ```
 
-Popularity is a tiebreak only. Weights are scaled to integers for CP-SAT.
+Popularity is a tiebreak only. Weights are scaled to integers for CP-SAT. With `v = 1` this is
+the popularity-weighted variant count.
 
 ### Phase 2: balance utilization
 
 Phase 2 builds a fresh model: the base model plus the following, in this order.
 
-1. **Combo count window.** The combo count must stay within `--combo-tolerance` (10% by
-   default) of the reference count: the most combos found for a cube that satisfies coverage
-   and color balance (see "Reference cube and warm start").
+1. **Combo count window.** The combo score must stay within `--combo-tolerance` (10% by
+   default) of the reference score: the best cube found under coverage and color balance (see
+   "Reference cube and warm start"). The window edges are whole combos: `floor` and `ceil` of
+   the reference in combo units, times `WEIGHT_SCALE`. With `--variant-weight` below 1 the
+   tolerance is in weighted combos, so a cube may trade variants of a completed combo for
+   new combos inside the window.
 2. **Coverage constraints.** For each template group used by at least 10 combos, the cube must
    contain at least `--min-coverage-ratio` x (combos using it) cards from the group's pool,
    capped at the pool size.
@@ -266,11 +291,13 @@ with the Phase 2 status, time and profile. The stats file then reports
 
 ### Ground-truth reporting
 
-No reported number is read from the solver's `y` variables. After each solve, `_extract_solution`
-takes the selected cards and calls `cube_evaluation` to recompute which combos are complete and
-each card's utilization. If the solver's view disagrees, a warning is logged. The same functions
-back the `evaluate_cube` command, so a cube file scored later gives the same numbers as the run
-that produced it.
+No reported number is read from the solver's `y` or `g` variables. After each solve,
+`_extract_solution` takes the selected cards and calls `cube_evaluation` to recompute which
+variants are complete, how many distinct combos they belong to (`completable_group_keys`), the
+groups with the most completed variants (`largest_combo_groups`) and each card's utilization.
+If the solver's view disagrees, a warning is logged. The same functions back the
+`evaluate_cube` command, so a cube file scored later gives the same numbers as the run that
+produced it.
 
 ### Solver configuration
 
@@ -298,17 +325,21 @@ It ignores the ILP-only flags, including `--max-variants`.
 | File | Written by | Contents |
 |------|------------|----------|
 | `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 combo counts, utilization statistics and color distribution, improvement and card changes, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics and color distribution, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
-`two_phase_fallback_to_phase1`. Its `phase2` block records the objective and the cap T used.
+`two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and
+the reference cube the window was measured from (variants, distinct combos and the weighted
+count). `combo_count` is always completed variants and `distinct_combo_count` the combos they
+belong to; `metadata.variant_weight` records the weight the run used.
 
 Each phase block has a `colors` entry computed from card color identities: cards per color
 (a multicolor card counts once per color), the split into mono-colored, multicolor and
 colorless cards, and the variance and standard deviation of the five per-color counts.
 
-`data/current_best_cube.txt` and its stats file are the tracked reference result. Everything else
-under `data/` is ignored by git, including `data/cache/`.
+`data/current_best_cube.txt` and its stats file are the tracked reference result (the default
+settings, including `--variant-weight 0.1`). Everything else under `data/` is ignored by git,
+including `data/cache/`.
 
 ## Testing
 
@@ -329,10 +360,12 @@ No test touches the network.
 These are open design questions rather than defects. Details are in
 [plans/ilp-improvement-plan.md](plans/ilp-improvement-plan.md) under "Follow-ups".
 
-- **Utilization definition.** A card is counted for every completed combo whose template pool
+- **Utilization definition.** A card is counted for every completed variant whose template pool
   contains it, even when a different card fills that slot. Combined with the coverage
   constraints, this gives every card in a popular pool a high utilization that no objective can
-  lower.
+  lower. Utilization is also counted in variants, not distinct combos, so a card in many
+  variants of one combo looks like a hub (see
+  [plans/combo-grouping-plan.md](plans/combo-grouping-plan.md), Step 2).
 - **Color balance is all or nothing.** The rule requires every color to be present and is a
   hard constraint. Mono-colored counts are not balanced separately, and colorless cards have
   no limit. See [plans/color-balance-plan.md](plans/color-balance-plan.md).
@@ -341,5 +374,8 @@ These are open design questions rather than defects. Details are in
   still be infeasible because of the utilization floor.
 - **Phase 2 does not finish early at full size.** At 300 cards and 10,000 variants it runs to
   its time limit and returns the best cube found.
+- **Phase 1 is not proven optimal with grouping.** With `--variant-weight` below 1 the group
+  variables make Phase 1 run to its time limit at 300 cards and 20,000 variants (an 8% gap at
+  the default 0.1 after 300 s). There is no separate Phase 1 gap or time setting.
 - **Run-to-run variation.** A time-limited parallel search does not return the same cube twice.
 - **Template pools are truncated.** Only the first ten Scryfall matches are considered.

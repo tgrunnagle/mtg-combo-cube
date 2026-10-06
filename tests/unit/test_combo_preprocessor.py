@@ -21,6 +21,7 @@ def make_mock_variant(
     card_names: list[str],
     requirements: list[tuple[str, str | None]] | None = None,
     popularity: int = 100,
+    of: list[int] | None = None,
 ):
     """Helper to create a mock Variant for testing.
 
@@ -29,10 +30,12 @@ def make_mock_variant(
         card_names: List of card names in the combo
         requirements: List of (template_name, scryfall_api) tuples for optional requirements
         popularity: Popularity score
+        of: Spellbook ids of the combos the variant belongs to (default: none)
     """
     variant = MagicMock()
     variant.id = variant_id
     variant.popularity = popularity
+    variant.of = [MagicMock(id=combo_id) for combo_id in (of or [])]
 
     # Create mock CardUse objects
     uses = []
@@ -53,6 +56,40 @@ def make_mock_variant(
     variant.requires = requires
 
     return variant
+
+
+class TestComboPreprocessorGroupKey:
+    """The combo group of a variant comes from its Spellbook 'of' ids."""
+
+    @pytest.mark.asyncio
+    async def test_group_key_is_the_combo_id(self):
+        preprocessor = ComboPreprocessor()
+        variants = [
+            make_mock_variant("513-5034--46", ["Card A", "Card B"], of=[26516]),
+            make_mock_variant("513-77--46", ["Card A", "Card C"], of=[26516]),
+        ]
+
+        combo_data_list, _ = await preprocessor.preprocess_variants(variants)
+
+        assert [combo.group_key for combo in combo_data_list] == ["26516", "26516"]
+
+    @pytest.mark.asyncio
+    async def test_variant_of_several_combos_is_its_own_group(self):
+        preprocessor = ComboPreprocessor()
+        variant = make_mock_variant("v", ["Card A", "Card B"], of=[30580, 6186])
+
+        combo_data_list, _ = await preprocessor.preprocess_variants([variant])
+
+        assert combo_data_list[0].group_key == "6186+30580"
+
+    @pytest.mark.asyncio
+    async def test_without_combo_ids_the_variant_is_its_own_group(self):
+        preprocessor = ComboPreprocessor()
+        variant = make_mock_variant("lonely", ["Card A", "Card B"])
+
+        combo_data_list, _ = await preprocessor.preprocess_variants([variant])
+
+        assert combo_data_list[0].group_key == "lonely"
 
 
 class TestComboPreprocessorBlocklist:

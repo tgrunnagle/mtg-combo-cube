@@ -123,9 +123,20 @@ if __name__ == "__main__":
         "cards of another color (default: 2.0). A card counts once for each color of its "
         "color identity. Must be 0 or at least 1. Set to 0 to disable.",
     )
+    argparser.add_argument(
+        "--variant-weight",
+        type=float,
+        default=0.1,
+        help="Value of each further completed variant of a combo the cube already completes, "
+        "relative to the first, in the Phase 1 objective and the Phase 2 combo window "
+        "(default: 0.1; 1 counts every variant as a combo, 0 counts distinct combos only). "
+        "Between 0 and 1.",
+    )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
+    if not 0 <= args.variant_weight <= 1:
+        argparser.error("--variant-weight must be between 0 and 1")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -149,5 +160,6 @@ if __name__ == "__main__":
             num_workers=args.workers,
             util_cap=args.util_cap,
             max_color_ratio=args.max_color_ratio,
+            variant_weight=args.variant_weight,
         )
     )

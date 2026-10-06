@@ -78,6 +78,19 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--max-color-ratio", "0.5")
 
+    def test_variant_weight(self, monkeypatch: pytest.MonkeyPatch):
+        assert run_cli(monkeypatch)["variant_weight"] == 0.1
+        assert run_cli(monkeypatch, "--variant-weight", "1")["variant_weight"] == 1.0
+        assert run_cli(monkeypatch, "--variant-weight", "0.1")["variant_weight"] == 0.1
+        assert run_cli(monkeypatch, "--variant-weight", "0")["variant_weight"] == 0
+
+    @pytest.mark.parametrize("weight", ["-0.5", "1.5"])
+    def test_variant_weight_outside_zero_to_one_is_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, weight: str
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--variant-weight", weight)
+
     def test_unknown_objective_is_rejected(self, monkeypatch: pytest.MonkeyPatch):
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--phase2-objective", "maxmin")
@@ -99,6 +112,10 @@ class TestRunnerPlumbing:
 
         await runner.run(method="ilp", cube_size=10, output_file="unused.txt")
         assert received["util_cap"] is None
+        assert received["variant_weight"] == 0.1
+
+        await runner.run(method="ilp", cube_size=10, output_file="unused.txt", variant_weight=0.25)
+        assert received["variant_weight"] == 0.25
 
     @pytest.mark.parametrize("util_cap", [None, 3])
     async def test_run_ilp_passes_util_cap_to_optimizer(
@@ -143,11 +160,13 @@ class TestRunnerPlumbing:
             util_cap=util_cap,
             num_workers=1,
             max_color_ratio=0,
+            variant_weight=0.5,
         )
 
         assert len(created) == 1
         assert created[0].util_cap == util_cap
         assert created[0].phase2_objective == "softcap"
+        assert created[0].variant_weight == 0.5
         # The colors of every candidate card reach the optimizer, with the ratio
         assert created[0].card_colors == {"A": "W", "B": "WU", "C": ""}
         assert created[0].max_color_ratio == 0
@@ -157,8 +176,12 @@ class TestRunnerPlumbing:
 
         # The stats file reports the combo count and color distribution of both phases
         stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["metadata"]["variant_weight"] == 0.5
+        assert stats["metadata"]["distinct_combo_count"] == 3
+        assert [g["variant_count"] for g in stats["largest_combo_groups"]] == [1, 1, 1]
         for phase in ("phase1", "phase2"):
             assert stats[phase]["combo_count"] == 3
+            assert stats[phase]["distinct_combo_count"] == 3
             assert stats[phase]["colors"]["cards_per_color"] == {
                 "W": 2,
                 "U": 1,

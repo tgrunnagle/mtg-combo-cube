@@ -153,7 +153,18 @@ class ComboPreprocessor:
             required_cards=required_cards,
             requirement_options=requirement_options,
             popularity=variant.popularity or 0,
+            group_key=self._group_key(variant),
         )
+
+    @staticmethod
+    def _group_key(variant: Variant) -> str:
+        """
+        The combo group of a variant: its sorted Spellbook combo ids ('of') joined with "+".
+
+        A variant of two combos combined is its own group. Without 'of' ids the variant is
+        a group of its own (ComboData defaults the key to the variant id).
+        """
+        return "+".join(str(combo_id) for combo_id in sorted(ref.id for ref in variant.of))
 
     async def _resolve_template(self, scryfall_api: str) -> list[str] | None:
         """Get cards matching a Scryfall template query, or None if the fetch failed."""

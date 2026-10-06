@@ -125,6 +125,24 @@ c`. Needs a bool per (card, group) pair, `z[c,k] <= sum(y[j] for j in k containi
 behind `--utilization-unit {variants,combos}` only if Step 1 results show hub cards still
 dominating.
 
+## Implementation notes (October 2026)
+
+Steps 0 and 1 are implemented; Step 2 is decided below.
+
+- The score formula differs from the one sketched in Step 1. "First variant worth 1, each
+  further one worth `v`" is `(1 - v) * g[k] + v * sum(y[j] for j in k)` per group, not
+  `g[k] + v * sum(y)`, so that `v = 1` is exactly the old objective and the characterization
+  tests keep passing unchanged. Group variables are only created when `v < 1`.
+- The combo window is written over the score. The window edges are whole combos
+  (`floor`/`ceil` of the reference in combo units, times `WEIGHT_SCALE`), so with `v = 1` it is
+  the old window on the variant count. `_build_warm_start` now returns the reference cube and
+  the stats file records its variants, distinct combos and weighted count.
+- Step 0 baseline, `evaluate_cube` on `data/current_best_cube.txt`: 3,248 variants in 552
+  distinct combos (the tracked stats file says 3,249; the cached template pools have moved
+  by one variant since it was written). Largest groups: 6186 with 240 variants (33 cards),
+  30580 with 190, 1474 with 151, 26943 with 119, 29790 with 106. The five largest groups hold
+  806 of the 3,248 variants.
+
 ## Verification
 
 Full run at the defaults, compared with the tracked best cube:
@@ -137,6 +155,53 @@ Full run at the defaults, compared with the tracked best cube:
   solution in 300 s.
 
 Try `variant_weight` at 1, 0.25, 0.1 and 0. Record the table here and pick the default.
+
+### Results (6 October 2026)
+
+Full runs, 300 cards, 20,000 variants, 300 s per phase, 8 workers, otherwise defaults. Phase 2
+hit its time limit in every run; the final cube is the best found. "Final" is the Phase 2
+cube; "largest" is its biggest combo group.
+
+| `v` | Phase 1 variants / combos (time, gap) | Reference variants / combos / weighted | Final variants / combos | Largest group (share) | Top 5 groups | Utilization min-max, median, std | Colors W U B R G |
+|---|---|---|---|---|---|---|---|
+| 1 | 4,145 / 604 (10 s, optimal) | 3,622 / 534 / 3,622 | 3,259 / 562 | 230 (7%) | 754 | 2-349, 25, 48.1 | 79 46 83 46 92 |
+| 0.25 | 2,964 / 1,410 (305 s, 13.6%) | 2,822 / 1,300 / 1,680.5 | 2,390 / 1,220 | 60 (3%) | 221 | 2-256, 18, 38.0 | 74 62 67 41 74 |
+| 0.1 | 2,476 / 1,496 (301 s, 8.3%) | 2,391 / 1,392 / 1,491.9 | 1,913 / 1,279 | 24 (1%) | 113 | 2-259, 15, 25.5 | 63 65 53 47 77 |
+| 0 | 2,187 / 1,554 (301 s, 4.8%) | 2,090 / 1,441 / 1,441 | 1,736 / 1,296 | 21 (1%) | 82 | 2-209, 13, 20.2 | 66 79 41 48 72 |
+
+Most used cards of the final cube: at `v = 1` Kodama of the East Tree 349, Pitiless Plunderer
+326, Ashnod's Altar 215; at `v = 0.1` Ashnod's Altar 259, Phyrexian Altar 183, Goblin
+Bombardment 112; at `v = 0` Ashnod's Altar 209, Phyrexian Altar 137, Karmic Guide 80.
+
+Observations:
+
+- Counting variants (`v = 1`) reproduces the tracked best cube: 562 distinct combos, the
+  largest holding 230 of 3,259 variants, and the hub cards are the pieces of the big groups.
+- Any weight below 1 changes the cube completely. `v = 0.1` has 2.3 times the distinct
+  combos of `v = 1` and its largest group is 24 variants; the utilization standard deviation
+  halves. Going on to `v = 0` adds only 17 combos while dropping another 177 variants.
+- The remaining hub cards at low weights are sacrifice outlets in template pools (Ashnod's
+  Altar, Phyrexian Altar), counted once per completed variant whose pool contains them. That
+  is the utilization definition limitation, not the grouping one.
+- Phase 1 is no longer solved to optimality: with 1,226 group variables (13,638 linking
+  constraints) it runs to the 300 s limit at every weight below 1, with a 5-14% gap. The
+  Phase 1 solution is still an upper bound on what Phase 2 can keep, so the cube quality
+  rests on the warm-start repair and Phase 2 as before.
+- Every Phase 2 cube sits on the lower edge of its combo window (90% of the weighted
+  reference), as it did before grouping.
+
+### Decisions
+
+- **Default `--variant-weight` is 0.1.** It takes nearly all of the distinct-combo gain
+  while keeping some redundancy inside a combo (1,913 variants against 1,736 at 0).
+- **Step 2 is not done (Option A).** With the default, the largest group is 24 variants and
+  the over-used cards are template-pool cards across many distinct combos, which a
+  group-based utilization would count the same way. Revisit if the utilization definition
+  is changed.
+- `data/current_best_cube.txt` and its stats file are replaced by the `v = 0.1` run, so the
+  tracked example matches the default settings again.
+- Follow-up: a Phase 1 gap or time setting now matters (`-t` applies to both phases). A
+  Phase 1 gap limit of a few percent would free time without changing the cube much.
 
 ## Risks and notes
 

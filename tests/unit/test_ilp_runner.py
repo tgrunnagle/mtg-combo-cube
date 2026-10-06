@@ -1,13 +1,20 @@
 """Unit tests for ILP runner utilities."""
 
 import json
+import logging
 import tempfile
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import CandidateCard, OptimizationResult, UtilizationStats
-from mtg_combo_cube.ilp.ilp_runner import write_stats
+from mtg_combo_cube.ilp.ilp_models import (
+    CandidateCard,
+    ComboGroupStats,
+    OptimizationResult,
+    UtilizationStats,
+)
+from mtg_combo_cube.ilp.ilp_runner import log_phase_summary, write_stats
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -551,6 +558,59 @@ class TestWriteStatsCombosAndColors:
 
         assert stats["phase1"]["combo_count"] == 1
         assert stats["phase1"]["colors"]["mono_colored"]["G"] == 1
+        # No grouping data recorded: the keys are present but empty
+        assert stats["phase1"]["distinct_combo_count"] is None
+        assert "distinct_combo_count" not in stats["metadata"]
+        assert "variant_weight" not in stats["metadata"]
+        assert "largest_combo_groups" not in stats
+
+    def test_distinct_combo_counts_and_largest_groups(self, tmp_path: Path):
+        result = replace(
+            self._two_phase_result(),
+            distinct_combo_count=2,
+            phase1_distinct_combo_count=3,
+            variant_weight=0.1,
+            largest_combo_groups=[
+                ComboGroupStats("6186", 2, ["Card A", "Card B"]),
+                ComboGroupStats("ab", 1, ["Card D"]),
+            ],
+            phase2_reference_combo_count=4,
+            phase2_reference_distinct_combo_count=3,
+            phase2_reference_weighted_combo_count=3.1,
+        )
+
+        stats = self._write(result, tmp_path)
+
+        assert stats["metadata"]["distinct_combo_count"] == 2
+        assert stats["metadata"]["variant_weight"] == 0.1
+        assert stats["phase1"]["distinct_combo_count"] == 3
+        assert stats["phase2"]["distinct_combo_count"] == 2
+        assert stats["phase2"]["reference_combo_count"] == 4
+        assert stats["phase2"]["reference_distinct_combo_count"] == 3
+        assert stats["phase2"]["reference_weighted_combo_count"] == 3.1
+        assert stats["improvement"]["distinct_combo_count_before"] == 3
+        assert stats["improvement"]["distinct_combo_count_after"] == 2
+        assert stats["largest_combo_groups"] == [
+            {"group_key": "6186", "variant_count": 2, "cards": ["Card A", "Card B"]},
+            {"group_key": "ab", "variant_count": 1, "cards": ["Card D"]},
+        ]
+
+    def test_log_phase_summary_reports_variants_and_combos(self, caplog: pytest.LogCaptureFixture):
+        result = replace(
+            self._two_phase_result(),
+            distinct_combo_count=2,
+            phase1_distinct_combo_count=3,
+            phase2_reference_combo_count=4,
+            phase2_reference_distinct_combo_count=3,
+        )
+
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(result, None)
+
+        assert (
+            "Combos: Phase 1 4 variants in 3 combos, best under coverage and color "
+            "4 variants in 3 combos, Phase 2 3 variants in 2 combos (-25.0% variants from Phase 1)"
+        ) in caplog.text
 
     def test_colors_per_phase(self, tmp_path: Path):
         identities = {"Card A": "W", "Card B": "WU", "Card C": "", "Card D": "U"}
