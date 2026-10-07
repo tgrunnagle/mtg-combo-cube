@@ -35,6 +35,10 @@ async def run(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
+    outcome_categories_path: str | None = None,
+    min_outcome_combos: int = 40,
+    max_outcome_share: float = 0,
+    popularity_weight: float = 0,
 ):
     """
     Run the cube building algorithm.
@@ -71,6 +75,14 @@ async def run(
             or more colors (0 or 1 disables)
         card_mix: Phase 2 limits on the cube's make-up by color count, mana value and card
             type, as shares of the cube size (see CardMixRules)
+        outcome_categories_path: The outcome category table (default:
+            data/outcome_categories.json)
+        min_outcome_combos: Phase 2 minimum number of distinct combos of every outcome
+            category, unless the table gives the category its own (0 disables)
+        max_outcome_share: Phase 2 cap on the share of completed combos in any one outcome
+            category (0 or 1 disables)
+        popularity_weight: How much a combo's popularity adds to its value in the Phase 1
+            objective and the Phase 2 combo window (0: a tiebreak only)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -98,6 +110,10 @@ async def run(
             min_mono_combos=min_mono_combos,
             max_wide_combo_share=max_wide_combo_share,
             card_mix=card_mix,
+            outcome_categories_path=outcome_categories_path,
+            min_outcome_combos=min_outcome_combos,
+            max_outcome_share=max_outcome_share,
+            popularity_weight=popularity_weight,
         )
     elif method == "greedy":
         await run_greedy(

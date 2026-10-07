@@ -156,6 +156,8 @@ class ComboPreprocessor:
             popularity=variant.popularity or 0,
             group_key=self._group_key(variant),
             color_identity=self._color_identity(variant),
+            features=frozenset(produced.feature.name for produced in variant.produces),
+            bracket_tag=variant.bracket_tag,
         )
 
     @staticmethod

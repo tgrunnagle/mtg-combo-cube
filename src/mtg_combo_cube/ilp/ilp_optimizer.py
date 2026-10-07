@@ -19,16 +19,20 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     MONO_COLORS,
     card_utilization,
     color_identities_known,
+    combos_per_outcome,
     completable_combo_ids,
     completed_group_sizes,
     compute_archetype_stats,
     compute_utilization_stats,
     fits_archetype,
+    group_outcomes,
+    group_popularity,
     is_expensive,
     is_land,
     is_spell,
     known_color_identity,
     largest_combo_groups,
+    popularity_stats,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
@@ -40,6 +44,8 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboGroupStats,
     CrossTemplateStats,
     OptimizationResult,
+    OutcomeStats,
+    PopularityStats,
     RequirementCoverageStats,
     RequirementPool,
     RequirementTypeStats,
@@ -47,6 +53,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     UtilizationStats,
     hundredths,
 )
+from mtg_combo_cube.ilp.outcomes import OutcomeCategories
 from mtg_combo_cube.ilp.profiling import (
     ProfileResult,
     extract_solver_stats,
@@ -119,6 +126,9 @@ class _Solution:
     utilization_per_card: dict[str, int]
     utilization_stats: UtilizationStats
     archetype_stats: ArchetypeStats | None  # None when the combos carry no color identities
+    outcome_stats: OutcomeStats | None  # None without an outcome category table
+    popularity_stats: PopularityStats
+    combo_score: float  # the combo score in combo units (see ILPOptimizer)
     requirement_type_stats: list[RequirementTypeStats]
     requirement_coverage_stats: RequirementCoverageStats
     cross_template_stats: CrossTemplateStats
@@ -166,9 +176,12 @@ class ILPOptimizer:
 
     Combo score: a completed variant is worth 1 for the first variant of its combo group
     (ComboData.group_key) and variant_weight for each further one, so with variant_weight 1
-    the score is the variant count and with 0 the number of distinct combos. Phase 1
-    maximizes the score and the Phase 2 combo window holds it. In the model the score is
-    scaled by WEIGHT_SCALE to stay integer.
+    the score is the variant count and with 0 the number of distinct combos. With a
+    popularity_weight w above 0 a group's worth is scaled by
+    1 + w x log(1 + popularity) / log(1 + max popularity), the popularity being its most
+    popular variant's, so the most popular combo is worth 1 + w combos of zero popularity.
+    Phase 1 maximizes the score and the Phase 2 combo window holds it. In the model the
+    score is scaled by WEIGHT_SCALE to stay integer.
     """
 
     DEFAULT_TIME_LIMIT = 300  # 5 minutes
@@ -205,6 +218,10 @@ class ILPOptimizer:
         min_mono_combos: int = 150,
         max_wide_combo_share: float = 0.25,
         card_mix: CardMixRules = DEFAULT_CARD_MIX,
+        outcome_categories: OutcomeCategories | None = None,
+        min_outcome_combos: int = 40,
+        max_outcome_share: float = 0,
+        popularity_weight: float = 0,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -255,6 +272,28 @@ class ILPOptimizer:
         self.min_mono_combos = min_mono_combos
         self.max_wide_combo_share = max_wide_combo_share
         self.has_color_identities = color_identities_known(combos)
+        # Phase 2 outcome rules: distinct combos of each outcome category (what the combos
+        # do, from the category table) the cube must complete, and the largest share of the
+        # completed combos one category may hold. 0 disables each; without a table both are
+        # skipped and no outcome statistics are reported.
+        if min_outcome_combos < 0:
+            raise ValueError(f"min_outcome_combos must be >= 0, got {min_outcome_combos}")
+        if not 0 <= max_outcome_share <= 1:
+            raise ValueError(f"max_outcome_share must be between 0 and 1, got {max_outcome_share}")
+        self.outcome_categories = outcome_categories
+        self.min_outcome_combos = min_outcome_combos
+        self.max_outcome_share = max_outcome_share
+        # Category name -> keys of the groups in it (a group is in every category one of its
+        # variants' features matches); empty without a table
+        self.outcome_groups: dict[str, list[str]] = {}
+        if outcome_categories is not None:
+            self.outcome_groups = {name: [] for name in outcome_categories.names}
+            for key, names in group_outcomes(combos, outcome_categories).items():
+                for name in names:
+                    self.outcome_groups[name].append(key)
+        if not math.isfinite(popularity_weight) or popularity_weight < 0:
+            raise ValueError(f"popularity_weight must be >= 0, got {popularity_weight}")
+        self.popularity_weight = popularity_weight
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -293,17 +332,30 @@ class ILPOptimizer:
         self.variant_scale: int = round(variant_weight * self.WEIGHT_SCALE)
         self.group_scale: int = self.WEIGHT_SCALE - self.variant_scale
         # Groups that get a g variable: two or more variants, when variant_weight < 1 (the
-        # score needs g) or an archetype rule counts groups
+        # score needs g) or an archetype or outcome rule counts groups
         self.grouped_keys: frozenset[str] = (
             frozenset(key for key, members in self.combo_groups.items() if len(members) > 1)
-            if self.group_scale or self._archetype_rules_enabled()
+            if self.group_scale or self._archetype_rules_enabled() or self._outcome_rules_enabled()
             else frozenset()
         )
+        # The popularity factor of each group: 1 + popularity_weight x its popularity on a
+        # log scale relative to the most popular group; 1 for every group when the weight is 0
+        self.group_popularity: dict[str, int] = group_popularity(combos)
+        max_popularity = max(self.group_popularity.values(), default=0)
+        self.group_factor: dict[str, float] = {
+            key: (
+                1 + popularity_weight * math.log1p(popularity) / math.log1p(max_popularity)
+                if popularity_weight and max_popularity
+                else 1.0
+            )
+            for key, popularity in self.group_popularity.items()
+        }
 
         logger.info(
             f"ILP Optimizer initialized: {len(self.combos)} variants in "
             f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards, cube size "
-            f"{cube_size}, variant weight {variant_weight:g}"
+            f"{cube_size}, variant weight {variant_weight:g}, popularity weight "
+            f"{popularity_weight:g}"
         )
 
     def _grouped_keys(self) -> list[str]:
@@ -314,21 +366,39 @@ class ILPOptimizer:
         """Completed variants per group for the given completed variant ids."""
         return Counter(self.combo_group[combo_id] for combo_id in combo_ids)
 
+    def _group_scales(self, key: str) -> tuple[int, int]:
+        """
+        The integer score weights of a group with a g variable: (the group's first completed
+        variant, each further one), its popularity factor applied to group_scale and
+        variant_scale.
+        """
+        factor = self.group_factor[key]
+        return round(factor * self.group_scale), round(factor * self.variant_scale)
+
+    def _variant_scale_of(self, key: str) -> int:
+        """The integer score weight of each completed variant of a group without a g."""
+        return round(self.group_factor[key] * self.WEIGHT_SCALE)
+
     def _combo_score(self, combo_ids: Collection[str]) -> int:
         """
         The combo score of a set of completed variants, in WEIGHT_SCALE units.
 
-        This is the integer the model uses; it equals WEIGHT_SCALE times
-        cube_evaluation.weighted_combo_count when variant_weight x WEIGHT_SCALE is a whole
-        number, and differs by rounding otherwise.
+        This is the integer the model uses; with popularity_weight 0 it equals WEIGHT_SCALE
+        times cube_evaluation.weighted_combo_count when variant_weight x WEIGHT_SCALE is a
+        whole number, and differs by rounding otherwise.
         """
         score = 0
         for key, completed in self._group_sizes_of(combo_ids).items():
             if key in self.grouped_keys:
-                score += self.group_scale + self.variant_scale * completed
+                group_scale, variant_scale = self._group_scales(key)
+                score += group_scale + variant_scale * completed
             else:
-                score += self.WEIGHT_SCALE * completed
+                score += self._variant_scale_of(key) * completed
         return score
+
+    def _combo_score_value(self, combo_ids: Collection[str]) -> float:
+        """The combo score in combo units: the reported value the window holds."""
+        return self._combo_score(combo_ids) / self.WEIGHT_SCALE
 
     def _weighted_combo_count(self, combo_ids: Collection[str]) -> float:
         """The reported weighted count: groups + variant_weight x further variants."""
@@ -339,10 +409,12 @@ class ILPOptimizer:
         terms: list[cp_model.LinearExpr] = []
         for key, combos in self.combo_groups.items():
             if key in base.g:
-                terms.append(self.group_scale * base.g[key])
-                terms.extend(self.variant_scale * base.y[combo.id] for combo in combos)
+                group_scale, variant_scale = self._group_scales(key)
+                terms.append(group_scale * base.g[key])
+                terms.extend(variant_scale * base.y[combo.id] for combo in combos)
             else:
-                terms.extend(self.WEIGHT_SCALE * base.y[combo.id] for combo in combos)
+                variant_scale = self._variant_scale_of(key)
+                terms.extend(variant_scale * base.y[combo.id] for combo in combos)
         return cp_model.LinearExpr.sum(terms)
 
     def _build_participation_graph(self) -> dict[str, list[ComboData]]:
@@ -720,10 +792,11 @@ class ILPOptimizer:
         min_score, max_score = self._combo_score_window(reference_score)
 
         if self.combo_tolerance > 0:
+            unit = "popularity-weighted combos" if self.popularity_weight else "weighted combos"
             logger.info(
                 f"Phase 2 combo tolerance: {self.combo_tolerance:.1%} "
                 f"(range: {min_score // self.WEIGHT_SCALE}-{max_score // self.WEIGHT_SCALE} "
-                f"weighted combos)"
+                f"{unit})"
             )
             base.model.add(score >= min_score)
             base.model.add(score <= max_score)
@@ -1652,6 +1725,167 @@ class ILPOptimizer:
             for archetype, (have, minimum) in self._archetype_shortfalls(cards).items()
         )
 
+    # --- Outcome support: combos per outcome category, cap on one category's share ---
+
+    def _outcome_rules_enabled(self) -> bool:
+        """Whether an outcome rule is configured and a category table was given."""
+        return bool(self._outcome_minimums()) or self._outcome_share_fraction() is not None
+
+    def _outcome_minimums(self) -> dict[str, int]:
+        """The minimum completed combos per outcome category, for the categories with one."""
+        if self.outcome_categories is None:
+            return {}
+        return self.outcome_categories.minimums(self.min_outcome_combos)
+
+    def _outcome_share_fraction(self) -> Fraction | None:
+        """
+        The outcome share cap as an integer fraction, or None when there is no cap: no
+        table, or a share that rounds (to hundredths) to 0 or to 1.
+        """
+        if self.outcome_categories is None:
+            return None
+        share = hundredths(self.max_outcome_share)
+        return share if 0 < share < 1 else None
+
+    def _add_outcome_minimums(self, base: _BaseModel) -> None:
+        """
+        For every outcome category with a minimum, at least that many completed combos
+        (groups) must be in it. Counted over the group indicators, which the solver can
+        only under-count, so the minimum is exact.
+        """
+        minimums = self._outcome_minimums()
+        if not minimums:
+            return
+        for name, minimum in minimums.items():
+            count = cp_model.LinearExpr.sum(
+                [self._group_indicator(base, key) for key in self.outcome_groups[name]]
+            )
+            base.model.add(count >= minimum)
+        described = ", ".join(f"{name} {minimum}" for name, minimum in minimums.items())
+        logger.info(f"Phase 2: Added {len(minimums)} outcome minimum constraints ({described})")
+        base.counts["outcome_minimum"] = len(minimums)
+
+    def _add_outcome_share_cap(self, base: _BaseModel) -> None:
+        """
+        At most max_outcome_share of the completed combos may be in any one outcome
+        category. For each category, written as (den - num) * inside <= num * outside over
+        the group indicators, where outside counts the completed groups not in the category.
+
+        As for the wide combo cap, the one-sided repair models could meet the cap by leaving
+        y at 0 for a completed combo in the category, so every variant of a group in a
+        capped category is linked exactly; under-counting the groups outside only tightens
+        the cap. A category with no combos in the pool needs no constraint.
+        """
+        share = self._outcome_share_fraction()
+        if share is None:
+            return
+        capped = [name for name, keys in self.outcome_groups.items() if keys]
+        inside_keys = {key for name in capped for key in self.outcome_groups[name]}
+        self._add_exact_combo_linking(
+            base, [combo for combo in self.combos if combo.group_key in inside_keys]
+        )
+        for name in capped:
+            inside = set(self.outcome_groups[name])
+            inside_count = cp_model.LinearExpr.sum(
+                [self._group_indicator(base, key) for key in self.combo_groups if key in inside]
+            )
+            outside_count = cp_model.LinearExpr.sum(
+                [self._group_indicator(base, key) for key in self.combo_groups if key not in inside]
+            )
+            base.model.add(
+                (share.denominator - share.numerator) * inside_count
+                <= share.numerator * outside_count
+            )
+        logger.info(
+            f"Phase 2: Added {len(capped)} outcome share cap constraints (at most "
+            f"{self.max_outcome_share:.0%} of the completed combos in any one category; "
+            f"{len(inside_keys)} combos in a category linked exactly)"
+        )
+        base.counts["outcome_share_cap"] = len(capped)
+
+    def _outcome_stats_of(self, cards: Collection[str]) -> OutcomeStats | None:
+        """The distinct combos per outcome category of a cube; None without a table."""
+        if self.outcome_categories is None:
+            return None
+        return combos_per_outcome(cards, self.combos, self.outcome_categories)
+
+    def _outcome_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
+        """
+        The outcome minimums (_add_outcome_minimums) a cube breaks: category -> (completed
+        combos in it, minimum).
+        """
+        minimums = self._outcome_minimums()
+        if not minimums:
+            return {}
+        stats = self._outcome_stats_of(cards)
+        assert stats is not None  # the minimums are empty without a table
+        return {
+            name: (stats.combos_per_outcome[name], minimum)
+            for name, minimum in minimums.items()
+            if stats.combos_per_outcome[name] < minimum
+        }
+
+    def _outcome_minimum_violations(self, cards: Collection[str]) -> int:
+        """Number of outcome minimum constraints a cube breaks."""
+        return len(self._outcome_shortfalls(cards))
+
+    def _outcome_cap_violations(self, cards: Collection[str]) -> int:
+        """Number of outcome share cap constraints (_add_outcome_share_cap) a cube breaks."""
+        share = self._outcome_share_fraction()
+        if share is None:
+            return 0
+        stats = self._outcome_stats_of(cards)
+        assert stats is not None  # there is no cap without a table
+        return sum(
+            1
+            for count in stats.combos_per_outcome.values()
+            if share.denominator * count > share.numerator * stats.total
+        )
+
+    def _check_outcome_pool(self) -> None:
+        """Warn about outcome minimums the whole pool cannot meet, before solving."""
+        for name, minimum in self._outcome_minimums().items():
+            available = len(self.outcome_groups[name])
+            if available < minimum:
+                logger.warning(
+                    f"Phase 2: the pool has only {available} combos with outcome {name}, below "
+                    f"the minimum of {minimum}; Phase 2 cannot meet it"
+                )
+
+    def _describe_outcome_shortfalls(self, cards: Collection[str]) -> str:
+        """'damage 10 < 20, mill 3 < 5' for the outcome minimums a cube breaks, or ''."""
+        return ", ".join(
+            f"{name} {have} < {minimum}"
+            for name, (have, minimum) in self._outcome_shortfalls(cards).items()
+        )
+
+    def _describe_shortfalls(self, cards: Collection[str]) -> str:
+        """
+        ' (archetypes below their minimum: ...; outcomes below their minimum: ...)' for the
+        archetype and outcome minimums a cube breaks, or '' when it breaks none.
+        """
+        parts = []
+        if archetypes := self._describe_archetype_shortfalls(cards):
+            parts.append(f"archetypes below their minimum: {archetypes}")
+        if outcomes := self._describe_outcome_shortfalls(cards):
+            parts.append(f"outcomes below their minimum: {outcomes}")
+        return f" ({'; '.join(parts)})" if parts else ""
+
+    def _outcome_info(self) -> dict[str, Any]:
+        """The outcome settings Phase 2 applies, for the result (None where disabled)."""
+        if self.outcome_categories is None:
+            if self.min_outcome_combos or 0 < hundredths(self.max_outcome_share) < 1:
+                logger.warning(
+                    "Phase 2: no outcome category table; the outcome rules are not enforced"
+                )
+            return {}
+        return {
+            "phase2_outcome_minimums": self._outcome_minimums() or None,
+            "phase2_max_outcome_share": (
+                self.max_outcome_share if self._outcome_share_fraction() is not None else None
+            ),
+        }
+
     # --- The Phase 2 cube rules together ---
 
     def _cube_rules(self) -> list[_CubeRule]:
@@ -1670,6 +1904,12 @@ class ILPOptimizer:
             ),
             _CubeRule("wide combo cap", self._add_wide_combo_cap, self._wide_cap_violations),
             *self._card_mix_rules(),
+            _CubeRule(
+                "outcome minimum", self._add_outcome_minimums, self._outcome_minimum_violations
+            ),
+            _CubeRule(
+                "outcome share cap", self._add_outcome_share_cap, self._outcome_cap_violations
+            ),
         ]
 
     def _add_cube_rules(self, base: _BaseModel) -> None:
@@ -1695,8 +1935,7 @@ class ILPOptimizer:
         """
         broken = self._describe_broken_rules(reference.cards)
         if broken:
-            shortfalls = self._describe_archetype_shortfalls(reference.cards)
-            detail = f" (archetypes below their minimum: {shortfalls})" if shortfalls else ""
+            detail = self._describe_shortfalls(reference.cards)
             logger.warning(
                 f"Phase 2: no cube satisfying the cube rules was found; the reference cube "
                 f"(the Phase 1 cube) still breaks {broken} constraints{detail}"
@@ -1808,11 +2047,16 @@ class ILPOptimizer:
         return repaired, status_str
 
     def _describe_combos(self, combo_ids: Collection[str]) -> str:
-        """'N variants (G combos)' for log messages, with the weighted count when it differs."""
+        """
+        'N variants (G combos)' for log messages, with the weighted count when it differs
+        and the popularity-weighted score when a popularity weight is set.
+        """
         groups = len(self._group_sizes_of(combo_ids))
         text = f"{len(combo_ids)} variants ({groups} combos"
         if self.group_scale:
             text += f", weighted {self._weighted_combo_count(combo_ids):.1f}"
+        if self.popularity_weight:
+            text += f", score {self._combo_score_value(combo_ids):.1f}"
         return text + ")"
 
     def _build_warm_start(
@@ -1845,9 +2089,7 @@ class ILPOptimizer:
         reference = phase1_start
         if broken:
             problem = f"Phase 1 cube breaks {broken} constraints"
-            shortfalls = self._describe_archetype_shortfalls(phase1_start.cards)
-            if shortfalls:
-                problem += f" (archetypes below their minimum: {shortfalls})"
+            problem += self._describe_shortfalls(phase1_start.cards)
             best, status_str = self._best_constrained_cube(phase1_start)
             # The rules are checked on the true completions of the cube found: the repair
             # model is one-sided in y, so a rule not written to be exact there could be met
@@ -2012,6 +2254,13 @@ class ILPOptimizer:
             if self.has_color_identities
             else None
         )
+        outcome_stats = (
+            combos_per_outcome(
+                selected_name_set, self.combos, self.outcome_categories, completed_set
+            )
+            if self.outcome_categories is not None
+            else None
+        )
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 
@@ -2034,6 +2283,9 @@ class ILPOptimizer:
             utilization_per_card=utilization,
             utilization_stats=utilization_stats,
             archetype_stats=archetype_stats,
+            outcome_stats=outcome_stats,
+            popularity_stats=popularity_stats(selected_name_set, self.combos, completed_set),
+            combo_score=self._combo_score_value(completed_set),
             requirement_type_stats=req_stats,
             requirement_coverage_stats=coverage_stats,
             cross_template_stats=cross_template_stats,
@@ -2142,9 +2394,14 @@ class ILPOptimizer:
             phase1_weighted_combo_count=solution.weighted_combo_count,
             largest_combo_groups=solution.largest_combo_groups,
             variant_weight=self.variant_weight,
+            popularity_weight=self.popularity_weight,
+            combo_score=solution.combo_score,
+            phase1_combo_score=solution.combo_score,
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=utilization_stats,
             phase1_archetype_stats=solution.archetype_stats,
+            phase1_outcome_stats=solution.outcome_stats,
+            phase1_popularity_stats=solution.popularity_stats,
             phase1_solve_time=solve_time,
             phase1_combo_count=len(solution.completable_combo_ids),
             is_multi_objective=False,
@@ -2274,6 +2531,8 @@ class ILPOptimizer:
         self._check_archetype_pool()
         card_mix_info = self._card_mix_info()
         self._check_card_mix_pool()
+        outcome_info = self._outcome_info()
+        self._check_outcome_pool()
 
         warm_start, reference = self._build_warm_start(phase1_result, profile_result)
         reference_score = self._combo_score(reference.combo_ids)
@@ -2283,6 +2542,7 @@ class ILPOptimizer:
             "phase2_reference_weighted_combo_count": self._weighted_combo_count(
                 reference.combo_ids
             ),
+            "phase2_reference_combo_score": reference_score / self.WEIGHT_SCALE,
             "phase2_combo_tolerance": self.combo_tolerance,
         }
 
@@ -2329,6 +2589,7 @@ class ILPOptimizer:
                 phase2_max_color_ratio=color_ratio,
                 **archetype_info,
                 **card_mix_info,
+                **outcome_info,
                 **reference_info,
                 profile_data=profile_data,
             )
@@ -2354,11 +2615,18 @@ class ILPOptimizer:
             phase1_weighted_combo_count=phase1_result.weighted_combo_count,
             largest_combo_groups=solution.largest_combo_groups,
             variant_weight=self.variant_weight,
+            popularity_weight=self.popularity_weight,
+            combo_score=solution.combo_score,
+            phase1_combo_score=phase1_result.phase1_combo_score,
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=p1,
             phase2_utilization_stats=phase2_stats,
             phase1_archetype_stats=phase1_result.phase1_archetype_stats,
             phase2_archetype_stats=solution.archetype_stats,
+            phase1_outcome_stats=phase1_result.phase1_outcome_stats,
+            phase2_outcome_stats=solution.outcome_stats,
+            phase1_popularity_stats=phase1_result.phase1_popularity_stats,
+            phase2_popularity_stats=solution.popularity_stats,
             phase1_solve_time=phase1_solve_time,
             phase2_solve_time=phase2_time,
             phase2_status=status_str,
@@ -2367,6 +2635,7 @@ class ILPOptimizer:
             phase2_max_color_ratio=color_ratio,
             **archetype_info,
             **card_mix_info,
+            **outcome_info,
             **reference_info,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,

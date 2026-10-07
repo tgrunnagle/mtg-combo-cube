@@ -72,7 +72,8 @@ All code lives under `src/mtg_combo_cube/`.
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
-| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, color distribution, card mix. |
+| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, combos per outcome category, popularity, color distribution, card mix. |
+| `ilp/outcomes.py` | The outcome category table (`data/outcome_categories.json`): category names with feature-name patterns, and `categorize`. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -107,6 +108,10 @@ seven minutes. A first download of 20,000 variants takes about 13 minutes.
   (empty for colorless). It covers the named cards only; a template requirement filled by a
   colored card can add a color. About 530 of the 8,700 groups have variants of differing
   identity.
+- `features`: the names of the features the variant produces on Spellbook ("Infinite
+  colored mana", "Infinite creature ETB", ...; 814 distinct names at 20,000 variants), and
+  `bracket_tag`, its Spellbook bracket letter. The features place a combo in its outcome
+  categories; a group's features are the union over its variants.
 
 A template's pool is the first ten cards Scryfall returns for the template's search, ordered by
 EDHREC rank, after removing blocklisted cards.
@@ -207,6 +212,15 @@ variant contribute `y[j]` directly. The score is scaled by `WEIGHT_SCALE` (10,00
 integer. `_combo_score` computes the same number from a set of completed variant ids, for the
 reference cube and the warm-start checks.
 
+With `w = --popularity-weight` above 0 (default 0), each group's term is multiplied by its
+popularity factor `1 + w * log(1 + p_k) / log(1 + max_p)`, where `p_k` is the popularity of
+the group's most popular variant and `max_p` the largest in the pool, so the most popular
+combo is worth `1 + w` combos of zero popularity and the median one about `1 + 0.45 w`. The
+factor is applied to both the `g` and the `y` weights of a group, rounded to integers in
+`WEIGHT_SCALE` units, and the same factors are used by `_combo_score`, so the Phase 2 window
+holds the popularity-weighted score and cannot trade popular combos for obscure ones. The
+stats file reports this score as `combo_score` beside the plain `weighted_combo_count`.
+
 ### Phase 1: maximize combo count
 
 ```
@@ -277,15 +291,28 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    the cube).
 10. **Mono-colored balance.** `--mono-color-ratio` (default 0, off) applies the color balance
     form to the cards whose identity is exactly one color.
-11. **The objective**, chosen with `--phase2-objective`.
-12. **Warm start.** The model is hinted with a starting cube.
+11. **Outcome minimums.** For each category of the outcome table (what the combos do:
+    mana, damage, tokens, draw, mill, lifegain, counters, turns, lock, storm, win), the
+    number of completed combos (groups) in it is at least `--min-outcome-combos`, or the
+    category's own `min_combos` when the table gives one. A group is in every category one
+    of its variants' features matches, decided before the solve (`outcome_groups`), so the
+    count is a sum of group indicators: under-countable, hence the minimum is exact. 0
+    disables a category's minimum.
+12. **Outcome share cap.** At most `--max-outcome-share` (default 0, off) of the completed
+    combos may be in any one category, written per category as
+    `(den - num) * inside <= num * outside` over the group indicators. As for the wide combo
+    cap, every variant of a group in a category is linked exactly so the one-sided repair
+    models cannot leave `y` at 0 for a completed combo inside; under-counting `outside`
+    only tightens the cap. Both outcome rules are skipped without a table.
+13. **The objective**, chosen with `--phase2-objective`.
+14. **Warm start.** The model is hinted with a starting cube.
 
-Coverage, color balance, the archetype minimums, the wide combo cap and the card mix rules are
-the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and `violations(cards)`, and
-the list is applied by the Phase 2 model, by the warm-start repair models and by the check
-that decides whether the Phase 1 cube needs repairing. A new hard constraint on the cube is
-one entry in that list; the card mix rules are built from one share-cap helper and one
-share-floor helper (`_card_mix_rules`).
+Coverage, color balance, the archetype minimums, the wide combo cap, the card mix rules and
+the outcome rules are the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and
+`violations(cards)`, and the list is applied by the Phase 2 model, by the warm-start repair
+models and by the check that decides whether the Phase 1 cube needs repairing. A new hard
+constraint on the cube is one entry in that list; the card mix rules are built from one
+share-cap helper and one share-floor helper (`_card_mix_rules`).
 
 #### Objectives
 
@@ -342,11 +369,12 @@ model is hinted with the repaired cube, or with the reference cube if the repair
 If Phase 2 finds no solution, the Phase 1 result is returned with `phase2_fell_back` set, along
 with the Phase 2 status, time and profile. The stats file then reports
 `two_phase_fallback_to_phase1`. Two warnings help place the cause. Before the solve, a pool
-check names any archetype the whole pool has too few combos for and any card mix rule the pool
-cannot meet (too few instants and sorceries for the floor, too few cards outside a cap). After
-a failure, the fallback warning says whether a cube satisfying the rules was found at all: if
-not, it lists the rules the Phase 1 cube still breaks (with the archetypes below their
-minimum); if so, the cause lies in the combo window, the utilization floor or the time limit.
+check names any archetype or outcome category the whole pool has too few combos for and any
+card mix rule the pool cannot meet (too few instants and sorceries for the floor, too few
+cards outside a cap). After a failure, the fallback warning says whether a cube satisfying
+the rules was found at all: if not, it lists the rules the Phase 1 cube still breaks (with
+the archetypes and outcome categories below their minimum); if so, the cause lies in the
+combo window, the utilization floor or the time limit.
 
 ### Ground-truth reporting
 
@@ -354,7 +382,10 @@ No reported number is read from the solver's `y` or `g` variables. After each so
 `_extract_solution` takes the selected cards and calls `cube_evaluation` to recompute which
 variants are complete, how many distinct combos they belong to (`completable_group_keys`), the
 groups with the most completed variants (`largest_combo_groups`), the distinct combos each
-draft archetype can assemble (`compute_archetype_stats`) and each card's utilization.
+draft archetype can assemble (`compute_archetype_stats`), the distinct combos per outcome
+category (`combos_per_outcome`, with the number in no category), how popular the distinct
+combos are (`popularity_stats`: median, mean log popularity, share below the pool median)
+and each card's utilization.
 If the solver's view disagrees, a warning is logged. The color distribution and the card mix
 (`compute_color_stats`, `compute_card_mix_stats`) are computed by the runner from the selected
 cards and their Scryfall attributes when it writes the log and the stats file. The same
@@ -387,7 +418,7 @@ It ignores the ILP-only flags, including `--max-variants`.
 | File | Written by | Contents |
 |------|------------|----------|
 | `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype and card mix, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category and popularity, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and
@@ -403,13 +434,19 @@ identity fits each of the ten color pairs, the five mono colors and `C` (colorle
 `combos_by_color_count`, the distinct combos by the number of colors they need. A `card_mix`
 entry gives the cards per type, the multicolor and colorless counts (nonland cards, as the
 two caps count them), and the mana value histogram and means (overall and per color) of the
-nonland cards. The `phase2` block records the archetype settings that were applied, the card
-mix settings in force as `card_mix_rules` with the card counts they applied as
-`card_mix_limits`, and the number of candidate cards without Scryfall data.
+nonland cards. An `outcomes` entry gives `combos_per_outcome`, the distinct combos in each
+category of the outcome table, with `uncategorized` (completed combos in no category) and
+`total`; a `popularity` entry gives the median and mean log popularity of the distinct combos
+and the share below the pool median. The `phase2` block records the archetype settings that
+were applied, the card mix settings in force as `card_mix_rules` with the card counts they
+applied as `card_mix_limits`, the number of candidate cards without Scryfall data, and the
+outcome settings applied (`outcome_minimums` per category and `max_outcome_share`). With a
+`--popularity-weight` above 0, `metadata.popularity_weight` records it and each block carries
+the popularity-weighted `combo_score` (the `phase2` block also `reference_combo_score`).
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
-settings (`--variant-weight 0.1`, the archetype minimums and the card mix rules) at 300 cards
-and 20,000 variants with 360 s per phase. Everything else under `data/` is ignored by git,
+settings (`--variant-weight 0.1`, the archetype minimums, the card mix rules and the outcome
+minimum of 40) at 300 cards and 20,000 variants with 360 s per phase. Everything else under `data/` is ignored by git,
 including `data/cache/`.
 
 ## Testing
@@ -419,10 +456,12 @@ type checking.
 
 - **Optimizer:** behavior tests, characterization tests on a fixed small instance solved to
   optimality with one worker, and brute-force checks of each Phase 2 objective's optimum.
-- **Cube rules:** one module each for combo grouping, color balance, archetype support and the
-  card mix, on hand-built instances where Phase 1 breaks the rule and Phase 2 must repair it;
+- **Cube rules:** one module each for combo grouping, color balance, archetype support, the
+  card mix, the outcome rules and the popularity weight, on hand-built instances where Phase 1
+  breaks the rule and Phase 2 must repair it (or where the weight flips the Phase 1 choice);
   they also cover the violation counters, the pool checks and the fallback messages.
-- **Evaluation:** the completion, grouping, utilization, archetype, color and card mix functions.
+- **Evaluation:** the completion, grouping, utilization, archetype, outcome, popularity, color
+  and card mix functions, and the outcome table's parsing and matching.
 - **Data layer:** the Scryfall fetchers against a fake HTTP session (cache hit and miss, cache
   versions, retries, failures, 404), the preprocessor, the requirement normalizer, the blocklist
   and the precache script.

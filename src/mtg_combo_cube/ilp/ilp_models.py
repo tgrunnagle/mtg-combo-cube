@@ -71,6 +71,11 @@ class ComboData:
     # the required cards; a template requirement filled by a colored card can add a color
     # the identity does not show.
     color_identity: str | None = None
+    # What the variant does: the names of the features it produces on Spellbook ("Infinite
+    # colored mana", "Infinite creature ETB", ...). Empty when unknown.
+    features: frozenset[str] = frozenset()
+    # Spellbook's bracket tag, a single letter (power level); "" when unknown
+    bracket_tag: str = ""
 
     def __post_init__(self) -> None:
         if not self.group_key:
@@ -254,6 +259,29 @@ class ArchetypeStats:
 
 
 @dataclass
+class OutcomeStats:
+    """How many distinct combos a cube offers of each outcome (what the combos do)."""
+
+    # Completed combos (groups) in each outcome category of the table, in table order. A
+    # combo is in every category one of its features matches, so the counts overlap.
+    combos_per_outcome: dict[str, int]
+    uncategorized: int  # completed combos in no category: a trigger loop without a payoff
+    total: int  # completed combos
+
+
+@dataclass
+class PopularityStats:
+    """How popular (by Spellbook usage) the distinct combos a cube completes are."""
+
+    combo_count: int  # completed combos (groups); a combo's popularity is its top variant's
+    median_popularity: float
+    mean_log_popularity: float  # mean of log(1 + popularity)
+    # Share of the completed combos whose popularity is below the pool median
+    below_pool_median_share: float
+    pool_median_popularity: float  # median popularity of every combo in the pool
+
+
+@dataclass
 class RequirementTypeStats:
     """Statistics for a single requirement type in the final cube."""
 
@@ -345,6 +373,24 @@ class OptimizationResult:
     # Distinct combos per draft archetype of each phase's cube
     phase1_archetype_stats: ArchetypeStats | None = None
     phase2_archetype_stats: ArchetypeStats | None = None
+    # Distinct combos per outcome category of each phase's cube (None without a table)
+    phase1_outcome_stats: OutcomeStats | None = None
+    phase2_outcome_stats: OutcomeStats | None = None
+    # Popularity of the distinct combos of each phase's cube
+    phase1_popularity_stats: PopularityStats | None = None
+    phase2_popularity_stats: PopularityStats | None = None
+    # Outcome rules applied in Phase 2, when enabled (None otherwise): the minimum completed
+    # combos per category actually applied (the table's own minimum or the default), and the
+    # largest share of the completed combos one category may hold
+    phase2_outcome_minimums: dict[str, int] | None = None
+    phase2_max_outcome_share: float | None = None
+    # Popularity weight: each combo's value is scaled by 1 + weight x its popularity relative
+    # to the most popular combo (log scale). The combo score is the weighted combo count under
+    # that scaling; it equals weighted_combo_count when the weight is 0.
+    popularity_weight: float | None = None
+    combo_score: float | None = None
+    phase1_combo_score: float | None = None
+    phase2_reference_combo_score: float | None = None
     # Combo count the Phase 2 combo window is measured from: the best cube found under the
     # Phase 2 cube rules (coverage, color balance, archetype support, card mix)
     phase2_reference_combo_count: int | None = None

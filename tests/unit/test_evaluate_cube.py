@@ -7,10 +7,14 @@ import pytest
 
 from mtg_combo_cube.ilp import evaluate_cube as module
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData
+from mtg_combo_cube.ilp.outcomes import parse_outcome_categories
 
+MANA = frozenset(["Infinite colored mana"])
 COMBOS = [
-    ComboData("h1", frozenset(["H", "P1"]), [], 10, group_key="big", color_identity="W"),
-    ComboData("h2", frozenset(["H", "P2"]), [], 10, group_key="big", color_identity="WU"),
+    ComboData(
+        "h1", frozenset(["H", "P1"]), [], 10, group_key="big", color_identity="W", features=MANA
+    ),
+    ComboData("h2", frozenset(["H", "P2"]), [], 30, group_key="big", color_identity="WU"),
     ComboData("ab", frozenset(["A", "B"]), [], 10, color_identity="UB"),
     ComboData("cd", frozenset(["C", "D"]), [], 10, color_identity=""),
 ]
@@ -56,6 +60,28 @@ class TestEvaluateCube:
         counts = evaluation.archetype_stats.combos_per_archetype
         assert counts["W"] == 1 and counts["WU"] == 1 and counts["UB"] == 1 and counts["C"] == 0
         assert evaluation.archetype_stats.combos_by_color_count[1] == 1
+        # Without a table there are no outcome counts; the popularity is always reported
+        assert evaluation.outcome_stats is None
+        assert evaluation.popularity_stats.combo_count == 2
+        assert evaluation.popularity_stats.median_popularity == 20  # big 30, ab 10
+        assert evaluation.popularity_stats.pool_median_popularity == 10
+
+    async def test_outcome_table(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, CARDS
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP2\nA\nB\n", encoding="utf-8")
+        table = parse_outcome_categories({"mana": ["infinite colored mana"]})
+
+        evaluation = await module.evaluate_cube(str(cube_file), outcome_categories=table)
+
+        assert evaluation.outcome_stats is not None
+        # The group's features are the union over its variants, so big is a mana combo
+        assert evaluation.outcome_stats.combos_per_outcome == {"mana": 1}
+        assert evaluation.outcome_stats.uncategorized == 1
+        assert evaluation.outcome_stats.total == 2
 
     def test_read_cube_file_skips_blank_lines(self, tmp_path: Path):
         cube_file = tmp_path / "cube.txt"

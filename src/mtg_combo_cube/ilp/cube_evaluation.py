@@ -4,8 +4,10 @@ Everything here is computed from the selected cards alone, never from solver var
 so it is the reference for every reported combo count and utilization number.
 """
 
+import math
 from collections.abc import Collection, Mapping
 from itertools import combinations
+from statistics import median
 
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
@@ -13,8 +15,11 @@ from mtg_combo_cube.ilp.ilp_models import (
     ColorStats,
     ComboData,
     ComboGroupStats,
+    OutcomeStats,
+    PopularityStats,
     UtilizationStats,
 )
+from mtg_combo_cube.ilp.outcomes import OutcomeCategories
 from mtg_combo_cube.models import UNKNOWN_CARD, CardAttributes
 
 COLORS = "WUBRG"
@@ -220,6 +225,92 @@ def compute_archetype_stats(
     return ArchetypeStats(
         combos_per_archetype=combos_per_archetype(selected_cards, combos, completed),
         combos_by_color_count=combos_by_color_count(selected_cards, combos, completed),
+    )
+
+
+def group_features(combos: list[ComboData]) -> dict[str, frozenset[str]]:
+    """
+    The features of each combo group: the union over its variants, in instance order.
+
+    A combo's outcome is judged from every variant it has, not only the completed ones, so
+    that the model, the rule checks and the statistics all place a combo in the same
+    categories. Variants of one combo are the same combo with a piece swapped and produce
+    the same features in nearly every case.
+    """
+    features: dict[str, set[str]] = {}
+    for combo in combos:
+        features.setdefault(combo.group_key, set()).update(combo.features)
+    return {key: frozenset(names) for key, names in features.items()}
+
+
+def group_outcomes(
+    combos: list[ComboData], categories: OutcomeCategories
+) -> dict[str, frozenset[str]]:
+    """The outcome categories of each combo group (see group_features)."""
+    return {
+        key: categories.categorize(features) for key, features in group_features(combos).items()
+    }
+
+
+def combos_per_outcome(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    categories: OutcomeCategories,
+    completed_ids: Collection[str] | None = None,
+) -> OutcomeStats:
+    """
+    The number of completed combos (groups) in each outcome category, in table order, with
+    the number in no category and the total. A combo counts for every category it is in.
+    """
+    completed = set(
+        completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
+    )
+    outcomes = group_outcomes(combos, categories)
+    completed_groups = {combo.group_key for combo in combos if combo.id in completed}
+    counts = dict.fromkeys(categories.names, 0)
+    uncategorized = 0
+    for key in completed_groups:
+        if not outcomes[key]:
+            uncategorized += 1
+        for name in outcomes[key]:
+            counts[name] += 1
+    return OutcomeStats(
+        combos_per_outcome=counts, uncategorized=uncategorized, total=len(completed_groups)
+    )
+
+
+def group_popularity(combos: list[ComboData]) -> dict[str, int]:
+    """The popularity of each combo group: that of its most popular variant."""
+    popularity: dict[str, int] = {}
+    for combo in combos:
+        popularity[combo.group_key] = max(popularity.get(combo.group_key, 0), combo.popularity)
+    return popularity
+
+
+def popularity_stats(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+) -> PopularityStats:
+    """
+    How popular the completed combos (groups) are: the median popularity, the mean of
+    log(1 + popularity), and the share below the median of every combo in the pool.
+    """
+    completed = set(
+        completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
+    )
+    popularity = group_popularity(combos)
+    pool_median = float(median(popularity.values())) if popularity else 0.0
+    completed_groups = {combo.group_key for combo in combos if combo.id in completed}
+    values = [popularity[key] for key in completed_groups]
+    if not values:
+        return PopularityStats(0, 0.0, 0.0, 0.0, pool_median)
+    return PopularityStats(
+        combo_count=len(values),
+        median_popularity=float(median(values)),
+        mean_log_popularity=sum(math.log1p(value) for value in values) / len(values),
+        below_pool_median_share=sum(1 for value in values if value < pool_median) / len(values),
+        pool_median_popularity=pool_median,
     )
 
 

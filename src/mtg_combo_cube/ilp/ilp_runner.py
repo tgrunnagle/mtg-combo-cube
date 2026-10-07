@@ -25,8 +25,11 @@ from mtg_combo_cube.ilp.ilp_models import (
     ColorStats,
     ComboData,
     OptimizationResult,
+    OutcomeStats,
+    PopularityStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.outcomes import load_outcome_categories
 from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
@@ -95,12 +98,17 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["card_mix_limits"] = result.phase2_card_mix_limits
     if result.phase2_unknown_candidate_cards is not None:
         info["unknown_candidate_cards"] = result.phase2_unknown_candidate_cards
+    if result.phase2_outcome_minimums is not None:
+        info["outcome_minimums"] = result.phase2_outcome_minimums
+    if result.phase2_max_outcome_share is not None:
+        info["max_outcome_share"] = result.phase2_max_outcome_share
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
         info["reference_distinct_combo_count"] = result.phase2_reference_distinct_combo_count
     if result.phase2_reference_weighted_combo_count is not None:
         info["reference_weighted_combo_count"] = result.phase2_reference_weighted_combo_count
+    info.update(_score_entry(result, result.phase2_reference_combo_score, "reference_combo_score"))
     if result.phase2_combo_tolerance is not None:
         info["combo_tolerance"] = result.phase2_combo_tolerance
     return info
@@ -132,6 +140,16 @@ def _phase1_weighted_combo_count(result: OptimizationResult) -> float | None:
     if result.phase1_weighted_combo_count is not None:
         return result.phase1_weighted_combo_count
     return None if result.is_multi_objective else result.weighted_combo_count
+
+
+def _score_entry(result: OptimizationResult, score: float | None, key: str = "combo_score") -> dict:
+    """
+    The combo score entry of a block: only with a popularity weight above 0, when the score
+    differs from the weighted combo count.
+    """
+    if score is None or not result.popularity_weight:
+        return {}
+    return {key: score}
 
 
 def _grouping_counts(distinct: int | None, weighted: float | None) -> dict:
@@ -237,6 +255,40 @@ def _archetypes_block(stats: ArchetypeStats | None) -> dict:
     }
 
 
+def _outcomes_block(stats: OutcomeStats | None) -> dict:
+    """The "outcomes" entry of a phase block, empty when the result has no outcome data."""
+    if stats is None:
+        return {}
+    return {
+        "outcomes": {
+            "combos_per_outcome": stats.combos_per_outcome,
+            "uncategorized": stats.uncategorized,
+            "total": stats.total,
+        }
+    }
+
+
+def format_outcome_stats(stats: OutcomeStats) -> str:
+    """One-line summary of the distinct combos per outcome category."""
+    counts = ", ".join(f"{name}={count}" for name, count in stats.combos_per_outcome.items())
+    share = f" ({stats.uncategorized / stats.total:.0%})" if stats.total else ""
+    return f"{counts}; no category {stats.uncategorized} of {stats.total}{share}"
+
+
+def _popularity_block(stats: PopularityStats | None) -> dict:
+    """The "popularity" entry of a phase block, empty when the result has none."""
+    return {"popularity": asdict(stats)} if stats is not None else {}
+
+
+def format_popularity_stats(stats: PopularityStats) -> str:
+    """One-line summary of how popular a cube's distinct combos are."""
+    return (
+        f"median {stats.median_popularity:g} (pool median {stats.pool_median_popularity:g}), "
+        f"mean log {stats.mean_log_popularity:.2f}, "
+        f"{stats.below_pool_median_share:.0%} of {stats.combo_count} combos below the pool median"
+    )
+
+
 def format_archetype_stats(stats: ArchetypeStats) -> str:
     """One-line summary of the distinct combos per draft archetype."""
     counts = stats.combos_per_archetype
@@ -297,6 +349,20 @@ def log_phase_summary(
     if result.is_multi_objective and result.phase2_archetype_stats is not None:
         logger.info(f"Archetypes, Phase 2: {format_archetype_stats(result.phase2_archetype_stats)}")
 
+    if result.phase1_outcome_stats is not None:
+        logger.info(f"Outcomes, Phase 1: {format_outcome_stats(result.phase1_outcome_stats)}")
+    if result.is_multi_objective and result.phase2_outcome_stats is not None:
+        logger.info(f"Outcomes, Phase 2: {format_outcome_stats(result.phase2_outcome_stats)}")
+
+    if result.phase1_popularity_stats is not None:
+        logger.info(
+            f"Popularity, Phase 1: {format_popularity_stats(result.phase1_popularity_stats)}"
+        )
+    if result.is_multi_objective and result.phase2_popularity_stats is not None:
+        logger.info(
+            f"Popularity, Phase 2: {format_popularity_stats(result.phase2_popularity_stats)}"
+        )
+
     phase1_mix = _card_mix_stats(_phase1_cards(result), attributes)
     if phase1_mix is not None:
         logger.info(f"Card mix, Phase 1: {format_card_mix_stats(phase1_mix)}")
@@ -343,6 +409,9 @@ def write_stats(
     )
     if result.variant_weight is not None:
         stats["metadata"]["variant_weight"] = result.variant_weight
+    if result.popularity_weight is not None:
+        stats["metadata"]["popularity_weight"] = result.popularity_weight
+    stats["metadata"].update(_score_entry(result, result.combo_score))
 
     # Phase 1 stats
     if result.phase1_utilization_stats:
@@ -352,6 +421,7 @@ def write_stats(
             **_grouping_counts(
                 _phase1_distinct_combo_count(result), _phase1_weighted_combo_count(result)
             ),
+            **_score_entry(result, result.phase1_combo_score),
             "solve_time_seconds": result.phase1_solve_time,
             "min_utilization": p1.min_utilization,
             "max_utilization": p1.max_utilization,
@@ -362,6 +432,8 @@ def write_stats(
             **_colors_block(_phase1_cards(result), attributes),
             **_archetypes_block(result.phase1_archetype_stats),
             **_card_mix_block(_phase1_cards(result), attributes),
+            **_outcomes_block(result.phase1_outcome_stats),
+            **_popularity_block(result.phase1_popularity_stats),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -370,6 +442,7 @@ def write_stats(
         stats["phase2"] = {
             "combo_count": result.combo_count,
             **_grouping_counts(result.distinct_combo_count, result.weighted_combo_count),
+            **_score_entry(result, result.combo_score),
             "solve_time_seconds": result.phase2_solve_time,
             "status": result.phase2_status,
             "min_utilization": p2.min_utilization,
@@ -382,6 +455,8 @@ def write_stats(
             **_colors_block(result.selected_cards, attributes),
             **_archetypes_block(result.phase2_archetype_stats),
             **_card_mix_block(result.selected_cards, attributes),
+            **_outcomes_block(result.phase2_outcome_stats),
+            **_popularity_block(result.phase2_popularity_stats),
         }
 
         # Calculate improvement metrics
@@ -591,9 +666,16 @@ async def build_cube_ilp(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
+    outcome_categories_path: str | None = None,
+    min_outcome_combos: int = 40,
+    max_outcome_share: float = 0,
+    popularity_weight: float = 0,
 ) -> tuple[list[str], int, OptimizationResult, dict[str, CardAttributes] | None]:
     """
     Build cube using ILP optimization with optional API caching.
+
+    outcome_categories_path is the outcome category table (data/outcome_categories.json by
+    default), behind the outcome statistics and the Phase 2 outcome rules.
 
     Returns:
         - List of card names in cube
@@ -622,6 +704,11 @@ async def build_cube_ilp(
     card_attributes = await fetch_card_attributes(
         sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
     )
+    outcome_categories = load_outcome_categories(outcome_categories_path)
+    logger.info(
+        f"Loaded {len(outcome_categories)} outcome categories: "
+        f"{', '.join(outcome_categories.names)}"
+    )
 
     # Run ILP optimization
     optimizer = ILPOptimizer(
@@ -644,6 +731,10 @@ async def build_cube_ilp(
         min_mono_combos=min_mono_combos,
         max_wide_combo_share=max_wide_combo_share,
         card_mix=card_mix,
+        outcome_categories=outcome_categories,
+        min_outcome_combos=min_outcome_combos,
+        max_outcome_share=max_outcome_share,
+        popularity_weight=popularity_weight,
     )
 
     # Run optimization (two-phase by default)
@@ -699,6 +790,10 @@ async def run_ilp(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
+    outcome_categories_path: str | None = None,
+    min_outcome_combos: int = 40,
+    max_outcome_share: float = 0,
+    popularity_weight: float = 0,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result, card_attributes = await build_cube_ilp(
@@ -724,6 +819,10 @@ async def run_ilp(
         min_mono_combos=min_mono_combos,
         max_wide_combo_share=max_wide_combo_share,
         card_mix=card_mix,
+        outcome_categories_path=outcome_categories_path,
+        min_outcome_combos=min_outcome_combos,
+        max_outcome_share=max_outcome_share,
+        popularity_weight=popularity_weight,
     )
 
     logger.info(
