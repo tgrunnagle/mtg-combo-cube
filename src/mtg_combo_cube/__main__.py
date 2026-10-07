@@ -46,9 +46,10 @@ if __name__ == "__main__":
         "--combo-tolerance",
         type=float,
         default=0.1,
-        help="Tolerance for combo count deviation in phase 2 (default: 0.1 = 10%%), measured "
-        "from the most combos found for a cube that satisfies the coverage and color balance "
-        "constraints. Set to 0 for strict equality constraint.",
+        help="Tolerance of the phase 2 combo window (default: 0.1 = 10%%), measured from the "
+        "combo score of the best cube found under the coverage and color balance constraints. "
+        "The score is in weighted combos when --variant-weight is below 1 (see the README, "
+        "'Combos and variants'). Set to 0 to hold the score exactly.",
     )
     argparser.add_argument(
         "--min-coverage-ratio",
@@ -123,9 +124,20 @@ if __name__ == "__main__":
         "cards of another color (default: 2.0). A card counts once for each color of its "
         "color identity. Must be 0 or at least 1. Set to 0 to disable.",
     )
+    argparser.add_argument(
+        "--variant-weight",
+        type=float,
+        default=0.1,
+        help="Value of each further completed variant of a combo the cube already completes, "
+        "relative to the first, in the Phase 1 objective and the Phase 2 combo window "
+        "(default: 0.1; 1 counts every variant as a combo, 0 counts distinct combos only). "
+        "Between 0 and 1.",
+    )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
+    if not 0 <= args.variant_weight <= 1:
+        argparser.error("--variant-weight must be between 0 and 1")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -149,5 +161,6 @@ if __name__ == "__main__":
             num_workers=args.workers,
             util_cap=args.util_cap,
             max_color_ratio=args.max_color_ratio,
+            variant_weight=args.variant_weight,
         )
     )

@@ -59,12 +59,13 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 20000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
---combo-tolerance      Phase 2 combo count tolerance, measured from the best cube under coverage and color balance (default: 0.1 = 10%)
+--combo-tolerance      Phase 2 combo window, on the combo score (weighted combos when --variant-weight < 1), measured from the best cube under coverage and color balance (default: 0.1 = 10%)
 --gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
 --phase2-objective     Phase 2 objective: tiered (default), softcap, maxutil, minmax or mad
 --util-cap             Utilization cap for softcap and tiered (default: 2 x Phase 1 median)
 --min-util-floor       Minimum utilization floor for Phase 2, any objective (default: 2)
 --max-color-ratio      Phase 2 color balance: largest color at most this many times the smallest (default: 2.0, 0 disables)
+--variant-weight       Value of each further variant of a combo the cube already completes (default: 0.1; 1 counts variants, 0 counts distinct combos)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization
@@ -115,9 +116,10 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 
 The stats file contains:
 
-- `metadata`: cube size, combo count, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
-- `phase1` / `phase2`: `combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation) and `colors`, the color distribution of that phase's cube (see below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the `reference_combo_count` the tolerance was measured from and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap and `fell_back_to_phase1: true`.
-- `improvement`: Phase 1 to Phase 2 changes, including the combo count before and after and the cards swapped.
+- `metadata`: cube size, `combo_count` (completed variants), `distinct_combo_count` (completed combos, see "Combos and variants" below), the `variant_weight` used, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
+- `phase1` / `phase2`: `combo_count`, `distinct_combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation) and `colors`, the color distribution of that phase's cube (see below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the reference cube the tolerance was measured from (`reference_combo_count` variants, `reference_distinct_combo_count` combos and `reference_weighted_combo_count`, the weighted count the window holds) and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap, reference and `fell_back_to_phase1: true`.
+- `improvement`: Phase 1 to Phase 2 changes, including the variant and distinct combo counts before and after and the cards swapped.
+- `largest_combo_groups`: the ten combos with the most completed variants in the final cube, each with its Spellbook combo id, variant count and the cube cards that take part.
 - `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
 - `profiling` (with `--profile`): per-phase timings, variable and constraint counts and solver statistics.
 
@@ -129,13 +131,13 @@ Every combo count and utilization number is computed from the selected cards, no
 - `mono_colored`, `multicolor`, `colorless`: the cube split into exclusive groups. `unknown` counts cards without color data.
 - `variance` / `std_deviation`: spread of the five `cards_per_color` counts. Zero means the colors are evenly represented.
 
-The log prints the same combo counts and color distribution at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
+The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ...") and color distribution at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
 
-[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings.
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,913 variants in 1,279 distinct combos).
 
 ### Evaluating a Cube
 
-To score an existing cube list (true combo count, utilization statistics and color distribution) against the cached data:
+To score an existing cube list (true variant and distinct combo counts, the largest combo groups, utilization statistics and color distribution) against the cached data:
 
 ```bash
 uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
@@ -208,7 +210,7 @@ It fills the variants file, the Scryfall template searches and the card colors. 
 Fast heuristic approach that iteratively selects high-impact cards. Good for quick iterations.
 
 ### ILP (Recommended, default)
-Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to proven optimality at the tested sizes; Phase 2 returns the best cube found within the gap or time limit. Two operational modes:
+Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to proven optimality at the tested sizes when every variant counts (`--variant-weight 1`); with the default weight it runs to its time limit at full size and returns the best cube found. Phase 2 returns the best cube found within the gap or time limit. Two operational modes:
 
 **Two-Phase (Default)**
 - Phase 1: Maximize combo count
@@ -216,17 +218,24 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to pr
 - Produces balanced cubes where cards participate more evenly across combos
 - Outputs detailed statistics to `{output}_stats.json`
 
+**Combos and variants**
+
+Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and many variants are the same combo with one piece swapped for an equivalent (the cached 20,000 variants belong to about 8,700 combos; the largest combo has 301 variants). Every count in the log and the stats file is reported both ways: `combo_count` is completed variants, `distinct_combo_count` is the combos they belong to (a variant's `of` ids on Spellbook; a variant of two combos combined counts as its own).
+
+`--variant-weight` sets what the optimizer counts. A completed variant is worth 1 if it is the first of its combo and `--variant-weight` for each further one, so `1` counts variants and `0` counts distinct combos, with values in between rewarding extra variants less than new combos. The default is `0.1`: at full size it more than doubles the distinct combos of a variant-counting cube and shrinks the largest combo from 230 variants to 24, at the cost of about 40% of the variants. Any weight below 1 makes Phase 1 run to its time limit at full size instead of proving optimality in seconds. Phase 1 maximizes this weighted count and the Phase 2 combo window (`--combo-tolerance`) holds it, so with a weight below 1 the tolerance and `reference_weighted_combo_count` are in weighted combos, not variants. The table in [docs/plans/combo-grouping-plan.md](docs/plans/combo-grouping-plan.md) compares weights at full size.
+
 **Phase 2 Options:**
 
 | Option | Default | Description |
 |--------|---------|-------------|
 | `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
-| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo count (10%). The reference is the most combos found for a cube that satisfies coverage and color balance, which is lower than the Phase 1 count |
+| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under coverage and color balance, which scores lower than the Phase 1 cube |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
 | `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
 | `--min-coverage-ratio` | `0.1` | Minimum cards per requirement template (10% of the combos using it, at most the template's card pool; 0 disables) |
+| `--variant-weight` | `0.1` | Value of each further completed variant of a combo relative to its first (both phases; `1` counts every variant, `0` counts distinct combos only). The combo window is measured in the same weighted units |
 
 **Phase 2 Objectives:**
 
@@ -268,7 +277,8 @@ Notes:
 - [Plans and design documents](docs/plans/README.md) - Working documents from each round of development, including the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md) with benchmark results and decisions
 
 Key concepts:
-- **Card Utilization**: Number of completable combos each card participates in. A card counts for a combo when it is one of the combo's required cards or belongs to the card pool of one of its requirement templates, whether or not it is the card that satisfies the template.
+- **Variant and Combo**: A variant is one Spellbook combo listing; a combo (or combo group) is the set of variants that are the same combo with a piece swapped. Reported as `combo_count` (variants) and `distinct_combo_count` (combos). `--variant-weight` sets how much the optimizer values further variants of a combo it already completes.
+- **Card Utilization**: Number of completable variants each card participates in. A card counts for a variant when it is one of its required cards or belongs to the card pool of one of its requirement templates, whether or not it is the card that satisfies the template.
 - **Utilization Cap**: The `tiered` (default) and `softcap` objectives penalize utilization above a cap, by default twice the Phase 1 median
 - **Utilization Floor**: Every card in a Phase 2 cube takes part in at least `--min-util-floor` completable combos
 - **Color Balance**: In a Phase 2 cube no color has more than `--max-color-ratio` times the cards of another color
@@ -359,7 +369,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with combo count held within tolerance of the reference count: the most combos found for a cube that satisfies the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity

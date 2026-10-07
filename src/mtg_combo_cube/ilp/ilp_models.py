@@ -51,6 +51,14 @@ class ComboData:
     required_cards: frozenset[str]  # Card names from 'uses' field
     requirement_options: list[RequirementOption]  # For each 'requires', template + valid cards
     popularity: int  # For tiebreaking (higher = better)
+    # The combo this variant is one way of assembling: the sorted Spellbook combo ids the
+    # variant belongs to ('of'), joined with "+". Variants with the same key are the same
+    # combo with a piece swapped. Defaults to the variant id (a group of one).
+    group_key: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.group_key:
+            self.group_key = self.id
 
     def all_requirements_resolvable(self) -> bool:
         """Check if all template requirements have at least one card option."""
@@ -86,6 +94,15 @@ class UtilizationStats:
     std_deviation: float
     total_absolute_deviation: int
     median_utilization: float
+
+
+@dataclass
+class ComboGroupStats:
+    """A combo group (distinct combo) and how many of its variants a cube completes."""
+
+    group_key: str
+    variant_count: int  # completed variants of the group
+    cards: list[str]  # selected cards taking part in a completed variant of the group
 
 
 @dataclass
@@ -155,10 +172,19 @@ class OptimizationResult:
 
     selected_cards: list[CandidateCard]
     completable_combo_ids: list[str]
-    combo_count: int
+    combo_count: int  # completed variants
     objective_value: float
     solve_time_seconds: float
     phase1_status: str  # "OPTIMAL", "FEASIBLE", "INFEASIBLE", "TIMEOUT"
+
+    # Combo grouping: completed variants belong to this many distinct combos (groups), and
+    # count this much with variant_weight (groups + variant_weight x further variants)
+    distinct_combo_count: int | None = None
+    weighted_combo_count: float | None = None
+    phase1_distinct_combo_count: int | None = None
+    phase1_weighted_combo_count: float | None = None
+    largest_combo_groups: list[ComboGroupStats] | None = None  # top groups by variants
+    variant_weight: float | None = None  # value of each further variant of a completed group
 
     # Multi-objective optimization fields (backward compatible)
     utilization_per_card: dict[str, int] | None = None
@@ -173,6 +199,11 @@ class OptimizationResult:
     # Combo count the Phase 2 combo window is measured from: the best cube found under the
     # coverage and color balance constraints
     phase2_reference_combo_count: int | None = None
+    phase2_reference_distinct_combo_count: int | None = None
+    # The quantity the window holds: groups + variant_weight x further variants of the
+    # reference cube (equal to phase2_reference_combo_count when variant_weight is 1)
+    phase2_reference_weighted_combo_count: float | None = None
+    phase2_combo_tolerance: float | None = None  # the window half-width, as a fraction
     is_multi_objective: bool = False
     # True when Phase 2 ran but found no solution, so this is the Phase 1 cube. phase2_status
     # and phase2_solve_time then describe the failed Phase 2 attempt.

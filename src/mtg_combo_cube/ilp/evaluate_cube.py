@@ -10,19 +10,24 @@ preprocessing), so the numbers are comparable with a build that used the same se
 import argparse
 import asyncio
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
+    completed_group_sizes,
     compute_color_stats,
     compute_utilization_stats,
+    largest_combo_groups,
+    weighted_combo_count,
 )
-from mtg_combo_cube.ilp.ilp_models import UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import ComboGroupStats, UtilizationStats
 from mtg_combo_cube.ilp.ilp_runner import (
     fetch_color_identities,
     format_color_stats,
+    format_combo_count,
     load_instance,
 )
 
@@ -35,18 +40,29 @@ def read_cube_file(path: str) -> list[str]:
         return [line.strip() for line in f if line.strip()]
 
 
+@dataclass
+class CubeEvaluation:
+    """What a cube list completes and how its cards are used."""
+
+    card_count: int
+    combo_count: int  # completed variants
+    distinct_combo_count: int  # combo groups with a completed variant
+    weighted_combo_count: float  # groups + variant_weight x further variants
+    utilization_stats: UtilizationStats
+    largest_combo_groups: list[ComboGroupStats]
+
+
 async def evaluate_cube(
     cube_file: str,
     max_variants: int = 20000,
     blocklist: frozenset[str] = frozenset(),
-) -> tuple[int, int, UtilizationStats]:
+    variant_weight: float = 0.1,
+) -> CubeEvaluation:
     """
     Evaluate a cube list against the instance built from the cached API data.
 
-    Returns:
-        - Number of cards in the cube
-        - Number of combos the cube completes
-        - Utilization statistics over the cube's cards
+    variant_weight is the value of each further completed variant of a combo, as in a
+    build's --variant-weight; it only affects weighted_combo_count.
     """
     cards = read_cube_file(cube_file)
     combos, candidate_cards = await load_instance(
@@ -63,9 +79,16 @@ async def evaluate_cube(
             f"(they count with utilization 0): {unknown[:5]}"
         )
 
-    combo_count = len(completable_combo_ids(cards, combos))
-    stats = compute_utilization_stats(card_utilization(cards, combos))
-    return len(cards), combo_count, stats
+    completed = completable_combo_ids(cards, combos)
+    group_sizes = completed_group_sizes(completed, combos)
+    return CubeEvaluation(
+        card_count=len(cards),
+        combo_count=len(completed),
+        distinct_combo_count=len(group_sizes),
+        weighted_combo_count=weighted_combo_count(group_sizes, variant_weight),
+        utilization_stats=compute_utilization_stats(card_utilization(cards, combos)),
+        largest_combo_groups=largest_combo_groups(cards, combos, completed_ids=completed),
+    )
 
 
 if __name__ == "__main__":
@@ -86,18 +109,38 @@ if __name__ == "__main__":
         default=None,
         help="Path to blocklist file (default: data/blocklist.txt)",
     )
+    argparser.add_argument(
+        "--variant-weight",
+        type=float,
+        default=0.1,
+        help="Value of each further completed variant of a combo, as used for the build "
+        "(default: 0.1); sets the weighted combo count",
+    )
     args = argparser.parse_args()
     logging.basicConfig(level=logging.WARNING)
 
-    card_count, combo_count, stats = asyncio.run(
+    evaluation = asyncio.run(
         evaluate_cube(
             cube_file=args.cube_file,
             max_variants=args.max_variants,
             blocklist=load_blocklist(args.blocklist),
+            variant_weight=args.variant_weight,
         )
     )
-    print(f"Cube: {Path(args.cube_file)} ({card_count} cards)")
-    print(f"Combos completed: {combo_count}")
+    stats = evaluation.utilization_stats
+    print(f"Cube: {Path(args.cube_file)} ({evaluation.card_count} cards)")
+    print(
+        "Combos completed: "
+        + format_combo_count(
+            evaluation.combo_count,
+            evaluation.distinct_combo_count,
+            evaluation.weighted_combo_count,
+        )
+    )
+    for group in evaluation.largest_combo_groups:
+        print(
+            f"  combo {group.group_key}: {group.variant_count} variants, {len(group.cards)} cards"
+        )
     print(
         f"Utilization: min={stats.min_utilization}, max={stats.max_utilization}, "
         f"range={stats.max_utilization - stats.min_utilization}, "

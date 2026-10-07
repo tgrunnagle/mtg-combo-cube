@@ -4,7 +4,7 @@ import itertools
 import logging
 import math
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
@@ -16,11 +16,15 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     COLORS,
     card_utilization,
     completable_combo_ids,
+    completed_group_sizes,
     compute_utilization_stats,
+    largest_combo_groups,
+    weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     CandidateCard,
     ComboData,
+    ComboGroupStats,
     CrossTemplateStats,
     OptimizationResult,
     RequirementCoverageStats,
@@ -46,6 +50,9 @@ class _BaseModel:
     x: dict[str, cp_model.IntVar]  # x[card] = 1 if the card is in the cube
     y: dict[str, cp_model.IntVar]  # y[combo.id] = 1 if the combo is completable
     counts: dict[str, int]  # variable/constraint counts by kind, reported in profile data
+    # g[group_key] = 1 iff a variant of the group is completable. Only for groups of two or
+    # more variants, and only when variant_weight < 1 (otherwise the score needs no g).
+    g: dict[str, cp_model.IntVar] = field(default_factory=dict)
     # Phase 2 only: z[cards] = 1 iff at least one card of that option pool is in the cube.
     # One variable per distinct pool of two or more cards, shared by every combo using it.
     option_satisfied: dict[frozenset[str], cp_model.IntVar] = field(default_factory=dict)
@@ -83,6 +90,9 @@ class _Solution:
 
     selected_cards: list[CandidateCard]
     completable_combo_ids: list[str]
+    distinct_combo_count: int
+    weighted_combo_count: float
+    largest_combo_groups: list[ComboGroupStats]
     utilization_per_card: dict[str, int]
     utilization_stats: UtilizationStats
     requirement_type_stats: list[RequirementTypeStats]
@@ -113,6 +123,12 @@ class ILPOptimizer:
 
     Maximizes the number of completable combos within a fixed cube size,
     using log-scaled popularity as a tiebreaker.
+
+    Combo score: a completed variant is worth 1 for the first variant of its combo group
+    (ComboData.group_key) and variant_weight for each further one, so with variant_weight 1
+    the score is the variant count and with 0 the number of distinct combos. Phase 1
+    maximizes the score and the Phase 2 combo window holds it. In the model the score is
+    scaled by WEIGHT_SCALE to stay integer.
     """
 
     DEFAULT_TIME_LIMIT = 300  # 5 minutes
@@ -141,6 +157,7 @@ class ILPOptimizer:
         util_cap: int | None = None,
         card_colors: Mapping[str, str] | None = None,
         max_color_ratio: float = 2.0,
+        variant_weight: float = 0.1,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -168,16 +185,76 @@ class ILPOptimizer:
         # color data, or with a ratio of 0, there is no color constraint.
         self.card_colors = card_colors
         self.max_color_ratio = max_color_ratio
+        if not 0 <= variant_weight <= 1:
+            raise ValueError(f"variant_weight must be between 0 and 1, got {variant_weight}")
+        self.variant_weight = variant_weight
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
-        logger.info(
-            f"ILP Optimizer initialized: {len(self.combos)} combos, "
-            f"{len(self.all_cards)} cards, cube size {cube_size}"
+        # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
+        # a group's first completed variant scores group_scale + variant_scale = WEIGHT_SCALE,
+        # each further one variant_scale
+        groups: dict[str, list[ComboData]] = defaultdict(list)
+        for combo in combos:
+            groups[combo.group_key].append(combo)
+        self.combo_groups: dict[str, list[ComboData]] = dict(groups)
+        self.combo_group: dict[str, str] = {combo.id: combo.group_key for combo in combos}
+        self.variant_scale: int = round(variant_weight * self.WEIGHT_SCALE)
+        self.group_scale: int = self.WEIGHT_SCALE - self.variant_scale
+        # Groups that get a g variable: two or more variants, and variant_weight < 1
+        self.grouped_keys: frozenset[str] = (
+            frozenset(key for key, members in self.combo_groups.items() if len(members) > 1)
+            if self.group_scale
+            else frozenset()
         )
+
+        logger.info(
+            f"ILP Optimizer initialized: {len(self.combos)} variants in "
+            f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards, cube size "
+            f"{cube_size}, variant weight {variant_weight:g}"
+        )
+
+    def _grouped_keys(self) -> list[str]:
+        """Keys of the groups that get a g variable, in instance order."""
+        return [key for key in self.combo_groups if key in self.grouped_keys]
+
+    def _group_sizes_of(self, combo_ids: Collection[str]) -> Counter[str]:
+        """Completed variants per group for the given completed variant ids."""
+        return Counter(self.combo_group[combo_id] for combo_id in combo_ids)
+
+    def _combo_score(self, combo_ids: Collection[str]) -> int:
+        """
+        The combo score of a set of completed variants, in WEIGHT_SCALE units.
+
+        This is the integer the model uses; it equals WEIGHT_SCALE times
+        cube_evaluation.weighted_combo_count when variant_weight x WEIGHT_SCALE is a whole
+        number, and differs by rounding otherwise.
+        """
+        score = 0
+        for key, completed in self._group_sizes_of(combo_ids).items():
+            if key in self.grouped_keys:
+                score += self.group_scale + self.variant_scale * completed
+            else:
+                score += self.WEIGHT_SCALE * completed
+        return score
+
+    def _weighted_combo_count(self, combo_ids: Collection[str]) -> float:
+        """The reported weighted count: groups + variant_weight x further variants."""
+        return weighted_combo_count(self._group_sizes_of(combo_ids), self.variant_weight)
+
+    def _combo_score_expr(self, base: _BaseModel) -> cp_model.LinearExpr:
+        """The combo score as a linear expression over y and g, in WEIGHT_SCALE units."""
+        terms: list[cp_model.LinearExpr] = []
+        for key, combos in self.combo_groups.items():
+            if key in base.g:
+                terms.append(self.group_scale * base.g[key])
+                terms.extend(self.variant_scale * base.y[combo.id] for combo in combos)
+            else:
+                terms.extend(self.WEIGHT_SCALE * base.y[combo.id] for combo in combos)
+        return cp_model.LinearExpr.sum(terms)
 
     def _build_participation_graph(self) -> dict[str, list[ComboData]]:
         """Build mapping of cards to combos they participate in."""
@@ -482,43 +559,88 @@ class ILPOptimizer:
             "required_card": required_constraint_count,
             "requirement_options": options_constraint_count,
         }
-        return _BaseModel(model=model, x=x, y=y, counts=counts)
+        base = _BaseModel(model=model, x=x, y=y, counts=counts)
+        self._add_group_vars(base)
+        return base
+
+    def _add_group_vars(self, base: _BaseModel) -> None:
+        """
+        Add g[k] = 1 iff a variant of group k is completable, for every group of two or
+        more variants, when variant_weight < 1.
+
+        g[k] <= sum(y[j] for j in k) and g[k] >= y[j] for each j, so g is exact in both
+        directions and the combo score can be bounded from either side.
+        """
+        linking = 0
+        for key in self._grouped_keys():
+            g = base.model.new_bool_var(f"group_{len(base.g)}")
+            variants = [base.y[combo.id] for combo in self.combo_groups[key]]
+            base.model.add(g <= sum(variants))
+            for y in variants:
+                base.model.add(g >= y)
+            linking += 1 + len(variants)
+            base.g[key] = g
+        if base.g:
+            base.counts["variables_group"] = len(base.g)
+            base.counts["group_linking"] = linking
+
+    def _tiebreak_weight(self, popularity: int) -> int:
+        """The popularity part of _compute_weight: the integer weight above WEIGHT_SCALE."""
+        return self._compute_weight(popularity) - self.WEIGHT_SCALE
 
     def _add_combo_count_objective(self, base: _BaseModel) -> None:
-        """Phase 1 objective: maximize the popularity-weighted combo count."""
-        objective_terms = []
-        for combo in self.combos:
-            weight = self._compute_weight(combo.popularity)
-            objective_terms.append(weight * base.y[combo.id])
-        base.model.maximize(sum(objective_terms))
+        """
+        Phase 1 objective: maximize the combo score, with popularity as a tiebreak.
 
-    def _combo_count_window(self, target_combo_count: int) -> tuple[int, int]:
-        """Smallest and largest combo count Phase 2 accepts for a Phase 1 count."""
+        The tiebreak is added once per counted item: on y[j] for a variant of a group
+        without a g variable (so with variant_weight 1 this is the popularity-weighted
+        variant count), and on g[k], with the group's highest popularity, for a grouped
+        combo. A further variant of a grouped combo earns exactly variant_scale, so the
+        tiebreak can never outweigh the variant credit, and with variant_weight 0 the
+        objective counts distinct combos only.
+        """
+        tiebreak_terms: list[cp_model.LinearExpr] = []
+        for key, members in self.combo_groups.items():
+            if key in base.g:
+                popularity = max(combo.popularity for combo in members)
+                tiebreak_terms.append(self._tiebreak_weight(popularity) * base.g[key])
+            else:
+                tiebreak_terms.extend(
+                    self._tiebreak_weight(combo.popularity) * base.y[combo.id] for combo in members
+                )
+        base.model.maximize(self._combo_score_expr(base) + cp_model.LinearExpr.sum(tiebreak_terms))
+
+    def _combo_count_window(self, target_combo_count: float) -> tuple[int, int]:
+        """Smallest and largest combo count Phase 2 accepts, in combo units (tolerance > 0)."""
+        return (
+            math.floor(target_combo_count * (1 - self.combo_tolerance)),
+            math.ceil(target_combo_count * (1 + self.combo_tolerance)),
+        )
+
+    def _combo_score_window(self, reference_score: int) -> tuple[int, int]:
+        """Smallest and largest combo score Phase 2 accepts for a reference score."""
         if self.combo_tolerance > 0:
-            return (
-                math.floor(target_combo_count * (1 - self.combo_tolerance)),
-                math.ceil(target_combo_count * (1 + self.combo_tolerance)),
-            )
-        return target_combo_count, target_combo_count
+            low, high = self._combo_count_window(reference_score / self.WEIGHT_SCALE)
+            return low * self.WEIGHT_SCALE, high * self.WEIGHT_SCALE
+        return reference_score, reference_score
 
-    def _add_combo_count_window(self, base: _BaseModel, target_combo_count: int) -> None:
-        """Hold the combo count at the Phase 1 target, within combo_tolerance."""
-        combo_sum = sum(base.y[combo.id] for combo in self.combos)
+    def _add_combo_count_window(self, base: _BaseModel, reference_score: int) -> None:
+        """Hold the combo score at the reference score, within combo_tolerance."""
+        score = self._combo_score_expr(base)
+        min_score, max_score = self._combo_score_window(reference_score)
 
         if self.combo_tolerance > 0:
-            min_combo_count, max_combo_count = self._combo_count_window(target_combo_count)
-
             logger.info(
                 f"Phase 2 combo tolerance: {self.combo_tolerance:.1%} "
-                f"(range: {min_combo_count}-{max_combo_count})"
+                f"(range: {min_score // self.WEIGHT_SCALE}-{max_score // self.WEIGHT_SCALE} "
+                f"weighted combos)"
             )
-
-            base.model.add(combo_sum >= min_combo_count)
-            base.model.add(combo_sum <= max_combo_count)
+            base.model.add(score >= min_score)
+            base.model.add(score <= max_score)
             base.counts["combo_count"] = 2
         else:
             # No tolerance - use exact equality
-            base.model.add(combo_sum == target_combo_count)
+            base.model.add(score == reference_score)
             base.counts["combo_count"] = 1
 
     def _add_phase2_coverage(self, base: _BaseModel) -> None:
@@ -1016,7 +1138,15 @@ class ILPOptimizer:
             base.model.add_hint(base.x[card], 1 if card in hint.cards else 0)
         for combo in self.combos:
             base.model.add_hint(base.y[combo.id], 1 if combo.id in hint.combo_ids else 0)
+        self._hint_group_vars(base, hint.combo_ids)
         return base
+
+    def _hint_group_vars(self, base: _BaseModel, combo_ids: set[str]) -> int:
+        """Hint every g variable with the groups the combos belong to; returns the hint count."""
+        completed_groups = self._group_sizes_of(combo_ids).keys()
+        for key, g in base.g.items():
+            base.model.add_hint(g, 1 if key in completed_groups else 0)
+        return len(base.g)
 
     def _solve_repair(
         self,
@@ -1033,14 +1163,14 @@ class ILPOptimizer:
         cards = {card for card in self.all_cards if solver.value(base.x[card]) == 1}
         return self._warm_start_for(cards), status_str
 
-    def _satisfies_window_and_floor(self, cube: _WarmStart, min_combo_count: int) -> bool:
-        return len(cube.combo_ids) >= min_combo_count and all(
+    def _satisfies_window_and_floor(self, cube: _WarmStart, min_score: int) -> bool:
+        return self._combo_score(cube.combo_ids) >= min_score and all(
             value >= self.min_utilization_floor for value in cube.utilization.values()
         )
 
     def _best_constrained_cube(self, phase1_start: _WarmStart) -> tuple[_WarmStart | None, str]:
         """
-        Find the cube with the most combos that satisfies coverage and color balance.
+        Find the cube with the highest combo score that satisfies coverage and color balance.
 
         Solved in the small Phase 1 model (one-sided y), hinted with the Phase 1 cube, for at
         most WARM_START_MAXIMIZE_FRACTION of the time limit, so the result is the best cube
@@ -1051,14 +1181,13 @@ class ILPOptimizer:
             self._repair_model(phase1_start), self.WARM_START_MAXIMIZE_FRACTION
         )
 
-    def _repair_floor(
-        self, hint: _WarmStart, min_combo_count: int
-    ) -> tuple[_WarmStart | None, str]:
+    def _repair_floor(self, hint: _WarmStart, min_score: int) -> tuple[_WarmStart | None, str]:
         """
         Find a cube that satisfies every Phase 2 constraint, starting from a hint cube.
 
         Solved in the small Phase 1 model (one-sided y) with the coverage and color balance
-        constraints, the lower edge of the combo window, and a soft floor on y:
+        constraints, the lower edge of the combo window (min_score, in WEIGHT_SCALE units),
+        and a soft floor on y:
         floor * x[c] <= sum(y over the combos of c) + shortfall[c]. The total shortfall is
         minimized and the search stops at the first cube with none. With one-sided y the sum
         never exceeds the true utilization, so zero shortfall means the true floor holds.
@@ -1070,7 +1199,7 @@ class ILPOptimizer:
         Returns the cube (None if none satisfies every constraint) and the solver status.
         """
         base = self._repair_model(hint)
-        base.model.add(sum(base.y[combo.id] for combo in self.combos) >= min_combo_count)
+        base.model.add(self._combo_score_expr(base) >= min_score)
         shortfalls = []
         for card in self.all_cards:
             shortfall = base.model.new_int_var(0, self.min_utilization_floor, f"short_{card}")
@@ -1086,21 +1215,30 @@ class ILPOptimizer:
         repaired, status_str = self._solve_repair(
             base, self.WARM_START_FLOOR_FRACTION, _StopAtZero(sum(shortfalls))
         )
-        if repaired is None or not self._satisfies_window_and_floor(repaired, min_combo_count):
+        if repaired is None or not self._satisfies_window_and_floor(repaired, min_score):
             return None, status_str
         return repaired, status_str
+
+    def _describe_combos(self, combo_ids: Collection[str]) -> str:
+        """'N variants (G combos)' for log messages, with the weighted count when it differs."""
+        groups = len(self._group_sizes_of(combo_ids))
+        text = f"{len(combo_ids)} variants ({groups} combos"
+        if self.group_scale:
+            text += f", weighted {self._weighted_combo_count(combo_ids):.1f}"
+        return text + ")"
 
     def _build_warm_start(
         self,
         phase1_result: OptimizationResult,
         profile_result: ProfileResult | None,
-    ) -> tuple[_WarmStart, int]:
+    ) -> tuple[_WarmStart, _WarmStart]:
         """
-        Choose the cube Phase 2 is hinted with and the combo count its window is measured from.
+        Choose the cube Phase 2 is hinted with and the reference cube its window is measured
+        from. Returns (warm start, reference).
 
-        The reference combo count is the most combos a cube can complete under the coverage
-        and color balance constraints. Phase 1 ignores those constraints, so measuring the
-        combo tolerance from the Phase 1 count can leave no feasible cube at all.
+        The reference is the cube with the highest combo score found under the coverage and
+        color balance constraints. Phase 1 ignores those constraints, so measuring the combo
+        tolerance from the Phase 1 score can leave no feasible cube at all.
 
         - The Phase 1 cube satisfies coverage and color balance: it is the reference.
         - Otherwise the best constrained cube is searched for (_best_constrained_cube) and
@@ -1117,7 +1255,6 @@ class ILPOptimizer:
         repair_start = time.perf_counter()
 
         reference = phase1_start
-        reference_count = phase1_result.combo_count
         if coverage_violations or color_violations:
             problem = (
                 f"Phase 1 cube breaks {coverage_violations} coverage and {color_violations} "
@@ -1131,20 +1268,20 @@ class ILPOptimizer:
                 )
             else:
                 reference = best
-                reference_count = len(best.combo_ids)
                 logger.info(
-                    f"Phase 2: {problem}; best cube satisfying them has {reference_count} "
-                    f"combos ({len(best.cards - phase1_start.cards)} cards swapped), "
-                    f"which the combo window is measured from"
+                    f"Phase 2: {problem}; best cube satisfying them has "
+                    f"{self._describe_combos(best.combo_ids)}, "
+                    f"{len(best.cards - phase1_start.cards)} cards swapped; "
+                    f"the combo window is measured from it"
                 )
 
-        min_combo_count, _ = self._combo_count_window(reference_count)
+        min_score, _ = self._combo_score_window(self._combo_score(reference.combo_ids))
         warm_start = reference
-        if not self._satisfies_window_and_floor(reference, min_combo_count):
+        if not self._satisfies_window_and_floor(reference, min_score):
             below_floor = sum(
                 1 for value in reference.utilization.values() if value < self.min_utilization_floor
             )
-            repaired, status_str = self._repair_floor(reference, min_combo_count)
+            repaired, status_str = self._repair_floor(reference, min_score)
             if repaired is None:
                 logger.warning(
                     f"Phase 2: warm start has {below_floor} cards below the utilization floor; "
@@ -1154,7 +1291,7 @@ class ILPOptimizer:
                 warm_start = repaired
                 logger.info(
                     f"Phase 2: warm start had {below_floor} cards below the utilization floor; "
-                    f"repaired warm start has {len(repaired.combo_ids)} combos"
+                    f"repaired warm start has {self._describe_combos(repaired.combo_ids)}"
                 )
 
         if warm_start is not phase1_start:
@@ -1162,7 +1299,7 @@ class ILPOptimizer:
             logger.info(f"Phase 2: warm start preparation took {repair_time:.1f}s")
             if profile_result:
                 profile_result.timings["warm_start_repair"] = repair_time
-        return warm_start, reference_count
+        return warm_start, reference
 
     def _add_warm_start(
         self,
@@ -1181,6 +1318,8 @@ class ILPOptimizer:
         for combo in self.combos:
             model.add_hint(base.y[combo.id], 1 if combo.id in warm_start.combo_ids else 0)
             hints_added += 1
+
+        hints_added += self._hint_group_vars(base, warm_start.combo_ids)
 
         for cards, z in base.option_satisfied.items():
             model.add_hint(z, 0 if cards.isdisjoint(warm_start.cards) else 1)
@@ -1266,6 +1405,10 @@ class ILPOptimizer:
         # Calculate requirement type stats
         selected_name_set = set(selected_names)
         completed_set = set(completed)
+        group_sizes = completed_group_sizes(completed_set, self.combos)
+        combo_groups = largest_combo_groups(
+            selected_name_set, self.combos, completed_ids=completed_set
+        )
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 
@@ -1282,6 +1425,9 @@ class ILPOptimizer:
         return _Solution(
             selected_cards=selected,
             completable_combo_ids=completed,
+            distinct_combo_count=len(group_sizes),
+            weighted_combo_count=weighted_combo_count(group_sizes, self.variant_weight),
+            largest_combo_groups=combo_groups,
             utilization_per_card=utilization,
             utilization_stats=utilization_stats,
             requirement_type_stats=req_stats,
@@ -1365,7 +1511,7 @@ class ILPOptimizer:
 
         logger.info(
             f"ILP solved ({status_str}): {len(solution.selected_cards)} cards, "
-            f"{len(solution.completable_combo_ids)} combos in {solve_time:.1f}s"
+            f"{self._describe_combos(solution.completable_combo_ids)} in {solve_time:.1f}s"
         )
         logger.info(
             f"Utilization stats: min={utilization_stats.min_utilization}, "
@@ -1386,6 +1532,12 @@ class ILPOptimizer:
             objective_value=objective / self.WEIGHT_SCALE,
             solve_time_seconds=solve_time,
             phase1_status=status_str,
+            distinct_combo_count=solution.distinct_combo_count,
+            weighted_combo_count=solution.weighted_combo_count,
+            phase1_distinct_combo_count=solution.distinct_combo_count,
+            phase1_weighted_combo_count=solution.weighted_combo_count,
+            largest_combo_groups=solution.largest_combo_groups,
+            variant_weight=self.variant_weight,
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=utilization_stats,
             phase1_solve_time=solve_time,
@@ -1462,8 +1614,8 @@ class ILPOptimizer:
         Phase 2: balance card utilization using the configured phase2_objective.
 
         The model is the base model plus:
-        - Combo count held at the reference count (within combo_tolerance): the most combos
-          a cube completes under coverage and color balance (_build_warm_start)
+        - Combo score held at the reference score (within combo_tolerance): the best cube
+          found under coverage and color balance (_build_warm_start)
         - Minimum coverage ratio constraints
         - Color balance constraints, when color data and a ratio are configured
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j
@@ -1480,7 +1632,7 @@ class ILPOptimizer:
         p1, phase1_solve_time = self._require_phase1_stats(phase1_result)
         logger.info(
             f"Starting {objective.label}: balancing utilization "
-            f"(Phase 1: {phase1_result.combo_count} combos)"
+            f"(Phase 1: {self._describe_combos(phase1_result.completable_combo_ids)})"
         )
         start_time = time.perf_counter()
         profile_result = ProfileResult(phase=objective.label) if profile else None
@@ -1492,12 +1644,21 @@ class ILPOptimizer:
             source = "--util-cap" if self.util_cap is not None else "2 x Phase 1 median"
             logger.info(f"Phase 2: utilization cap T = {util_cap} ({source})")
 
-        warm_start, target_combo_count = self._build_warm_start(phase1_result, profile_result)
+        warm_start, reference = self._build_warm_start(phase1_result, profile_result)
+        reference_score = self._combo_score(reference.combo_ids)
+        reference_info: dict[str, Any] = {
+            "phase2_reference_combo_count": len(reference.combo_ids),
+            "phase2_reference_distinct_combo_count": len(self._group_sizes_of(reference.combo_ids)),
+            "phase2_reference_weighted_combo_count": self._weighted_combo_count(
+                reference.combo_ids
+            ),
+            "phase2_combo_tolerance": self.combo_tolerance,
+        }
 
         build_start = time.perf_counter()
         base = self._build_base_model()
         base.hint_utilization = warm_start.utilization
-        self._add_combo_count_window(base, target_combo_count)
+        self._add_combo_count_window(base, reference_score)
         self._add_phase2_coverage(base)
         self._add_color_balance(base)
         self._add_exact_combo_linking(base)
@@ -1535,7 +1696,7 @@ class ILPOptimizer:
                 phase2_objective=self.phase2_objective,
                 phase2_util_cap=util_cap,
                 phase2_max_color_ratio=color_ratio,
-                phase2_reference_combo_count=target_combo_count,
+                **reference_info,
                 profile_data=profile_data,
             )
 
@@ -1554,6 +1715,12 @@ class ILPOptimizer:
             objective_value=phase1_result.objective_value,  # Preserve Phase 1 objective
             solve_time_seconds=phase1_solve_time + phase2_time,
             phase1_status=phase1_result.phase1_status,
+            distinct_combo_count=solution.distinct_combo_count,
+            weighted_combo_count=solution.weighted_combo_count,
+            phase1_distinct_combo_count=phase1_result.distinct_combo_count,
+            phase1_weighted_combo_count=phase1_result.weighted_combo_count,
+            largest_combo_groups=solution.largest_combo_groups,
+            variant_weight=self.variant_weight,
             utilization_per_card=solution.utilization_per_card,
             phase1_utilization_stats=p1,
             phase2_utilization_stats=phase2_stats,
@@ -1563,7 +1730,7 @@ class ILPOptimizer:
             phase2_objective=self.phase2_objective,
             phase2_util_cap=util_cap,
             phase2_max_color_ratio=color_ratio,
-            phase2_reference_combo_count=target_combo_count,
+            **reference_info,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
