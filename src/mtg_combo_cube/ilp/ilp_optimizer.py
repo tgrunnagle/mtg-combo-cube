@@ -318,13 +318,6 @@ class ILPOptimizer:
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
-        # The payoff cards of each category that are candidates (the runner adds every payoff
-        # card to the pool; an optimizer built directly may be given a table naming others)
-        self.payoff_cards: dict[str, frozenset[str]] = (
-            {name: payoffs.cards(name) & set(self.all_cards) for name in payoffs.names}
-            if payoffs is not None
-            else {}
-        )
         # The candidate cards each card mix rule counts. Lands are left out of every rule:
         # they are combo pieces rather than the mix being shaped, and colorless lands would
         # otherwise fill the colorless cap and colored lands the multicolor cap.
@@ -352,6 +345,22 @@ class ILPOptimizer:
         # definition, so the utilization floor and the objectives leave them alone.
         self.payoff_only_cards: frozenset[str] = frozenset(
             card for card in self.all_cards if not self.card_to_combos[card]
+        )
+        # The payoff cards of each category that Phase 2 can select: candidates (the runner
+        # adds every payoff card to the pool; an optimizer built directly may be given a table
+        # naming others) that are payoff-only or in at least min_utilization_floor combos,
+        # since _add_utilization_floor excludes a combo piece that can never reach the floor
+        self.payoff_cards: dict[str, frozenset[str]] = (
+            {
+                name: frozenset(
+                    card
+                    for card in payoffs.cards(name)
+                    if card in self.card_to_combos and self._payoff_card_selectable(card)
+                )
+                for name in payoffs.names
+            }
+            if payoffs is not None
+            else {}
         )
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
@@ -392,6 +401,13 @@ class ILPOptimizer:
             f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards{payoff_only}, cube "
             f"size {cube_size}, variant weight {variant_weight:g}, popularity weight "
             f"{popularity_weight:g}"
+        )
+
+    def _payoff_card_selectable(self, card: str) -> bool:
+        """Whether a candidate payoff card can be in a Phase 2 cube under the utilization floor."""
+        return (
+            card in self.payoff_only_cards
+            or len(self.card_to_combos[card]) >= self.min_utilization_floor
         )
 
     def _grouped_keys(self) -> list[str]:
@@ -1984,7 +2000,8 @@ class ILPOptimizer:
     def _payoff_floors(self) -> dict[str, int]:
         """
         The payoff cards per category that Phase 2 requires, for the categories with a
-        floor: min_payoffs, lowered to the payoff cards the category has when that is
+        floor: min_payoffs, lowered to the payoff cards the category can select
+        (payoff_cards: combo pieces below the utilization floor are left out) when that is
         smaller (_check_payoff_pool warns), as the outcome minimum is. A category whose
         outcome has no combo in the pool needs no outlet and gets no floor; without a payoff
         table or an outcome table there is none.
@@ -2035,7 +2052,7 @@ class ILPOptimizer:
     def _check_payoff_pool(self) -> None:
         """
         Warn about payoff floors the pool cannot meet, before solving: a category with fewer
-        payoff cards than the minimum has its floor lowered to what it has.
+        selectable payoff cards than the minimum has its floor lowered to what it has.
         """
         if self.payoffs is None or self.outcome_categories is None or self.min_payoffs <= 0:
             return
@@ -2046,13 +2063,14 @@ class ILPOptimizer:
                 )
             elif not cards:
                 logger.warning(
-                    f"Phase 2: the pool has no payoff cards for {name}; no payoff floor for it"
+                    f"Phase 2: the pool has no selectable payoff cards for {name}; no payoff "
+                    "floor for it"
                 )
             elif len(cards) < self.min_payoffs:
                 logger.warning(
-                    f"Phase 2: the pool has only {len(cards)} payoff cards for {name}, below the "
-                    f"minimum of {self.min_payoffs}; the floor is lowered to {len(cards)} (every "
-                    "such card must be in the cube)"
+                    f"Phase 2: the pool has only {len(cards)} selectable payoff cards for {name}, "
+                    f"below the minimum of {self.min_payoffs}; the floor is lowered to "
+                    f"{len(cards)} (every such card must be in the cube)"
                 )
 
     def _payoff_stats_of(self, cards: Collection[str]) -> PayoffStats | None:
@@ -2082,9 +2100,10 @@ class ILPOptimizer:
                     "categories have combos in the pool; it is not enforced"
                 )
             return {}
+        floors = self._payoff_floors()
         return {
-            "phase2_min_payoffs": self.min_payoffs or None,
-            "phase2_payoff_floors": self._payoff_floors() or None,
+            "phase2_min_payoffs": self.min_payoffs if floors else None,
+            "phase2_payoff_floors": floors or None,
         }
 
     # --- The Phase 2 cube rules together ---

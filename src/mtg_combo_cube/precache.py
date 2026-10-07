@@ -62,11 +62,15 @@ class PrecacheResult:
 
     @property
     def complete(self) -> bool:
-        """True when the variants file is in place and no request was left failing."""
+        """
+        True when the variants file is in place, no request was left failing and every
+        payoff query matches a card (a build with the same table fails otherwise).
+        """
         return (
             self.variants_cached
             and self.failed_templates == 0
             and self.failed_payoff_queries == 0
+            and not self.empty_payoff_queries
             and self.failed_attribute_requests == 0
         )
 
@@ -429,6 +433,9 @@ if __name__ == "__main__":
         f"Card attributes: {result.cards - result.cards_without_attributes} of {result.cards} "
         f"cards, {result.failed_attribute_requests} requests still failing"
     )
+    if result.empty_payoff_queries:
+        print("The payoff table has queries that match no card; a build with it fails.")
+        sys.exit(1)
     if not result.complete:
         print("Cache is INCOMPLETE; run again with --keep-existing to fetch what is missing.")
         sys.exit(1)

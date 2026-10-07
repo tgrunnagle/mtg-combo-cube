@@ -187,14 +187,49 @@ class TestPayoffFloor:
         assert result.phase2_payoff_floors == {"mana": 2}
         assert OUTLETS <= set(result.get_selected_card_names())
         assert (
-            "the pool has only 2 payoff cards for mana, below the minimum of 5; the floor is "
-            "lowered to 2 (every such card must be in the cube)"
+            "the pool has only 2 selectable payoff cards for mana, below the minimum of 5; "
+            "the floor is lowered to 2 (every such card must be in the cube)"
         ) in caplog.text
 
     def test_table_cards_outside_the_pool_are_ignored(self):
         optimizer = make_optimizer(payoffs=payoff_table({"mana": ["Ballista", "Not A Card"]}))
 
         assert optimizer.payoff_cards == {"mana": frozenset(["Ballista"])}
+
+    def test_combo_pieces_below_the_utilization_floor_do_not_count_toward_the_floor(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        # Q1 is in one combo: with a utilization floor of 2 it can never be selected, so a
+        # floor it is the only payoff card for would be unsatisfiable; a payoff-only card
+        # is exempt from the utilization floor and still counts
+        optimizer = make_optimizer(
+            payoffs=payoff_table({"mana": ["Q1", "Ballista"], "damage": ["Q2"]}),
+            min_payoffs=2,
+            min_utilization_floor=2,
+        )
+
+        assert optimizer.payoff_cards == {"mana": frozenset(["Ballista"]), "damage": frozenset()}
+        assert optimizer._payoff_floors() == {"mana": 1}
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer._check_payoff_pool()
+        assert (
+            "the pool has only 1 selectable payoff cards for mana, below the minimum of 2"
+        ) in caplog.text
+        assert "the pool has no selectable payoff cards for damage; no payoff floor" in caplog.text
+        # Without a utilization floor the combo piece counts
+        assert make_optimizer(
+            payoffs=payoff_table({"mana": ["Q1", "Ballista"]}), min_utilization_floor=0
+        ).payoff_cards == {"mana": frozenset(["Q1", "Ballista"])}
+
+    def test_min_payoffs_is_recorded_only_with_a_floor(self):
+        # No category of the table has combos in the pool, so no floor applies
+        result = make_optimizer(
+            payoffs=payoff_table({"tokens": ["Ballista"]}), min_payoffs=2
+        ).solve_two_phase()
+
+        assert result.is_multi_objective
+        assert result.phase2_min_payoffs is None
+        assert result.phase2_payoff_floors is None
 
     def test_payoff_only_cards_count_for_the_card_mix(self):
         # Ballista is colorless; with a colorless cap of 0 cards the outlet must be Comet

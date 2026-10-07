@@ -513,8 +513,9 @@ class TestPrecache:
 
         result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, payoffs=PAYOFFS)
 
-        # The cache is complete, but a build with this table would fail
-        assert result.complete
+        # Nothing failed, but a build with this table would, so the run is not complete
+        assert not result.complete
+        assert result.failed_payoff_queries == 0
         assert result.empty_payoff_queries == [STORM_QUERY]
         assert session.requests.count(STORM_URL) == 1
 
