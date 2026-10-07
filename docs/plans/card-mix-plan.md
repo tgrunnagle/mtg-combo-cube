@@ -204,7 +204,9 @@ Decisions:
 
 One full two-phase run at the defaults (`task build:ilp`: 300 cards, 20,000 variants, 360 s
 per phase, 8 workers) against the tracked cube built before this plan (same settings, the
-archetype rules already in force). The run replaced the tracked `data/current_best_cube.txt`.
+archetype rules already in force). The run replaced the tracked `data/current_best_cube.txt`;
+its `card_mix` blocks were recomputed after lands left the colorless count (the cube's two
+lands, Lotus Field and Maze of Ith, are colorless), which is the only figure that changed.
 
 | | Tracked cube before | This run |
 |---|---|---|
@@ -215,7 +217,7 @@ archetype rules already in force). The run replaced the tracked `data/current_be
 | Creatures | 189 (63%) | 180 (60%) |
 | Instants + sorceries | 10 | 17 |
 | Artifacts / enchantments | 104 / 40 | 81 / 51 |
-| Multicolor / colorless | 49 (16%) / 98 (33%) | 35 (12%) / 75 (25%) |
+| Multicolor / colorless (nonland) | 49 (16%) / 98 (33%) | 35 (12%) / 73 (24%) |
 | Mana value 5+ (nonland) / mean | 76 (25%) / 3.46 | 60 (20%) / 3.29 |
 | Cards per color W/U/B/R/G | 61/49/53/52/62 | 51/58/43/58/65 |
 | Lowest pair / lowest mono | UR 264 / U 182 | BR 280 / R 186 |
@@ -239,3 +241,9 @@ runs to its time limit.
   between 3.3 and 3.5 in the verification run) and could reuse the share-cap helper per color.
 - The mono-colored balance (`--mono-color-ratio`) is implemented but off: at the default
   configuration the mono counts already sit within a factor of 1.5.
+- `ilp_optimizer.py` now carries four rule families (coverage, color balance, archetype
+  support, card mix) and is about 2,400 lines. The card mix methods only need the cube size,
+  the candidate cards, their attributes and `base.x`, and `_CubeRule` already decouples a rule
+  from the solve flow, so before the per-color curve or the combo-variety work the rule
+  families should move into their own module that returns `list[_CubeRule]` plus its pool
+  check and result info.
