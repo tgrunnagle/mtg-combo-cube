@@ -65,11 +65,6 @@ class ComboData:
         if not self.group_key:
             self.group_key = self.id
 
-    @property
-    def color_count(self) -> int:
-        """Number of colors in the variant's color identity (0 when unknown)."""
-        return len(self.color_identity or "")
-
     def all_requirements_resolvable(self) -> bool:
         """Check if all template requirements have at least one card option."""
         return all(len(opt.cards) > 0 for opt in self.requirement_options)
@@ -232,7 +227,7 @@ class OptimizationResult:
     phase1_archetype_stats: ArchetypeStats | None = None
     phase2_archetype_stats: ArchetypeStats | None = None
     # Combo count the Phase 2 combo window is measured from: the best cube found under the
-    # coverage and color balance constraints
+    # Phase 2 cube rules (coverage, color balance, archetype support)
     phase2_reference_combo_count: int | None = None
     phase2_reference_distinct_combo_count: int | None = None
     # The quantity the window holds: groups + variant_weight x further variants of the

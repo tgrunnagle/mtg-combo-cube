@@ -47,7 +47,8 @@ if __name__ == "__main__":
         type=float,
         default=0.1,
         help="Tolerance of the phase 2 combo window (default: 0.1 = 10%%), measured from the "
-        "combo score of the best cube found under the coverage and color balance constraints. "
+        "combo score of the best cube found under the Phase 2 cube rules (coverage, color "
+        "balance, archetype support). "
         "The score is in weighted combos when --variant-weight is below 1 (see the README, "
         "'Combos and variants'). Set to 0 to hold the score exactly.",
     )
@@ -154,7 +155,7 @@ if __name__ == "__main__":
         type=float,
         default=0.25,
         help="Archetype support for phase 2: at most this share of the completed combos may "
-        "need three or more colors (default: 0.25). Between 0 and 1; 0 removes the cap.",
+        "need three or more colors (default: 0.25). Between 0 and 1; 0 or 1 removes the cap.",
     )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:

@@ -194,7 +194,6 @@ class TestArchetypes:
         combos = [*COLORED, make_combo("x", ["X1", "X2"], identity=None)]
 
         assert combos[-1].color_identity is None
-        assert combos[-1].color_count == 0
         assert compute_archetype_stats(EVERY_COLORED_CARD, combos) is None
         with pytest.raises(ValueError, match="no color identity"):
             combos_per_archetype(["X1", "X2"], combos)

@@ -110,7 +110,6 @@ class TestComboPreprocessorColorIdentity:
         combo_data_list, _ = await preprocessor.preprocess_variants([variant])
 
         assert combo_data_list[0].color_identity == expected
-        assert combo_data_list[0].color_count == len(expected)
 
 
 class TestComboPreprocessorBlocklist:

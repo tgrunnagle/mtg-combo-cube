@@ -1196,9 +1196,7 @@ class ILPOptimizer:
 
     def _archetype_rules_enabled(self) -> bool:
         """Whether any archetype rule is configured and the combos carry color identities."""
-        return self.has_color_identities and (
-            self.min_pair_combos > 0 or self.min_mono_combos > 0 or self.max_wide_combo_share > 0
-        )
+        return bool(self._archetype_minimums()) or self._wide_share_fraction() is not None
 
     def _archetype_minimums(self) -> dict[str, int]:
         """The minimum number of combos per archetype, for the archetypes with a minimum."""
@@ -1212,8 +1210,11 @@ class ILPOptimizer:
         return minimums
 
     def _wide_share_fraction(self) -> Fraction | None:
-        """The wide combo cap as an integer fraction, or None when there is no cap."""
-        if not self.has_color_identities or self.max_wide_combo_share <= 0:
+        """
+        The wide combo cap as an integer fraction, or None when there is no cap: a share of
+        0, or of 1 (every combo may be wide), disables it.
+        """
+        if not self.has_color_identities or not 0 < self.max_wide_combo_share < 1:
             return None
         return Fraction(self.max_wide_combo_share).limit_denominator(100)
 
@@ -1222,14 +1223,9 @@ class ILPOptimizer:
         """A variant of at most two colors, which a two-color drafter can assemble."""
         return len(known_color_identity(combo)) < 3
 
-    def _wide_only_variants(self) -> list[ComboData]:
-        """The variants of the groups whose every variant needs three or more colors."""
-        return [
-            combo
-            for members in self.combo_groups.values()
-            if not any(self._is_narrow(combo) for combo in members)
-            for combo in members
-        ]
+    def _wide_variants(self) -> list[ComboData]:
+        """The variants that need three or more colors."""
+        return [combo for combo in self.combos if not self._is_narrow(combo)]
 
     def _group_indicator(self, base: _BaseModel, key: str) -> cp_model.IntVar:
         """
@@ -1302,16 +1298,17 @@ class ILPOptimizer:
         where narrow counts the groups with a completed variant of at most two colors.
 
         In the Phase 1 style repair models y is one-sided, so the solver could meet the cap
-        by leaving y at 0 for a wide combo the cube completes. The variants of the groups
-        that only count as wide are therefore linked exactly (_add_exact_combo_linking),
-        which makes total exact where under-counting would loosen the cap; under-counting a
-        narrow group only tightens it.
+        by leaving y at 0 for a wide combo the cube completes. Every wide variant is
+        therefore linked exactly (_add_exact_combo_linking); with g >= y that makes total
+        exact for every group completed through a wide variant, including a group of mixed
+        identity whose narrow variant the cube does not complete. Under-counting a group
+        completed through a narrow variant only tightens the cap.
         """
         share = self._wide_share_fraction()
         if share is None:
             return
-        wide_only = self._wide_only_variants()
-        self._add_exact_combo_linking(base, wide_only)
+        wide = self._wide_variants()
+        self._add_exact_combo_linking(base, wide)
         total = cp_model.LinearExpr.sum(
             [self._group_indicator(base, key) for key in self.combo_groups]
         )
@@ -1319,7 +1316,7 @@ class ILPOptimizer:
         base.model.add((share.denominator - share.numerator) * total <= share.denominator * narrow)
         logger.info(
             f"Phase 2: Added the wide combo cap (at most {self.max_wide_combo_share:.0%} of the "
-            f"completed combos may need three or more colors; {len(wide_only)} wide variants "
+            f"completed combos may need three or more colors; {len(wide)} wide variants "
             f"linked exactly)"
         )
         base.counts["wide_combo_cap"] = 1
@@ -1560,12 +1557,11 @@ class ILPOptimizer:
         model instead (_repair_floor). If that finds none, the reference cube is used.
         """
         phase1_start = self._warm_start_for({card.name for card in phase1_result.selected_cards})
-        violations = self._cube_rule_violations(phase1_start.cards)
+        broken = self._describe_broken_rules(phase1_start.cards)
         repair_start = time.perf_counter()
 
         reference = phase1_start
-        if any(violations.values()):
-            broken = ", ".join(f"{count} {label}" for label, count in violations.items() if count)
+        if broken:
             problem = f"Phase 1 cube breaks {broken} constraints"
             shortfalls = self._describe_archetype_shortfalls(phase1_start.cards)
             if shortfalls:
@@ -1944,7 +1940,9 @@ class ILPOptimizer:
         return {
             "phase2_min_pair_combos": self.min_pair_combos or None,
             "phase2_min_mono_combos": self.min_mono_combos or None,
-            "phase2_max_wide_combo_share": self.max_wide_combo_share or None,
+            "phase2_max_wide_combo_share": (
+                self.max_wide_combo_share if self._wide_share_fraction() is not None else None
+            ),
         }
 
     def _solve_phase2(
@@ -1957,7 +1955,7 @@ class ILPOptimizer:
 
         The model is the base model plus:
         - Combo score held at the reference score (within combo_tolerance): the best cube
-          found under coverage and color balance (_build_warm_start)
+          found under the Phase 2 cube rules (_build_warm_start)
         - The Phase 2 cube rules (_cube_rules): coverage, color balance when color data and a
           ratio are configured, and the archetype minimums and wide combo cap when set
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j

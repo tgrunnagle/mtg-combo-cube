@@ -216,6 +216,53 @@ class TestWideComboCap:
         assert not {"A", "B", "C"} <= best.cards
         assert len(completable_combo_ids(best.cards, MONO)) == 3
 
+    def test_repair_model_counts_a_mixed_group_completed_only_through_its_wide_variant(self):
+        """A group with a wide and a narrow variant is wide when only the wide one is
+        complete; the one-sided repair model cannot hide that by zeroing its y."""
+        combos = [
+            ComboData("abc", frozenset(["A", "B", "C"]), [], 50, "mixed", color_identity="WUB"),
+            ComboData("abd", frozenset(["A", "B", "D"]), [], 50, "mixed", color_identity="WU"),
+            ComboData("ab", frozenset(["A", "B"]), [], 50, color_identity="WU"),
+            ComboData("bc", frozenset(["B", "C"]), [], 50, color_identity="UB"),
+            ComboData("ac", frozenset(["A", "C"]), [], 50, color_identity="WB"),
+            *(
+                ComboData(
+                    color.lower(),
+                    frozenset([f"{color}1", f"{color}2"]),
+                    [],
+                    10,
+                    color_identity=color,
+                )
+                for color in MONO_COLORS
+            ),
+        ]
+        optimizer = make_optimizer(combos, cube_size=7, max_wide_combo_share=0.05)
+        assert [combo.id for combo in optimizer._wide_variants()] == ["abc"]
+        # A, B, C and two mono pairs: six combos, the mixed one only through abc
+        phase1 = optimizer._warm_start_for({"A", "B", "C", "W1", "W2", "U1", "U2"})
+        assert optimizer._wide_cap_violations(phase1.cards) == 1
+
+        best, status = optimizer._best_constrained_cube(phase1)
+
+        assert best is not None, status
+        assert optimizer._wide_cap_violations(best.cards) == 0
+        # The best cube under the cap completes the narrow variant too: A, B, C, D (five
+        # combos, none wide) and one mono pair
+        assert {"A", "B", "C", "D"} <= best.cards
+        assert len(completable_combo_ids(best.cards, combos)) == 6
+
+    def test_share_of_one_disables_the_cap(self):
+        optimizer = make_optimizer(MONO, cube_size=7, max_wide_combo_share=1, combo_tolerance=0)
+
+        assert not optimizer._archetype_rules_enabled()
+        result = optimizer.solve_two_phase(profile=True)
+
+        assert result.is_multi_objective
+        assert result.phase2_max_wide_combo_share is None
+        assert result.combo_count == 6
+        assert result.profile_data is not None
+        assert "wide_combo_cap" not in result.profile_data["phase2"]["counts"]
+
     def test_cap_at_the_current_share_keeps_the_wide_combo(self):
         # One wide combo in six is under 25%
         result = make_optimizer(

@@ -216,7 +216,7 @@ With `v = 1` this is the popularity-weighted variant count.
 Phase 2 builds a fresh model: the base model plus the following, in this order.
 
 1. **Combo count window.** The combo score must stay within `--combo-tolerance` (10% by
-   default) of the reference score: the best cube found under coverage and color balance (see
+   default) of the reference score: the best cube found under the cube rules below (see
    "Reference cube and warm start"). The window edges are whole combos: `floor` and `ceil` of
    the reference in combo units, times `WEIGHT_SCALE`. With `--variant-weight` below 1 the
    tolerance is in weighted combos, so a cube may trade variants of a completed combo for
@@ -250,7 +250,10 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    combos may need three or more colors, written as
    `(den - num) * total <= den * narrow` over the group indicators, where `narrow` counts
    the groups with a completed variant of at most two colors (the same `h` construction).
-   Both archetype rules are skipped at 0, and when the combos carry no color identities.
+   In the one-sided repair models every wide variant is also linked exactly, so the solver
+   cannot meet the cap by leaving `y` at 0 for a wide combo the cube completes. Both
+   archetype rules are skipped at 0 (the cap also at 1), and when the combos carry no color
+   identities.
 9. **The objective**, chosen with `--phase2-objective`.
 10. **Warm start.** The model is hinted with a starting cube.
 
