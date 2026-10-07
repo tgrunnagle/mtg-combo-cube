@@ -55,6 +55,11 @@ class ComboData:
     # variant belongs to ('of'), joined with "+". Variants with the same key are the same
     # combo with a piece swapped. Defaults to the variant id (a group of one).
     group_key: str = ""
+    # Color identity of the variant as given by Spellbook: WUBRG letters in that order,
+    # "" for colorless, None when unknown (an instance built without identities). It covers
+    # the required cards; a template requirement filled by a colored card can add a color
+    # the identity does not show.
+    color_identity: str | None = None
 
     def __post_init__(self) -> None:
         if not self.group_key:
@@ -116,6 +121,24 @@ class ColorStats:
     unknown: int  # cards without color data
     variance: float  # population variance of cards_per_color
     std_deviation: float
+
+
+@dataclass
+class ArchetypeStats:
+    """How many distinct combos a cube offers each draft archetype."""
+
+    # Completed combos (groups) that a drafter of each archetype can assemble: the ten
+    # two-color pairs, the five mono colors and "C" (colorless). A combo counts for every
+    # archetype its color identity fits in, so a mono-white combo counts for W, WU, WB, WR
+    # and WG, and a colorless combo for every archetype.
+    combos_per_archetype: dict[str, int]
+    # Completed combos by the number of colors in their identity (0 to 5)
+    combos_by_color_count: dict[int, int]
+
+    @property
+    def wide_combo_count(self) -> int:
+        """Completed combos that need three or more colors."""
+        return sum(count for colors, count in self.combos_by_color_count.items() if colors >= 3)
 
 
 @dataclass
@@ -196,8 +219,15 @@ class OptimizationResult:
     phase2_objective: str | None = None  # name of the Phase 2 objective that ran
     phase2_util_cap: int | None = None  # utilization cap T used ("softcap" and "tiered" only)
     phase2_max_color_ratio: float | None = None  # color balance ratio applied, if any
+    # Archetype support applied in Phase 2, when the rules were enabled (None otherwise)
+    phase2_min_pair_combos: int | None = None
+    phase2_min_mono_combos: int | None = None
+    phase2_max_wide_combo_share: float | None = None
+    # Distinct combos per draft archetype of each phase's cube
+    phase1_archetype_stats: ArchetypeStats | None = None
+    phase2_archetype_stats: ArchetypeStats | None = None
     # Combo count the Phase 2 combo window is measured from: the best cube found under the
-    # coverage and color balance constraints
+    # Phase 2 cube rules (coverage, color balance, archetype support)
     phase2_reference_combo_count: int | None = None
     phase2_reference_distinct_combo_count: int | None = None
     # The quantity the window holds: groups + variant_weight x further variants of the

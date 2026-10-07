@@ -8,13 +8,20 @@ from pathlib import Path
 
 import pytest
 
+from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES
 from mtg_combo_cube.ilp.ilp_models import (
+    ArchetypeStats,
     CandidateCard,
     ComboGroupStats,
     OptimizationResult,
     UtilizationStats,
 )
-from mtg_combo_cube.ilp.ilp_runner import format_combo_count, log_phase_summary, write_stats
+from mtg_combo_cube.ilp.ilp_runner import (
+    format_archetype_stats,
+    format_combo_count,
+    log_phase_summary,
+    write_stats,
+)
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -619,10 +626,12 @@ class TestWriteStatsCombosAndColors:
             log_phase_summary(result, None)
 
         assert (
-            "Combos: Phase 1 4 variants in 3 combos (weighted 3.1), best under coverage and "
-            "color 4 variants in 3 combos (weighted 3.1), Phase 2 3 variants in 2 combos "
+            "Combos: Phase 1 4 variants in 3 combos (weighted 3.1), best under the cube rules "
+            "4 variants in 3 combos (weighted 3.1), Phase 2 3 variants in 2 combos "
             "(weighted 2.1) (-25.0% variants from Phase 1)"
         ) in caplog.text
+        # No archetype data: no archetype lines
+        assert "Archetypes" not in caplog.text
 
     def test_format_combo_count_hides_a_weighted_count_equal_to_the_variants(self):
         assert format_combo_count(4, 1, 4.0) == "4 variants in 1 combos"
@@ -659,3 +668,86 @@ class TestWriteStatsCombosAndColors:
 
         assert "colors" not in stats["phase1"]
         assert "colors" not in stats["phase2"]
+
+
+def archetype_stats(**counts: int) -> ArchetypeStats:
+    """Archetype stats with the given per-archetype counts (0 elsewhere) and 3 narrow combos."""
+    return ArchetypeStats(
+        combos_per_archetype={archetype: counts.get(archetype, 0) for archetype in ARCHETYPES},
+        combos_by_color_count={0: 1, 1: 2, 2: 0, 3: 1, 4: 0, 5: 0},
+    )
+
+
+class TestWriteStatsArchetypes:
+    """Per-phase archetype counts in the stats file and the log."""
+
+    def _result(self) -> OptimizationResult:
+        return replace(
+            TestWriteStatsCombosAndColors._two_phase_result(),
+            phase1_archetype_stats=archetype_stats(WU=4, W=3, C=1),
+            phase2_archetype_stats=archetype_stats(WU=2, UB=1, U=1, C=1),
+            phase2_min_pair_combos=20,
+            phase2_min_mono_combos=5,
+            phase2_max_wide_combo_share=0.25,
+        )
+
+    def test_archetypes_per_phase(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path)
+
+        phase1 = stats["phase1"]["archetypes"]
+        assert phase1["combos_per_archetype"]["WU"] == 4
+        assert phase1["combos_per_archetype"]["RG"] == 0
+        assert set(phase1["combos_per_archetype"]) == set(ARCHETYPES)
+        assert phase1["combos_by_color_count"] == {
+            "0": 1,
+            "1": 2,
+            "2": 0,
+            "3": 1,
+            "4": 0,
+            "5": 0,
+        }
+        assert stats["phase2"]["archetypes"]["combos_per_archetype"]["UB"] == 1
+        assert stats["phase2"]["min_pair_combos"] == 20
+        assert stats["phase2"]["min_mono_combos"] == 5
+        assert stats["phase2"]["max_wide_combo_share"] == 0.25
+
+    def test_settings_left_out_when_not_applied(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(
+            TestWriteStatsCombosAndColors._two_phase_result(), tmp_path
+        )
+
+        assert "archetypes" not in stats["phase1"]
+        assert "archetypes" not in stats["phase2"]
+        for key in ("min_pair_combos", "min_mono_combos", "max_wide_combo_share"):
+            assert key not in stats["phase2"]
+
+    def test_fallback_records_the_settings(self, tmp_path: Path):
+        result = replace(
+            self._result(),
+            is_multi_objective=False,
+            phase2_fell_back=True,
+            phase2_status="INFEASIBLE",
+        )
+
+        stats = TestWriteStatsCombosAndColors._write(result, tmp_path)
+
+        assert stats["phase2"]["fell_back_to_phase1"]
+        assert stats["phase2"]["min_pair_combos"] == 20
+
+    def test_log_phase_summary_prints_the_pair_counts(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._result(), None)
+
+        assert (
+            "Archetypes, Phase 1: pairs WU=4, WB=0, WR=0, WG=0, UB=0, UR=0, UG=0, BR=0, BG=0, "
+            "RG=0; mono W=3, U=0, B=0, R=0, G=0; colorless 1; 3+ colors 1 of 4 (25%)"
+        ) in caplog.text
+        assert "Archetypes, Phase 2: pairs WU=2, WB=0, WR=0, WG=0, UB=1," in caplog.text
+
+    def test_format_archetype_stats_without_combos(self):
+        stats = ArchetypeStats(
+            combos_per_archetype=dict.fromkeys(ARCHETYPES, 0),
+            combos_by_color_count=dict.fromkeys(range(6), 0),
+        )
+
+        assert format_archetype_stats(stats).endswith("colorless 0; 3+ colors 0 of 0")

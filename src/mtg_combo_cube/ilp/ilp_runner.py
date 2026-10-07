@@ -8,8 +8,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.ilp.cube_evaluation import compute_color_stats
+from mtg_combo_cube.ilp.cube_evaluation import (
+    COLOR_PAIRS,
+    COLORLESS,
+    MONO_COLORS,
+    compute_color_stats,
+)
 from mtg_combo_cube.ilp.ilp_models import (
+    ArchetypeStats,
     CandidateCard,
     ColorStats,
     ComboData,
@@ -72,6 +78,12 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["util_cap"] = result.phase2_util_cap
     if result.phase2_max_color_ratio is not None:
         info["max_color_ratio"] = result.phase2_max_color_ratio
+    if result.phase2_min_pair_combos is not None:
+        info["min_pair_combos"] = result.phase2_min_pair_combos
+    if result.phase2_min_mono_combos is not None:
+        info["min_mono_combos"] = result.phase2_min_mono_combos
+    if result.phase2_max_wide_combo_share is not None:
+        info["max_wide_combo_share"] = result.phase2_max_wide_combo_share
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
@@ -161,10 +173,35 @@ def format_color_stats(stats: ColorStats) -> str:
     )
 
 
+def _archetypes_block(stats: ArchetypeStats | None) -> dict:
+    """The "archetypes" entry of a phase block, empty when the result has no archetype data."""
+    if stats is None:
+        return {}
+    return {
+        "archetypes": {
+            "combos_per_archetype": stats.combos_per_archetype,
+            "combos_by_color_count": stats.combos_by_color_count,
+        }
+    }
+
+
+def format_archetype_stats(stats: ArchetypeStats) -> str:
+    """One-line summary of the distinct combos per draft archetype."""
+    counts = stats.combos_per_archetype
+    pairs = ", ".join(f"{pair}={counts[pair]}" for pair in COLOR_PAIRS)
+    mono = ", ".join(f"{color}={counts[color]}" for color in MONO_COLORS)
+    total = sum(stats.combos_by_color_count.values())
+    share = f" ({stats.wide_combo_count / total:.0%})" if total else ""
+    return (
+        f"pairs {pairs}; mono {mono}; colorless {counts[COLORLESS]}; "
+        f"3+ colors {stats.wide_combo_count} of {total}{share}"
+    )
+
+
 def log_phase_summary(
     result: OptimizationResult, color_identities: Mapping[str, str] | None
 ) -> None:
-    """Log the combo count and color distribution of each phase's cube."""
+    """Log the combo count, color distribution and archetype counts of each phase's cube."""
     phase1_count = _phase1_combo_count(result)
     phase1_text = format_combo_count(
         phase1_count or 0,
@@ -181,7 +218,7 @@ def log_phase_summary(
                 result.phase2_reference_distinct_combo_count,
                 result.phase2_reference_weighted_combo_count,
             )
-            constrained = f", best under coverage and color {reference_text}"
+            constrained = f", best under the cube rules {reference_text}"
         phase2_text = format_combo_count(
             result.combo_count, result.distinct_combo_count, result.weighted_combo_count
         )
@@ -199,6 +236,11 @@ def log_phase_summary(
         phase2_colors = _color_stats(result.selected_cards, color_identities)
         if phase2_colors is not None:
             logger.info(f"Colors, Phase 2: {format_color_stats(phase2_colors)}")
+
+    if result.phase1_archetype_stats is not None:
+        logger.info(f"Archetypes, Phase 1: {format_archetype_stats(result.phase1_archetype_stats)}")
+    if result.is_multi_objective and result.phase2_archetype_stats is not None:
+        logger.info(f"Archetypes, Phase 2: {format_archetype_stats(result.phase2_archetype_stats)}")
 
 
 def write_stats(
@@ -255,6 +297,7 @@ def write_stats(
             "std_deviation": p1.std_deviation,
             "total_absolute_deviation": p1.total_absolute_deviation,
             **_colors_block(_phase1_cards(result), color_identities),
+            **_archetypes_block(result.phase1_archetype_stats),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -273,6 +316,7 @@ def write_stats(
             "total_absolute_deviation": p2.total_absolute_deviation,
             **_phase2_objective_info(result),
             **_colors_block(result.selected_cards, color_identities),
+            **_archetypes_block(result.phase2_archetype_stats),
         }
 
         # Calculate improvement metrics
@@ -477,6 +521,9 @@ async def build_cube_ilp(
     util_cap: int | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
+    min_pair_combos: int = 250,
+    min_mono_combos: int = 150,
+    max_wide_combo_share: float = 0.25,
 ) -> tuple[list[str], int, OptimizationResult, dict[str, str] | None]:
     """
     Build cube using ILP optimization with optional API caching.
@@ -526,6 +573,9 @@ async def build_cube_ilp(
         card_colors=card_colors,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
+        min_pair_combos=min_pair_combos,
+        min_mono_combos=min_mono_combos,
+        max_wide_combo_share=max_wide_combo_share,
     )
 
     # Run optimization (two-phase by default)
@@ -577,6 +627,9 @@ async def run_ilp(
     util_cap: int | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
+    min_pair_combos: int = 250,
+    min_mono_combos: int = 150,
+    max_wide_combo_share: float = 0.25,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result, color_identities = await build_cube_ilp(
@@ -598,6 +651,9 @@ async def run_ilp(
         util_cap=util_cap,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
+        min_pair_combos=min_pair_combos,
+        min_mono_combos=min_mono_combos,
+        max_wide_combo_share=max_wide_combo_share,
     )
 
     logger.info(

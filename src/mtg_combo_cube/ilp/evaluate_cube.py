@@ -18,14 +18,16 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     completable_combo_ids,
     completed_group_sizes,
+    compute_archetype_stats,
     compute_color_stats,
     compute_utilization_stats,
     largest_combo_groups,
     weighted_combo_count,
 )
-from mtg_combo_cube.ilp.ilp_models import ComboGroupStats, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import ArchetypeStats, ComboGroupStats, UtilizationStats
 from mtg_combo_cube.ilp.ilp_runner import (
     fetch_color_identities,
+    format_archetype_stats,
     format_color_stats,
     format_combo_count,
     load_instance,
@@ -50,6 +52,7 @@ class CubeEvaluation:
     weighted_combo_count: float  # groups + variant_weight x further variants
     utilization_stats: UtilizationStats
     largest_combo_groups: list[ComboGroupStats]
+    archetype_stats: ArchetypeStats | None  # distinct combos per draft archetype, if known
 
 
 async def evaluate_cube(
@@ -88,6 +91,7 @@ async def evaluate_cube(
         weighted_combo_count=weighted_combo_count(group_sizes, variant_weight),
         utilization_stats=compute_utilization_stats(card_utilization(cards, combos)),
         largest_combo_groups=largest_combo_groups(cards, combos, completed_ids=completed),
+        archetype_stats=compute_archetype_stats(cards, combos, completed),
     )
 
 
@@ -147,6 +151,8 @@ if __name__ == "__main__":
         f"mean={stats.mean_utilization:.2f}, median={stats.median_utilization:.1f}, "
         f"std_dev={stats.std_deviation:.2f}"
     )
+    if evaluation.archetype_stats is not None:
+        print("Archetypes (distinct combos): " + format_archetype_stats(evaluation.archetype_stats))
 
     cube_cards = read_cube_file(args.cube_file)
     color_identities = asyncio.run(fetch_color_identities(cube_cards, read_cache=True))

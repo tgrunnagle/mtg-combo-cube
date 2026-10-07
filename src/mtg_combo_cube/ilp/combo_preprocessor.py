@@ -4,6 +4,7 @@ import logging
 from collections import Counter, defaultdict
 from enum import StrEnum
 
+from mtg_combo_cube.ilp.cube_evaluation import COLORS
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, RequirementOption
 from mtg_combo_cube.ilp.requirement_normalizer import (
     compute_requirement_group_key,
@@ -154,6 +155,7 @@ class ComboPreprocessor:
             requirement_options=requirement_options,
             popularity=variant.popularity or 0,
             group_key=self._group_key(variant),
+            color_identity=self._color_identity(variant),
         )
 
     @staticmethod
@@ -165,6 +167,15 @@ class ComboPreprocessor:
         a group of its own (ComboData defaults the key to the variant id).
         """
         return "+".join(str(combo_id) for combo_id in sorted(ref.id for ref in variant.of))
+
+    @staticmethod
+    def _color_identity(variant: Variant) -> str:
+        """
+        The color identity of a variant as WUBRG letters in that order; "" for colorless.
+
+        Spellbook writes colorless as "C" and orders pair letters its own way ("GU", "RW").
+        """
+        return "".join(color for color in COLORS if color in variant.identity)
 
     async def _resolve_template(self, scryfall_api: str) -> list[str] | None:
         """Get cards matching a Scryfall template query, or None if the fetch failed."""
