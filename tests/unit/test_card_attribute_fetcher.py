@@ -97,14 +97,69 @@ class TestCardAttributeFetcher:
         ]
 
     @pytest.mark.asyncio
-    async def test_missing_fields_default(self, tmp_path):
+    async def test_missing_or_null_fields_default(self, tmp_path):
         session = FakeSession(
-            {URL: [collection_response([{"name": "Card A", "color_identity": ["R"]}])]}
+            {
+                URL: [
+                    collection_response(
+                        [
+                            {"name": "Card A", "color_identity": ["R"]},
+                            {
+                                "name": "Card B",
+                                "color_identity": None,
+                                "cmc": None,
+                                "type_line": None,
+                            },
+                            {"color_identity": ["W"], "type_line": "Creature", "cmc": 1},
+                        ]
+                    )
+                ]
+            }
         )
 
-        attributes = await fetch(session, tmp_path, ["Card A"])
+        attributes = await fetch(session, tmp_path, ["Card A", "Card B", "Card C"])
 
-        assert attributes == {"Card A": CardAttributes("R", "", 0.0)}
+        # Nulls degrade to the unknown-card values; a record without a name is skipped
+        assert attributes == {
+            "Card A": CardAttributes("R", "", 0.0),
+            "Card B": CardAttributes("", "", 0.0),
+        }
+
+    @pytest.mark.asyncio
+    async def test_type_line_falls_back_to_the_faces(self, tmp_path):
+        record = {
+            "name": "Front // Back",
+            "color_identity": ["U"],
+            "cmc": 2,
+            "card_faces": [{"type_line": "Creature \u2014 Bird"}, {"type_line": "Instant"}],
+        }
+        session = FakeSession({URL: [collection_response([record])]})
+
+        attributes = await fetch(session, tmp_path, ["Front"])
+
+        assert attributes["Front"].type_line == "Creature \u2014 Bird // Instant"
+        assert attributes["Front"].types == {"Creature"}
+
+    @pytest.mark.asyncio
+    async def test_unreadable_cache_is_kept_and_not_overwritten(self, tmp_path, caplog):
+        await fetch(
+            FakeSession({URL: [collection_response({"Card A": ["W"]})]}), tmp_path, ["Card A"]
+        )
+        session = FakeSession({URL: [collection_response({"Card B": ["U"]})]})
+        fetcher = make_attribute_fetcher(session, tmp_path)
+
+        def locked() -> dict:
+            raise OSError("file locked")
+
+        fetcher._load_cache = locked  # type: ignore[method-assign]
+        with caplog.at_level("WARNING"):
+            attributes = await fetcher.fetch_attributes(["Card A", "Card B"])
+
+        # The fetch goes ahead without the cache, and the file keeps its entries
+        assert attributes == {"Card B": CardAttributes("U", "Creature", 2.0)}
+        assert "could not be read" in caplog.text
+        with open(fetcher.cache_path, encoding="utf-8") as f:
+            assert list(json.load(f)["cards"]) == ["Card A"]
 
     @pytest.mark.asyncio
     async def test_requests_are_batched(self, tmp_path):
@@ -215,7 +270,7 @@ class TestCardAttributeFetcher:
     @pytest.mark.parametrize(
         "cached",
         [
-            {"version": 0, "cards": {"Card A": "W"}},  # the old color-only cache
+            {"version": 0, "cards": {"Card A": "W"}},  # an unsupported version
             {"version": CardAttributeFetcher.CACHE_VERSION, "cards": {"Card A": {"typo": 1}}},
             {"version": CardAttributeFetcher.CACHE_VERSION, "cards": {"Card A": "W"}},
             {

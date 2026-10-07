@@ -56,7 +56,12 @@ class CardAttributeFetcher:
             whose request failed, are left out.
         """
         wanted = list(dict.fromkeys(names))
-        cached = self._load_cache() if self.enable_read else {}
+        cached: dict[str, CardAttributes] = {}
+        if self.enable_read:
+            try:
+                cached = self._load_cache()
+            except OSError as e:
+                logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
         attributes = {name: cached[name] for name in wanted if name in cached}
         missing = [name for name in wanted if name not in attributes]
 
@@ -84,29 +89,50 @@ class CardAttributeFetcher:
 
         result: dict[str, CardAttributes] = {}
         for card in data.get("data", []):
-            attributes = CardAttributes(
-                color_identity="".join(
-                    c for c in self.COLOR_ORDER if c in card.get("color_identity", [])
-                ),
-                type_line=card.get("type_line", ""),
-                mana_value=float(card.get("cmc", 0.0)),
-            )
-            for face_name in card["name"].split(" // "):
+            card_name = card.get("name")
+            if not isinstance(card_name, str):
+                logger.warning("Skipping a Scryfall record without a name")
+                continue
+            attributes = self._parse_record(card)
+            for face_name in card_name.split(" // "):
                 if (name := requested.get(face_name.lower())) is not None:
                     result[name] = attributes
         return result
 
+    @classmethod
+    def _parse_record(cls, card: dict) -> CardAttributes:
+        """
+        The attributes in a Scryfall card record. Null or missing fields degrade to the
+        unknown-card values; a layout that keeps the type line on its faces only
+        (`reversible_card`) joins the faces' type lines.
+        """
+        type_line = card.get("type_line") or " // ".join(
+            face.get("type_line") or "" for face in card.get("card_faces") or []
+        )
+        return CardAttributes(
+            color_identity="".join(
+                c for c in cls.COLOR_ORDER if c in (card.get("color_identity") or [])
+            ),
+            type_line=type_line,
+            mana_value=float(card.get("cmc") or 0.0),
+        )
+
     def _load_cache(self) -> dict[str, CardAttributes]:
-        """Load the cache file. A missing, unreadable or outdated file counts as empty."""
+        """
+        Load the cache file. A missing, outdated or malformed file counts as empty (it will
+        be rewritten). A file that cannot be read at all raises OSError, so the caller can
+        decide: a transient lock must not look like an empty cache.
+        """
         if not self.cache_path.exists():
             return {}
+        with open(self.cache_path, encoding="utf-8") as f:
+            text = f.read()
         try:
-            with open(self.cache_path, encoding="utf-8") as f:
-                data = json.load(f)
+            data = json.loads(text)
             if data.get("version") != self.CACHE_VERSION:
                 raise ValueError(f"unsupported cache version {data.get('version')}")
             return {name: self._parse_entry(entry) for name, entry in data["cards"].items()}
-        except Exception as e:
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
             logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
             return {}
 
@@ -121,8 +147,15 @@ class CardAttributeFetcher:
         )
 
     def _write_cache(self, fetched: dict[str, CardAttributes]) -> None:
-        """Add fetched attributes to the cache file, keeping entries already in the file."""
-        cards = self._load_cache()
+        """
+        Add fetched attributes to the cache file, keeping entries already in the file. The
+        file is left alone when it cannot be read, so a transient error does not erase it.
+        """
+        try:
+            cards = self._load_cache()
+        except OSError as e:
+            logger.warning(f"Cache not updated: {self.cache_path.name} could not be read ({e})")
+            return
         cards.update(fetched)
         temp_path = self.cache_path.with_name(f"{self.cache_path.name}.tmp")
         try:
