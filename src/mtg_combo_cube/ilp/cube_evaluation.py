@@ -8,15 +8,14 @@ from collections.abc import Collection, Mapping
 from itertools import combinations
 
 from mtg_combo_cube.ilp.ilp_models import (
-    UNKNOWN_CARD,
     ArchetypeStats,
-    CardAttributes,
     CardMixStats,
     ColorStats,
     ComboData,
     ComboGroupStats,
     UtilizationStats,
 )
+from mtg_combo_cube.models import UNKNOWN_CARD, CardAttributes
 
 COLORS = "WUBRG"
 # The ten two-color pairs, in WUBRG order
@@ -333,9 +332,10 @@ def compute_card_mix_stats(
     """
     Compute the make-up of the cards by type, color count and mana value.
 
-    Cards missing from attributes are counted as unknown and, as in the card mix rules,
-    as colorless and typeless; they are left out of the mana values, which are over the
-    nonland cards with data.
+    `multicolor` and `colorless` count what the multicolor and colorless caps count, so
+    lands are not colorless here. Cards missing from attributes are counted as unknown and,
+    as in the card mix rules, as colorless and typeless; they are left out of the mana
+    values, which are over the nonland cards with data.
     """
     type_counts = dict.fromkeys(CARD_TYPES, 0)
     mana_value_counts = dict.fromkeys(range(MANA_VALUE_CAP + 1), 0)
@@ -345,6 +345,7 @@ def compute_card_mix_stats(
 
     for card in cards:
         card_attributes = attributes.get(card)
+        known = card_attributes is not None
         if card_attributes is None:
             unknown += 1
             card_attributes = UNKNOWN_CARD
@@ -353,9 +354,9 @@ def compute_card_mix_stats(
             type_counts[card_type] += 1
         if card_attributes.is_multicolor:
             multicolor += 1
-        elif card_attributes.is_colorless:
+        elif card_attributes.is_colorless and "Land" not in types:
             colorless += 1
-        if "Land" in types or card_attributes is UNKNOWN_CARD:
+        if "Land" in types or not known:
             continue
         mana_value = card_attributes.mana_value
         mana_value_counts[min(int(mana_value), MANA_VALUE_CAP)] += 1

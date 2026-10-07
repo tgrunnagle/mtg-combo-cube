@@ -150,12 +150,12 @@ Every combo count and utilization number is computed from the selected cards, no
 `card_mix` describes the cube's cards, from the same Scryfall data:
 
 - `type_counts`: cards of each card type (Creature, Instant, Sorcery, Artifact, Enchantment, Planeswalker, Battle, Land); a card counts once for every type it has, taken from the front face of a multi-faced card.
-- `multicolor`, `colorless`: cards with two or more colors and with none. `unknown` counts cards without Scryfall data, which count as colorless.
+- `multicolor`, `colorless`: the cards the multicolor and colorless caps count: cards with two or more colors, and nonland cards with none (unlike `colors.colorless`, which includes lands). `unknown` counts cards without Scryfall data, which count as colorless.
 - `mana_value_counts`, `mean_mana_value`, `mean_mana_value_per_color`: the nonland cards by mana value (`7` means 7 or more), their mean, and the mean of the nonland cards of each color. A double-faced card has its front face's mana value, a split card the sum; cards without Scryfall data are left out.
 
 The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ..."), color distribution, archetype counts ("Archetypes, Phase 2: pairs WU=358, WB=335, ...; mono W=219, ...; colorless 128; 3+ colors 304 of 1380 (22%)") and card mix ("Card mix, Phase 2: types Creature=180 (60%), Instant=10, ...; multicolor 43 (14%), colorless 74 (25%); mana value (nonland) mean 3.2, ...") at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` and `card_mix` are left out.
 
-[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,444 variants in 1,060 distinct combos; every two-color pair can assemble at least 280 of them and every mono color at least 186; 60% creatures, 25% colorless cards, 17 instants and sorceries).
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,444 variants in 1,060 distinct combos; every two-color pair can assemble at least 280 of them and every mono color at least 186; 60% creatures, 25% colorless cards, 17 instants and sorceries). It was built before lands stopped counting toward the colorless cap, which could have changed it by its two lands at most.
 
 ### Evaluating a Cube
 

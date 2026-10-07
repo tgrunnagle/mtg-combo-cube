@@ -19,8 +19,9 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     largest_combo_groups,
     weighted_combo_count,
 )
-from mtg_combo_cube.ilp.ilp_models import CardAttributes, ComboData, RequirementOption
+from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.models import CardAttributes
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 
@@ -372,7 +373,7 @@ class TestComputeCardMixStats:
             "Land": 1,
         }
         assert stats.multicolor == 1
-        assert stats.colorless == 2  # the golem and the unknown card
+        assert stats.colorless == 2  # the golem and the unknown card, not the forest
         assert stats.unknown == 1
         # Nonland mana values: 1, 7, 1, 4, 3, 9.5; the unknown card is left out
         assert stats.mana_value_counts == {0: 0, 1: 2, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 2}

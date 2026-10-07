@@ -7,12 +7,12 @@ from typing import Any
 import pytest
 
 from mtg_combo_cube.ilp.ilp_models import (
-    CardAttributes,
     CardMixRules,
     ComboData,
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.models import CardAttributes
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 # Every card mix rule off, for tests of other Phase 2 rules that pass card attributes

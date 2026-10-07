@@ -13,12 +13,12 @@ from mtg_combo_cube import runner
 from mtg_combo_cube.ilp import ilp_runner
 from mtg_combo_cube.ilp.ilp_models import (
     CandidateCard,
-    CardAttributes,
     CardMixRules,
     ComboData,
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.models import CardAttributes
 
 
 def run_cli(monkeypatch: pytest.MonkeyPatch, *args: str) -> dict[str, Any]:

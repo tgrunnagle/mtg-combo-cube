@@ -8,11 +8,10 @@ from pathlib import Path
 
 import pytest
 
-from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES
+from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES, compute_card_mix_stats
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CandidateCard,
-    CardAttributes,
     CardMixRules,
     ComboGroupStats,
     OptimizationResult,
@@ -25,6 +24,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     log_phase_summary,
     write_stats,
 )
+from mtg_combo_cube.models import CardAttributes
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -685,7 +685,7 @@ CARD_MIX_ATTRIBUTES = {
     "Card A": CardAttributes("W", "Creature \u2014 Human", 2),
     "Card B": CardAttributes("WU", "Instant", 1),
     "Card C": CardAttributes("", "Artifact Creature \u2014 Golem", 7),
-    "Card D": CardAttributes("U", "Land", 0),
+    "Card D": CardAttributes("", "Land", 0),
 }
 
 
@@ -727,9 +727,11 @@ class TestWriteStatsCardMix:
         assert phase1["mean_mana_value_per_color"]["W"] == pytest.approx(1.5)
         assert phase1["mean_mana_value_per_color"]["G"] == 0.0
         assert phase1["unknown"] == 0
-        # Phase 2 cube: Card A, Card B, Card D (a land: left out of the mana values)
+        # Phase 2 cube: Card A, Card B, Card D (a land: left out of the mana values and
+        # not colorless, as for the colorless cap)
         phase2 = stats["phase2"]["card_mix"]
         assert phase2["type_counts"]["Land"] == 1
+        assert phase2["colorless"] == 0
         assert phase2["mean_mana_value"] == pytest.approx(1.5)
 
     def test_card_mix_rules_applied(self, tmp_path: Path):
@@ -771,8 +773,6 @@ class TestWriteStatsCardMix:
         assert "Card mix, Phase 2: types Creature=1 (33%)" in caplog.text
 
     def test_format_reports_unknown_cards(self):
-        from mtg_combo_cube.ilp.cube_evaluation import compute_card_mix_stats
-
         stats = compute_card_mix_stats(["Card A", "Mystery"], CARD_MIX_ATTRIBUTES)
 
         assert format_card_mix_stats(stats).endswith("; unknown=1")

@@ -7,7 +7,7 @@ from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
 
-from mtg_combo_cube.ilp.ilp_models import CardAttributes
+from mtg_combo_cube.models import CardAttributes
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 
 logger = logging.getLogger(__name__)
@@ -105,7 +105,14 @@ class CardAttributeFetcher:
                 data = json.load(f)
             if data.get("version") != self.CACHE_VERSION:
                 raise ValueError(f"unsupported cache version {data.get('version')}")
-            return {name: CardAttributes(**entry) for name, entry in data["cards"].items()}
+            return {
+                name: CardAttributes(
+                    color_identity=str(entry["color_identity"]),
+                    type_line=str(entry["type_line"]),
+                    mana_value=float(entry["mana_value"]),
+                )
+                for name, entry in data["cards"].items()
+            }
         except Exception as e:
             logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
             return {}

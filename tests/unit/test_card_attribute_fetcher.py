@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import UNKNOWN_CARD, CardAttributes
+from mtg_combo_cube.models import UNKNOWN_CARD, CardAttributes
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from tests.unit.scryfall_fakes import FakeResponse, FakeSession, make_fetcher
 
@@ -218,6 +218,12 @@ class TestCardAttributeFetcher:
             {"version": 0, "cards": {"Card A": "W"}},  # the old color-only cache
             {"version": CardAttributeFetcher.CACHE_VERSION, "cards": {"Card A": {"typo": 1}}},
             {"version": CardAttributeFetcher.CACHE_VERSION, "cards": {"Card A": "W"}},
+            {
+                "version": CardAttributeFetcher.CACHE_VERSION,
+                "cards": {
+                    "Card A": {"color_identity": "W", "type_line": "Creature", "mana_value": "x"}
+                },
+            },
         ],
     )
     @pytest.mark.asyncio

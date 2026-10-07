@@ -32,10 +32,8 @@ from mtg_combo_cube.ilp.cube_evaluation import (
 )
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
-    UNKNOWN_CARD,
     ArchetypeStats,
     CandidateCard,
-    CardAttributes,
     CardMixRules,
     ComboData,
     ComboGroupStats,
@@ -46,12 +44,14 @@ from mtg_combo_cube.ilp.ilp_models import (
     RequirementTypeStats,
     TemplateOverlapPairStats,
     UtilizationStats,
+    hundredths,
 )
 from mtg_combo_cube.ilp.profiling import (
     ProfileResult,
     extract_solver_stats,
     log_profile_comparison,
 )
+from mtg_combo_cube.models import UNKNOWN_CARD, CardAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -1159,7 +1159,7 @@ class ILPOptimizer:
         """A balance ratio as an integer fraction, or None when there is no constraint."""
         if self.card_attributes is None or ratio <= 0:
             return None
-        return Fraction(ratio).limit_denominator(100)
+        return hundredths(ratio)
 
     def _color_balance_ratio(self) -> Fraction | None:
         """The color balance ratio as an integer fraction, or None when there is no constraint."""
@@ -1235,14 +1235,14 @@ class ILPOptimizer:
         The most cards a share cap allows, or None when there is no cap: a share that
         rounds (to hundredths) to 0 or to 1, or no card data to apply it to.
         """
-        share = CardMixRules.fraction(max_share)
+        share = hundredths(max_share)
         if self.card_attributes is None or not 0 < share < 1:
             return None
         return math.floor(share * self.cube_size)
 
     def _floor_count(self, min_share: float) -> int | None:
         """The fewest cards a share floor requires, or None when there is no floor."""
-        share = CardMixRules.fraction(min_share)
+        share = hundredths(min_share)
         if self.card_attributes is None or share <= 0:
             return None
         return math.ceil(share * self.cube_size)
@@ -1441,7 +1441,7 @@ class ILPOptimizer:
         """
         if not self.has_color_identities:
             return None
-        share = Fraction(self.max_wide_combo_share).limit_denominator(100)
+        share = hundredths(self.max_wide_combo_share)
         return share if 0 < share < 1 else None
 
     @staticmethod
@@ -2162,7 +2162,7 @@ class ILPOptimizer:
             if (
                 self.min_pair_combos
                 or self.min_mono_combos
-                or 0 < Fraction(self.max_wide_combo_share).limit_denominator(100) < 1
+                or 0 < hundredths(self.max_wide_combo_share) < 1
             ):
                 logger.warning(
                     "Phase 2: the combos have no color identities; archetype support is not "

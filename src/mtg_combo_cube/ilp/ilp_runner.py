@@ -20,7 +20,6 @@ from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
     ArchetypeStats,
     CandidateCard,
-    CardAttributes,
     CardMixRules,
     CardMixStats,
     ColorStats,
@@ -28,7 +27,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.models import Variant
+from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache

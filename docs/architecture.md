@@ -58,13 +58,13 @@ All code lives under `src/mtg_combo_cube/`.
 |--------|----------------|
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
 | `runner.py` | Loads the blocklist and dispatches to the ILP or greedy runner. |
-| `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...). |
+| `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
 | `blocklist.py` | Reads `data/blocklist.txt`: one card name per line, `#` comments allowed. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
-| `scryfall/card_attribute_fetcher.py` | `CardAttributeFetcher`: color identity, type line and mana value of named cards (`CardAttributes`), with its own disk cache. Used by the color balance and card mix rules and the color and card mix statistics. |
+| `scryfall/card_attribute_fetcher.py` | `CardAttributeFetcher`: the `CardAttributes` of named cards, with its own disk cache. Used by the color balance and card mix rules and the color and card mix statistics. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
@@ -388,8 +388,9 @@ colorless cards, and the variance and standard deviation of the five per-color c
 also has an `archetypes` entry: `combos_per_archetype`, the distinct combos whose color
 identity fits each of the ten color pairs, the five mono colors and `C` (colorless), and
 `combos_by_color_count`, the distinct combos by the number of colors they need. A `card_mix`
-entry gives the cards per type, the multicolor and colorless counts, and the mana value
-histogram and means (overall and per color) of the nonland cards. The `phase2` block records
+entry gives the cards per type, the multicolor and colorless counts (what the two caps
+count, so lands are not colorless there), and the mana value histogram and means (overall
+and per color) of the nonland cards. The `phase2` block records
 the archetype settings that were applied and, as `card_mix_rules`, the card mix settings in
 force.
 
