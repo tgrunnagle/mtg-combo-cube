@@ -392,7 +392,8 @@ class OptimizationResult:
     phase1_combo_score: float | None = None
     phase2_reference_combo_score: float | None = None
     # Combo count the Phase 2 combo window is measured from: the best cube found under the
-    # Phase 2 cube rules (coverage, color balance, archetype support, card mix)
+    # Phase 2 cube rules (coverage, color balance, archetype support, card mix, outcome
+    # rules; see ILPOptimizer._cube_rules)
     phase2_reference_combo_count: int | None = None
     phase2_reference_distinct_combo_count: int | None = None
     # The quantity the window holds: groups + variant_weight x further variants of the

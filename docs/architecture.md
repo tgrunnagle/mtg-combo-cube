@@ -195,8 +195,8 @@ g[k] <= sum_{j in k} y[j],  g[k] >= y[j]        for each group k of two or more 
 
 The `y` constraints only stop `y[j]` from being 1 when the cube is missing something. That is
 sufficient whenever `y` is being maximized. `g` is exact in both directions; the group
-variables exist when `--variant-weight` is below 1 (the score needs them) or an archetype rule
-is on (the rules count groups), and are left out otherwise.
+variables exist when `--variant-weight` is below 1 (the score needs them) or an archetype or
+outcome rule is on (the rules count groups), and are left out otherwise.
 
 ### Combo score
 
@@ -228,10 +228,13 @@ maximize  WEIGHT_SCALE * score + tiebreak        t(p) = 0.001 * log(1 + p)
 tiebreak = sum_{j not grouped} t(popularity[j]) * y[j] + sum_{k grouped} t(max popularity in k) * g[k]
 ```
 
-Popularity is a tiebreak only, added once per counted item: per variant for groups without a
-`g` variable, per group otherwise. A further variant of a grouped combo earns exactly `v`, so
-with `v = 0` the objective counts distinct combos. Weights are scaled to integers for CP-SAT.
-With `v = 1` this is the popularity-weighted variant count.
+With `--popularity-weight` 0, popularity is a tiebreak only, added once per counted item:
+per variant for groups without a `g` variable, per group otherwise. A further variant of a
+grouped combo then earns exactly `v`, so with `v = 0` the objective counts distinct combos,
+and with `v = 1` this is the popularity-weighted variant count. With a weight above 0 the
+score's weights carry the popularity factor (see "Combo score") and the tiebreak still
+applies on top of it, so a tie in the weighted score goes to the more popular cube. Weights
+are scaled to integers for CP-SAT.
 
 ### Phase 2: balance utilization
 
@@ -349,10 +352,10 @@ Phase 1 cube's overage instead.
 #### Reference cube and warm start
 
 Phase 1 ignores the cube rules, and at full size they are expensive: coverage and color
-balance alone cost close to 10% of the combos, and with the archetype rules and the card mix
-the reference cube scores about a quarter below the Phase 1 cube (1,220 against 1,599 weighted
-combos in the tracked run). Measuring the combo window from the Phase 1 count would then leave
-no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
+balance alone cost close to 10% of the combos, and with the archetype rules, the card mix and
+the outcome minimum the reference cube scores nearly 30% below the Phase 1 cube (1,157.5
+against 1,622.9 weighted combos in the tracked run). Measuring the combo window from the
+Phase 1 count would then leave no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
 is built, both in the small Phase 1 model with the cube rules added:
 
 1. **Reference cube** (`_best_constrained_cube`). If the Phase 1 cube breaks a cube rule, the
@@ -445,14 +448,14 @@ category of the outcome table, with `uncategorized` (completed combos in no cate
 and the share below the pool median. The `phase2` block records the archetype settings that
 were applied, the card mix settings in force as `card_mix_rules` with the card counts they
 applied as `card_mix_limits`, the number of candidate cards without Scryfall data, and the
-outcome settings applied (`outcome_minimums` per category and `max_outcome_share`). With a
-`--popularity-weight` above 0, `metadata.popularity_weight` records it and each block carries
+outcome settings applied (`outcome_minimums` per category and `max_outcome_share`).
+`metadata.popularity_weight` records the weight; with a weight above 0 each block also carries
 the popularity-weighted `combo_score` (the `phase2` block also `reference_combo_score`).
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
 settings (`--variant-weight 0.1`, the archetype minimums, the card mix rules and the outcome
-minimum of 40) at 300 cards and 20,000 variants with 360 s per phase. Everything else under `data/` is ignored by git,
-including `data/cache/`.
+minimum of 40) at 300 cards and 20,000 variants with 360 s per phase. Everything else under
+`data/` is ignored by git, including `data/cache/`.
 
 ## Testing
 

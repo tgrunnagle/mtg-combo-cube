@@ -2,7 +2,7 @@ version: '3'
 
 # Defaults shared by the build and precache tasks; override on the command line,
 # e.g. task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000
-# Further flags go after "--". The archetype minimums are sized for the default build, so
+# Further flags go after "--". The archetype and outcome minimums are sized for the default build, so
 # a smaller one needs: task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0
 vars:
   CUBE_SIZE: 300

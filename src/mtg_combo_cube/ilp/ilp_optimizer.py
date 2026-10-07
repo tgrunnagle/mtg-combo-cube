@@ -759,12 +759,14 @@ class ILPOptimizer:
         Phase 1 objective: maximize the combo score, with popularity as a tiebreak.
 
         The tiebreak is added once per counted item: on y[j] for a variant of a group
-        without a g variable (so with variant_weight 1 this is the popularity-weighted
-        variant count), and on g[k], with the group's highest popularity, for a grouped
-        combo. A further variant of a grouped combo earns exactly variant_scale, so the
+        without a g variable (so with variant_weight 1 and popularity_weight 0 this is the
+        popularity-weighted variant count), and on g[k], with the group's highest
+        popularity, for a grouped combo. With popularity_weight 0 a further variant of a
+        grouped combo earns exactly variant_scale; with a weight above 0 the group's factor
+        scales both weights (_group_scales) and the tiebreak stacks on top. Either way the
         tiebreak can never outweigh the variant credit, and with variant_weight 0 the
         objective counts distinct combos only. With variant_weight 1 the g variables, if an
-        archetype rule created them, play no part in the objective.
+        archetype or outcome rule created them, play no part in the objective.
         """
         tiebreak_terms: list[cp_model.LinearExpr] = []
         for key, members in self.combo_groups.items():
@@ -2112,9 +2114,9 @@ class ILPOptimizer:
         from. Returns (warm start, reference).
 
         The reference is the cube with the highest combo score found under the Phase 2 cube
-        rules (coverage, color balance, archetype support, card mix). Phase 1 ignores them, so
-        measuring the combo tolerance from the Phase 1 score can leave no feasible cube at
-        all.
+        rules (_cube_rules: coverage, color balance, archetype support, card mix, outcome
+        rules). Phase 1 ignores them, so measuring the combo tolerance from the Phase 1 score
+        can leave no feasible cube at all.
 
         - The Phase 1 cube satisfies every cube rule: it is the reference.
         - Otherwise the best constrained cube is searched for (_best_constrained_cube) and

@@ -58,7 +58,7 @@ if __name__ == "__main__":
         default=0.1,
         help="Tolerance of the phase 2 combo window (default: 0.1 = 10%%), measured from the "
         "combo score of the best cube found under the Phase 2 cube rules (coverage, color "
-        "balance, archetype support, card mix). "
+        "balance, archetype support, card mix, outcome rules). "
         "The score is in weighted combos when --variant-weight is below 1 (see the README, "
         "'Combos and variants'). Set to 0 to hold the score exactly.",
     )
