@@ -84,6 +84,8 @@ class TestParse:
             ({"a": {"patterns": ["x"], "min_combos": True}}, "non-integer minimum"),
             ({"a": {"patterns": ["x"], "min_combos": -1}}, "negative minimum"),
             ({"a": ["re:("]}, "invalid regex"),
+            ({"a": ["re:"]}, "empty regex"),
+            ({"a": ["re:  "]}, "empty regex"),
         ],
     )
     def test_invalid_tables_are_rejected(self, table: object, message: str):

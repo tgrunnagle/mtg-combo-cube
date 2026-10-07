@@ -53,8 +53,13 @@ class OutcomeCategory:
                     f"outcome category {self.name!r} has an empty pattern: {pattern!r}"
                 )
             if pattern.startswith(REGEX_PREFIX):
+                body = pattern[len(REGEX_PREFIX) :]
+                if not body.strip():
+                    raise OutcomeCategoryError(
+                        f"outcome category {self.name!r} has an empty regex: {pattern!r}"
+                    )
                 try:
-                    matchers.append(re.compile(pattern[len(REGEX_PREFIX) :], re.IGNORECASE))
+                    matchers.append(re.compile(body, re.IGNORECASE))
                 except re.error as e:
                     raise OutcomeCategoryError(
                         f"outcome category {self.name!r} has an invalid regex {pattern!r}: {e}"

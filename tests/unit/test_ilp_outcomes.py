@@ -174,11 +174,12 @@ class TestOutcomeMinimum:
         assert result.phase2_outcome_stats is None
         assert "no outcome category table; the outcome rules are not enforced" in caplog.text
 
-    def test_without_a_table_the_default_minimum_is_quiet(self, caplog: pytest.LogCaptureFixture):
-        # The optimizer's own default asks for nothing the caller chose: an info line only
-        optimizer = make_optimizer(
-            categories=None, min_outcome_combos=ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS
-        )
+    @pytest.mark.parametrize("minimum", [0, ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS])
+    def test_without_a_table_the_default_or_zero_minimum_is_quiet(
+        self, caplog: pytest.LogCaptureFixture, minimum: int
+    ):
+        # The optimizer's own default, or 0, asks for no rule: an info line only
+        optimizer = make_optimizer(categories=None, min_outcome_combos=minimum)
 
         with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             optimizer.solve_two_phase()

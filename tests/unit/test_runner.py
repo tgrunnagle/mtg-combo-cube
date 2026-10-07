@@ -429,6 +429,26 @@ class TestRunnerPlumbing:
         assert stats["metadata"]["popularity_weight"] == 0
         assert "combo_score" not in stats["metadata"]
 
+    async def test_run_ilp_fails_on_a_missing_outcome_table_before_loading_the_instance(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        calls: list[str] = []
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            calls.append("load_instance")
+            return [], {}
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+
+        with pytest.raises(FileNotFoundError):
+            await ilp_runner.run_ilp(
+                cube_size=3,
+                output_file=str(tmp_path / "cube.txt"),
+                outcome_categories_path=str(tmp_path / "missing.json"),
+            )
+
+        assert calls == []
+
     async def test_run_ilp_passes_the_outcome_table_and_popularity_weight(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):

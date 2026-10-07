@@ -1910,7 +1910,7 @@ class ILPOptimizer:
         if self.outcome_categories is None:
             message = "Phase 2: no outcome category table; the outcome rules are not enforced"
             if (
-                self.min_outcome_combos != self.DEFAULT_MIN_OUTCOME_COMBOS
+                self.min_outcome_combos not in (0, self.DEFAULT_MIN_OUTCOME_COMBOS)
                 or 0 < hundredths(self.max_outcome_share) < 1
             ):
                 logger.warning(message)
