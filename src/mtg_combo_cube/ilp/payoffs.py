@@ -189,7 +189,7 @@ def resolve_payoff_definitions(
     outcome_categories: OutcomeCategories | None,
     *,
     required: bool,
-    warn: bool = True,
+    log: bool = True,
 ) -> PayoffDefinitions | None:
     """
     The payoff table a run uses, checked against the outcome table, or None when there is
@@ -200,20 +200,27 @@ def resolve_payoff_definitions(
     outcome table must be given; each failure raises (FileNotFoundError or
     PayoffTableError). With the floor off the default table is used when it fits: when it
     is missing, or names categories the outcome table does not have, or there is no outcome
-    table to place its categories in, payoffs are skipped (a warning when `warn`). A table
-    given by path must always exist and fit.
+    table to place its categories in, payoffs are skipped. A table given by path must always
+    exist and fit. What happens is logged unless `log` is off (a check before the run).
     """
     definitions = resolve_payoff_table(path, required=required)
-    if definitions is None:
-        return None
     given = path is not None
+    if definitions is None:
+        if log:
+            logger.info(
+                f"No payoff table at {DEFAULT_PAYOFFS_PATH} (run from the repository root or "
+                "pass --payoffs); payoffs are skipped"
+            )
+        return None
     if outcome_categories is None:
-        if required:
-            raise PayoffTableError("the payoff floor needs the outcome category table")
-        if warn:
+        if required or given:
+            raise PayoffTableError(
+                "the payoff table needs the outcome category table to place its categories"
+            )
+        if log:
             logger.warning(
-                "The payoff table needs the outcome category table to place its categories; "
-                "payoffs are skipped"
+                "The default payoff table needs the outcome category table to place its "
+                "categories; payoffs are skipped"
             )
         return None
     try:
@@ -221,12 +228,17 @@ def resolve_payoff_definitions(
     except PayoffTableError as e:
         if required or given:
             raise
-        if warn:
+        if log:
             logger.warning(
                 f"The default payoff table does not fit the outcome table ({e}); payoffs "
                 "are skipped"
             )
         return None
+    if log:
+        logger.info(
+            f"Loaded payoff table with {len(definitions)} categories: "
+            f"{', '.join(definitions.names)}"
+        )
     return definitions
 
 

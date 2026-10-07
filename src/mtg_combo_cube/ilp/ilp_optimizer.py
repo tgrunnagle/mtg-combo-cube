@@ -2044,6 +2044,10 @@ class ILPOptimizer:
                 logger.info(
                     f"Phase 2: the pool has no combos with outcome {name}; no payoff floor for it"
                 )
+            elif not cards:
+                logger.warning(
+                    f"Phase 2: the pool has no payoff cards for {name}; no payoff floor for it"
+                )
             elif len(cards) < self.min_payoffs:
                 logger.warning(
                     f"Phase 2: the pool has only {len(cards)} payoff cards for {name}, below the "

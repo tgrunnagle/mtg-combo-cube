@@ -327,44 +327,48 @@ if __name__ == "__main__":
                 or args.min_payoffs > 0,
             )
             resolve_payoff_definitions(
-                args.payoffs, outcome_categories, required=args.min_payoffs > 0, warn=False
+                args.payoffs, outcome_categories, required=args.min_payoffs > 0, log=False
             )
         except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
             argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
-    asyncio.run(
-        run(
-            method=args.method,
-            cube_size=args.cube_size,
-            output_file=args.output_file,
-            golden_ratio=args.ratio,
-            time_limit_seconds=args.time_limit,
-            max_variants=args.max_variants,
-            use_multi_objective=not args.single_phase,
-            enable_cache_write=not args.skip_api_caching,
-            read_cache=args.read_api_cache,
-            combo_tolerance=args.combo_tolerance,
-            min_coverage_ratio=args.min_coverage_ratio,
-            blocklist_path=args.blocklist,
-            profile=args.profile,
-            gap_limit=args.gap_limit,
-            phase2_objective=args.phase2_objective,
-            min_utilization_floor=args.min_util_floor,
-            num_workers=args.workers,
-            util_cap=args.util_cap,
-            max_color_ratio=args.max_color_ratio,
-            variant_weight=args.variant_weight,
-            min_pair_combos=args.min_pair_combos,
-            min_mono_combos=args.min_mono_combos,
-            max_wide_combo_share=args.max_wide_combo_share,
-            card_mix=card_mix,
-            outcome_categories_path=args.outcome_categories,
-            min_outcome_combos=args.min_outcome_combos,
-            max_outcome_share=args.max_outcome_share,
-            popularity_weight=args.popularity_weight,
-            payoffs_path=args.payoffs,
-            min_payoffs=args.min_payoffs,
-            payoff_inference_min=args.payoff_inference_min,
+    try:
+        asyncio.run(
+            run(
+                method=args.method,
+                cube_size=args.cube_size,
+                output_file=args.output_file,
+                golden_ratio=args.ratio,
+                time_limit_seconds=args.time_limit,
+                max_variants=args.max_variants,
+                use_multi_objective=not args.single_phase,
+                enable_cache_write=not args.skip_api_caching,
+                read_cache=args.read_api_cache,
+                combo_tolerance=args.combo_tolerance,
+                min_coverage_ratio=args.min_coverage_ratio,
+                blocklist_path=args.blocklist,
+                profile=args.profile,
+                gap_limit=args.gap_limit,
+                phase2_objective=args.phase2_objective,
+                min_utilization_floor=args.min_util_floor,
+                num_workers=args.workers,
+                util_cap=args.util_cap,
+                max_color_ratio=args.max_color_ratio,
+                variant_weight=args.variant_weight,
+                min_pair_combos=args.min_pair_combos,
+                min_mono_combos=args.min_mono_combos,
+                max_wide_combo_share=args.max_wide_combo_share,
+                card_mix=card_mix,
+                outcome_categories_path=args.outcome_categories,
+                min_outcome_combos=args.min_outcome_combos,
+                max_outcome_share=args.max_outcome_share,
+                popularity_weight=args.popularity_weight,
+                payoffs_path=args.payoffs,
+                min_payoffs=args.min_payoffs,
+                payoff_inference_min=args.payoff_inference_min,
+            )
         )
-    )
+    except PayoffTableError as e:
+        # A payoff query that matches no card, or could not be fetched with the floor on
+        argparser.error(str(e))

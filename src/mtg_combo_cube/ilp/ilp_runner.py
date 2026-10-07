@@ -38,14 +38,14 @@ from mtg_combo_cube.ilp.outcomes import (
 )
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
-    DEFAULT_PAYOFFS_PATH,
     PayoffDefinitions,
     PayoffTable,
+    PayoffTableError,
     check_query_results,
     infer_payoffs,
+    resolve_payoff_definitions,
     resolve_payoffs,
 )
-from mtg_combo_cube.ilp.payoffs import resolve_payoff_definitions as _resolve_payoff_definitions
 from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
@@ -722,12 +722,15 @@ async def fetch_payoff_queries(
     queries: Sequence[str],
     enable_cache_write: bool = True,
     read_cache: bool = False,
+    required: bool = False,
 ) -> dict[str, list[str]]:
     """
     Resolve the payoff table's Scryfall queries to card names (query -> ordered names).
 
-    A query that matches no card is a table error (PayoffTableError); a query whose request
-    failed is left out with a warning, so its cards are missing from the payoff set.
+    A query that matches no card is a table error (PayoffTableError). A query whose request
+    failed is an error too when the results are `required` (the payoff floor is on, so a
+    missing query would change a hard constraint and make the run incomparable); otherwise
+    it is left out with a warning and its cards are missing from the payoff set.
     """
     if not queries:
         return {}
@@ -737,31 +740,13 @@ async def fetch_payoff_queries(
         )
         results = await payoff_fetcher.fetch_queries(queries)
     check_query_results(results)
-    return results
-
-
-def resolve_payoff_definitions(
-    payoffs_path: str | None,
-    outcome_categories: OutcomeCategories | None,
-    min_payoffs: int,
-) -> PayoffDefinitions | None:
-    """
-    The payoff table a run uses (payoffs.resolve_payoff_definitions, required when the
-    payoff floor is on), logged; None when there is none to use.
-    """
-    definitions = _resolve_payoff_definitions(
-        payoffs_path, outcome_categories, required=min_payoffs > 0
-    )
-    if definitions is None:
-        logger.info(
-            f"No payoff table to use (the default is {DEFAULT_PAYOFFS_PATH} in the working "
-            "directory; pass --payoffs for another); payoffs are skipped"
+    missing = [query for query in queries if query not in results]
+    if missing and required:
+        raise PayoffTableError(
+            "payoff queries could not be fetched from Scryfall (the payoff floor needs them; "
+            "run again, or pass --min-payoffs 0): " + ", ".join(repr(q) for q in missing)
         )
-        return None
-    logger.info(
-        f"Loaded payoff table with {len(definitions)} categories: {', '.join(definitions.names)}"
-    )
-    return definitions
+    return results
 
 
 def build_payoff_table(
@@ -866,11 +851,16 @@ async def build_cube_ilp(
             f"Loaded {len(outcome_categories)} outcome categories: "
             f"{', '.join(outcome_categories.names)}"
         )
-    payoff_definitions = resolve_payoff_definitions(payoffs_path, outcome_categories, min_payoffs)
+    payoff_definitions = resolve_payoff_definitions(
+        payoffs_path, outcome_categories, required=min_payoffs > 0
+    )
     query_results: dict[str, list[str]] = {}
     if payoff_definitions is not None:
         query_results = await fetch_payoff_queries(
-            payoff_definitions.queries, enable_cache_write=enable_cache_write, read_cache=read_cache
+            payoff_definitions.queries,
+            enable_cache_write=enable_cache_write,
+            read_cache=read_cache,
+            required=min_payoffs > 0,
         )
 
     combo_data, candidate_cards = await load_instance(

@@ -32,10 +32,16 @@ class TestSearchUrl:
 
         assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == PayoffFetcher.SEARCH_URL
         assert parse_qs(parsed.query) == {
-            "q": [f"{STORM} game:paper"],
+            "q": [f"({STORM}) game:paper"],
             "order": ["edhrec"],
             "unique": ["cards"],
         }
+
+    def test_paper_filter_applies_to_a_top_level_or(self):
+        # Scryfall's implicit AND binds tighter than "or", so the query is parenthesized
+        query = parse_qs(urlparse(PayoffFetcher.search_url("keyword:storm or t:instant")).query)
+
+        assert query["q"] == ["(keyword:storm or t:instant) game:paper"]
 
     def test_different_queries_have_different_urls(self):
         assert STORM_URL != X_DAMAGE_URL
@@ -163,6 +169,27 @@ class TestPayoffFetcher:
         assert "Cache read error" in caplog.text
         assert list(read_cache(fetcher)["queries"]) == [STORM_URL, X_DAMAGE_URL]
 
+    @pytest.mark.asyncio
+    async def test_malformed_entry_for_another_query_is_dropped_on_write(self, tmp_path: Path):
+        # A bad entry for a query this run does not ask for would otherwise survive every
+        # rewrite and keep the whole file unreadable
+        session = FakeSession({STORM_URL: [FakeResponse(200, card_names=["Grapeshot"])]})
+        fetcher = make_payoff_fetcher(session, tmp_path)
+        with open(fetcher.cache_path, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "version": PayoffFetcher.CACHE_VERSION,
+                    "queries": {X_DAMAGE_URL: {"cards": "Crypt Rats"}},
+                },
+                f,
+            )
+
+        await fetcher.fetch_queries([STORM])
+
+        assert list(read_cache(fetcher)["queries"]) == [STORM_URL]
+        second = make_payoff_fetcher(FakeSession(), tmp_path)
+        assert await second.fetch_queries([STORM]) == {STORM: ["Grapeshot"]}
+
     @pytest.mark.parametrize(
         "cached",
         [
@@ -170,6 +197,10 @@ class TestPayoffFetcher:
             {"version": PayoffFetcher.CACHE_VERSION, "queries": {STORM_URL: ["Grapeshot"]}},
             {"version": PayoffFetcher.CACHE_VERSION, "queries": {STORM_URL: {"cards": "x"}}},
             {"version": PayoffFetcher.CACHE_VERSION, "queries": {STORM_URL: {"cards": [1]}}},
+            {
+                "version": PayoffFetcher.CACHE_VERSION,
+                "queries": {STORM_URL: {"cards": ["Grapeshot"], "fetched_at": 7}},
+            },
             {"version": PayoffFetcher.CACHE_VERSION, "templates": {}},
         ],
     )

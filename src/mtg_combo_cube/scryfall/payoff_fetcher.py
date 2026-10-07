@@ -53,8 +53,12 @@ class PayoffFetcher:
 
     @classmethod
     def search_url(cls, query: str) -> str:
-        """The Scryfall search URL of a payoff query: EDHREC order, one entry per card."""
-        params = {"q": f"{query} {cls.QUERY_SUFFIX}", "order": "edhrec", "unique": "cards"}
+        """
+        The Scryfall search URL of a payoff query: EDHREC order, one entry per card. The
+        query is parenthesized before the paper filter is added, so a top-level `or` in the
+        table applies to the whole query (Scryfall's implicit AND binds tighter than `or`).
+        """
+        params = {"q": f"({query}) {cls.QUERY_SUFFIX}", "order": "edhrec", "unique": "cards"}
         return f"{cls.SEARCH_URL}?{urlencode(params)}"
 
     async def fetch_queries(self, queries: Iterable[str]) -> dict[str, list[str]]:
@@ -93,10 +97,15 @@ class PayoffFetcher:
         return results
 
     def _load_cache(self) -> dict[str, list[str]]:
+        """The cached card names by search URL (see _load_entries)."""
+        return {url: entry["cards"] for url, entry in self._load_entries().items()}
+
+    def _load_entries(self) -> dict[str, dict]:
         """
-        Load the cache file: search URL -> card names. A missing, outdated or malformed
-        file counts as empty (it will be rewritten). A file that cannot be read at all raises
-        OSError, so a transient lock does not look like an empty cache.
+        Load the cache file: search URL -> entry (`cards`, `fetched_at`). A missing, outdated
+        or malformed file counts as empty (it will be rewritten without the bad entries). A
+        file that cannot be read at all raises OSError, so a transient lock does not look
+        like an empty cache.
         """
         if not self.cache_path.exists():
             return {}
@@ -112,30 +121,27 @@ class PayoffFetcher:
             return {}
 
     @staticmethod
-    def _parse_entry(entry: dict) -> list[str]:
-        """A cache entry's card names; a wrong type is a ValueError (the cache is unusable)."""
+    def _parse_entry(entry: dict) -> dict:
+        """A validated cache entry; a wrong type is a ValueError (the cache is unusable)."""
         cards = entry["cards"]
         if not isinstance(cards, list) or not all(isinstance(card, str) for card in cards):
             raise ValueError(f"malformed cache entry {entry!r}")
-        return list(cards)
+        fetched_at = entry.get("fetched_at", "")
+        if not isinstance(fetched_at, str):
+            raise ValueError(f"malformed cache entry {entry!r}")
+        return {"cards": list(cards), "fetched_at": fetched_at}
 
     def _write_cache(self, fetched: dict[str, list[str]]) -> None:
         """
-        Add fetched results to the cache file, keeping entries already in the file, each with
-        the time it was fetched. The file is left alone when it cannot be read, so a transient
-        error does not erase it.
+        Add fetched results to the cache file, keeping the valid entries already in the file,
+        each with the time it was fetched. The file is left alone when it cannot be read, so
+        a transient error does not erase it.
         """
         try:
-            with open(self.cache_path, encoding="utf-8") as f:
-                data = json.load(f)
-            entries = dict(data["queries"]) if data.get("version") == self.CACHE_VERSION else {}
-        except FileNotFoundError:
-            entries = {}
+            entries = self._load_entries()
         except OSError as e:
             logger.warning(f"Cache not updated: {self.cache_path.name} could not be read ({e})")
             return
-        except (ValueError, KeyError, TypeError, AttributeError):
-            entries = {}  # outdated or malformed: rewritten in the current format
         fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
         for url, cards in fetched.items():
             entries[url] = {"cards": cards, "fetched_at": fetched_at}

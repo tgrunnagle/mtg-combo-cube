@@ -19,7 +19,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD
+from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD, PayoffTableError
 from mtg_combo_cube.models import CardAttributes
 
 
@@ -357,6 +357,20 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--outcome-categories", str(outcomes))
         assert "are not in the outcome category table" in capsys.readouterr().err
+
+    def test_payoff_query_error_from_the_run_is_a_usage_error(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        # A query that matches no card is found while the run resolves the table
+        async def failing_run(**kwargs: Any) -> None:
+            raise PayoffTableError("payoff queries match no card on Scryfall: 'o:nothing'")
+
+        monkeypatch.setattr(runner, "run", failing_run)
+        monkeypatch.setattr(sys, "argv", ["mtg_combo_cube"])
+        with pytest.raises(SystemExit):
+            runpy.run_module("mtg_combo_cube", run_name="__main__")
+
+        assert "payoff queries match no card on Scryfall: 'o:nothing'" in capsys.readouterr().err
 
     def test_card_mix_error_names_the_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -736,6 +750,25 @@ class TestRunnerPlumbing:
             > stats["phase2"]["reference_weighted_combo_count"]
         )
 
+    @pytest.mark.parametrize("required", [False, True])
+    async def test_fetch_payoff_queries_treats_a_failed_query_as_an_error_only_when_required(
+        self, monkeypatch: pytest.MonkeyPatch, required: bool
+    ):
+        class FakePayoffFetcher:
+            def __init__(self, *args: Any, **kwargs: Any):
+                pass
+
+            async def fetch_queries(self, queries: Any) -> dict[str, list[str]]:
+                return {"a": ["Card"]}  # "b" could not be fetched
+
+        monkeypatch.setattr(ilp_runner, "PayoffFetcher", FakePayoffFetcher)
+
+        if required:
+            with pytest.raises(PayoffTableError, match="could not be fetched .*'b'"):
+                await ilp_runner.fetch_payoff_queries(["a", "b"], required=True)
+        else:
+            assert await ilp_runner.fetch_payoff_queries(["a", "b"]) == {"a": ["Card"]}
+
     async def test_run_ilp_adds_payoff_only_cards_and_writes_the_payoff_blocks(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
     ):
@@ -784,7 +817,8 @@ class TestRunnerPlumbing:
         async def fake_fetch_payoff_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
             calls.append("payoff_queries")
             assert list(queries) == ["o:storm"]
-            assert kwargs == {"enable_cache_write": True, "read_cache": True}
+            # With the floor on, a query that cannot be fetched is an error
+            assert kwargs == {"enable_cache_write": True, "read_cache": True, "required": True}
             return {"o:storm": ["Comet", "Ballista"]}
 
         created: list[ILPOptimizer] = []

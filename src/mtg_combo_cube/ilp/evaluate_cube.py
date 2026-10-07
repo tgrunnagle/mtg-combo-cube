@@ -219,17 +219,20 @@ if __name__ == "__main__":
         argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
-    evaluation = asyncio.run(
-        evaluate_cube(
-            cube_file=args.cube_file,
-            max_variants=args.max_variants,
-            blocklist=load_blocklist(args.blocklist),
-            variant_weight=args.variant_weight,
-            outcome_categories=outcome_categories,
-            payoff_definitions=payoff_definitions,
-            payoff_inference_min=args.payoff_inference_min,
+    try:
+        evaluation = asyncio.run(
+            evaluate_cube(
+                cube_file=args.cube_file,
+                max_variants=args.max_variants,
+                blocklist=load_blocklist(args.blocklist),
+                variant_weight=args.variant_weight,
+                outcome_categories=outcome_categories,
+                payoff_definitions=payoff_definitions,
+                payoff_inference_min=args.payoff_inference_min,
+            )
         )
-    )
+    except PayoffTableError as e:
+        argparser.error(str(e))  # a payoff query that matches no card
     stats = evaluation.utilization_stats
     print(f"Cube: {Path(args.cube_file)} ({evaluation.card_count} cards)")
     print(

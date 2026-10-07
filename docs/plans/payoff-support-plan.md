@@ -279,7 +279,10 @@ Cutthroat, Corpse Knight, Altar of Dementia, Goblin Bombardment, Brain Freeze, H
 Scales, Doubling Season) but also Lightning Bolt, Sunscorched Desert and Firemind's Foresight;
 at 2 it is down to a handful, most of them doubtful (three Chandras for lifegain and mana).
 The threshold stays at 2 and the table does the work; the counts are written to the stats
-file (`payoffs.inferred`) for tuning.
+file (`payoffs.inferred`) for tuning. Step 1.7 (fetching the missing engine variants by combo
+id to widen the inference) was deferred: 53 of the 5,449 bundled terminal variants find their
+engine in the pool, so the download would have to cover most of the other 5,400 engines, and
+the table already covers every category at the chosen floor; it stays an open question.
 
 The resolved default table (queries resolved on 7 October 2026) has 190 payoff cards, 109 of
 them in no combo of the pool: mana 57 (4 inferred, 53 from the queries), storm 12, tokens 76,
