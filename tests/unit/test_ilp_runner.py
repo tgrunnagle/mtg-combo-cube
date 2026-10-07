@@ -15,12 +15,15 @@ from mtg_combo_cube.ilp.ilp_models import (
     CardMixRules,
     ComboGroupStats,
     OptimizationResult,
+    OutcomeStats,
+    PopularityStats,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
     format_archetype_stats,
     format_card_mix_stats,
     format_combo_count,
+    format_outcome_stats,
     log_phase_summary,
     write_stats,
 )
@@ -791,6 +794,112 @@ class TestWriteStatsCardMix:
         stats = compute_card_mix_stats(["Card A", "Mystery"], CARD_MIX_ATTRIBUTES)
 
         assert format_card_mix_stats(stats).endswith("; unknown=1")
+
+
+class TestWriteStatsOutcomesAndPopularity:
+    """Per-phase outcome counts, popularity and the outcome settings in the stats file."""
+
+    def _result(self) -> OptimizationResult:
+        return replace(
+            TestWriteStatsCombosAndColors._two_phase_result(),
+            phase1_outcome_stats=OutcomeStats({"mana": 3, "damage": 0}, 1, 4),
+            phase2_outcome_stats=OutcomeStats({"mana": 2, "damage": 1}, 0, 3),
+            phase1_popularity_stats=PopularityStats(4, 50.0, 3.5, 0.5, 60.0),
+            phase2_popularity_stats=PopularityStats(3, 80.0, 4.1, 0.0, 60.0),
+            phase2_outcome_minimums={"mana": 1, "damage": 1},
+            phase2_max_outcome_share=0.6,
+        )
+
+    def test_outcomes_and_popularity_per_phase(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path)
+
+        assert stats["phase1"]["outcomes"] == {
+            "combos_per_outcome": {"mana": 3, "damage": 0},
+            "uncategorized": 1,
+            "total": 4,
+        }
+        assert stats["phase2"]["outcomes"]["combos_per_outcome"] == {"mana": 2, "damage": 1}
+        assert stats["phase1"]["popularity"] == {
+            "combo_count": 4,
+            "median_popularity": 50.0,
+            "mean_log_popularity": 3.5,
+            "below_pool_median_share": 0.5,
+            "pool_median_popularity": 60.0,
+        }
+        assert stats["phase2"]["popularity"]["median_popularity"] == 80.0
+        assert stats["phase2"]["outcome_minimums"] == {"mana": 1, "damage": 1}
+        assert stats["phase2"]["max_outcome_share"] == 0.6
+
+    def test_left_out_without_data(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(
+            TestWriteStatsCombosAndColors._two_phase_result(), tmp_path
+        )
+
+        for phase in ("phase1", "phase2"):
+            assert "outcomes" not in stats[phase]
+            assert "popularity" not in stats[phase]
+        assert "outcome_minimums" not in stats["phase2"]
+        assert "max_outcome_share" not in stats["phase2"]
+        assert "popularity_weight" not in stats["metadata"]
+        assert "combo_score" not in stats["metadata"]
+
+    def test_fallback_records_the_settings(self, tmp_path: Path):
+        result = replace(
+            self._result(),
+            is_multi_objective=False,
+            phase2_fell_back=True,
+            phase2_status="INFEASIBLE",
+        )
+
+        stats = TestWriteStatsCombosAndColors._write(result, tmp_path)
+
+        assert stats["phase2"]["fell_back_to_phase1"]
+        assert stats["phase2"]["outcome_minimums"] == {"mana": 1, "damage": 1}
+        assert stats["phase2"]["max_outcome_share"] == 0.6
+
+    def test_combo_score_only_with_a_popularity_weight(self, tmp_path: Path):
+        scored = replace(
+            self._result(),
+            popularity_weight=0.5,
+            combo_score=4.2,
+            phase1_combo_score=5.1,
+            phase2_reference_combo_score=4.5,
+            weighted_combo_count=3.0,
+        )
+        stats = TestWriteStatsCombosAndColors._write(scored, tmp_path)
+
+        assert stats["metadata"]["popularity_weight"] == 0.5
+        assert stats["metadata"]["combo_score"] == 4.2
+        assert stats["phase1"]["combo_score"] == 5.1
+        assert stats["phase2"]["combo_score"] == 4.2
+        assert stats["phase2"]["reference_combo_score"] == 4.5
+
+        # With a weight of 0 the score is the weighted count, so it is not repeated
+        plain = replace(scored, popularity_weight=0)
+        stats = TestWriteStatsCombosAndColors._write(plain, tmp_path)
+
+        assert stats["metadata"]["popularity_weight"] == 0
+        assert "combo_score" not in stats["metadata"]
+        assert "combo_score" not in stats["phase1"]
+        assert "combo_score" not in stats["phase2"]
+        assert "reference_combo_score" not in stats["phase2"]
+
+    def test_log_lines(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._result(), None)
+
+        assert "Outcomes, Phase 1: mana=3, damage=0; no category 1 of 4 (25%)" in caplog.text
+        assert "Outcomes, Phase 2: mana=2, damage=1; no category 0 of 3 (0%)" in caplog.text
+        assert (
+            "Popularity, Phase 1: median 50 (pool median 60), mean log 3.50, 50% of 4 combos "
+            "below the pool median"
+        ) in caplog.text
+        assert "Popularity, Phase 2: median 80 (pool median 60)" in caplog.text
+
+    def test_format_without_combos(self):
+        assert format_outcome_stats(OutcomeStats({"mana": 0}, 0, 0)) == (
+            "mana=0; no category 0 of 0"
+        )
 
 
 def archetype_stats(**counts: int) -> ArchetypeStats:

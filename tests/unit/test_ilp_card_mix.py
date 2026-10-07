@@ -435,7 +435,8 @@ class TestViolations:
     def test_every_card_mix_rule_is_a_cube_rule(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-6:] == [
+        start = labels.index("multicolor cap")
+        assert labels[start : start + 6] == [
             "multicolor cap",
             "colorless cap",
             "expensive cap",

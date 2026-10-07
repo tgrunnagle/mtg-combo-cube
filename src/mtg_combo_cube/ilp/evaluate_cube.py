@@ -16,6 +16,7 @@ from pathlib import Path
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
+    combos_per_outcome,
     completable_combo_ids,
     completed_group_sizes,
     compute_archetype_stats,
@@ -23,16 +24,30 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_color_stats,
     compute_utilization_stats,
     largest_combo_groups,
+    popularity_stats,
     weighted_combo_count,
 )
-from mtg_combo_cube.ilp.ilp_models import ArchetypeStats, ComboGroupStats, UtilizationStats
+from mtg_combo_cube.ilp.ilp_models import (
+    ArchetypeStats,
+    ComboGroupStats,
+    OutcomeStats,
+    PopularityStats,
+    UtilizationStats,
+)
 from mtg_combo_cube.ilp.ilp_runner import (
     fetch_card_attributes,
     format_archetype_stats,
     format_card_mix_stats,
     format_color_stats,
     format_combo_count,
+    format_outcome_stats,
+    format_popularity_stats,
     load_instance,
+)
+from mtg_combo_cube.ilp.outcomes import (
+    OutcomeCategories,
+    OutcomeCategoryError,
+    resolve_outcome_categories,
 )
 
 logger = logging.getLogger(__name__)
@@ -55,6 +70,8 @@ class CubeEvaluation:
     utilization_stats: UtilizationStats
     largest_combo_groups: list[ComboGroupStats]
     archetype_stats: ArchetypeStats | None  # distinct combos per draft archetype, if known
+    popularity_stats: PopularityStats  # how popular the distinct combos are
+    outcome_stats: OutcomeStats | None  # distinct combos per outcome category, with a table
 
 
 async def evaluate_cube(
@@ -62,12 +79,14 @@ async def evaluate_cube(
     max_variants: int = 20000,
     blocklist: frozenset[str] = frozenset(),
     variant_weight: float = 0.1,
+    outcome_categories: OutcomeCategories | None = None,
 ) -> CubeEvaluation:
     """
     Evaluate a cube list against the instance built from the cached API data.
 
     variant_weight is the value of each further completed variant of a combo, as in a
-    build's --variant-weight; it only affects weighted_combo_count.
+    build's --variant-weight; it only affects weighted_combo_count. outcome_categories is
+    the table the combos are categorized by; without one no outcome counts are reported.
     """
     cards = read_cube_file(cube_file)
     combos, candidate_cards = await load_instance(
@@ -94,6 +113,12 @@ async def evaluate_cube(
         utilization_stats=compute_utilization_stats(card_utilization(cards, combos)),
         largest_combo_groups=largest_combo_groups(cards, combos, completed_ids=completed),
         archetype_stats=compute_archetype_stats(cards, combos, completed),
+        popularity_stats=popularity_stats(cards, combos, completed),
+        outcome_stats=(
+            combos_per_outcome(cards, combos, outcome_categories, completed)
+            if outcome_categories is not None
+            else None
+        ),
     )
 
 
@@ -122,7 +147,19 @@ if __name__ == "__main__":
         help="Value of each further completed variant of a combo, as used for the build "
         "(default: 0.1); sets the weighted combo count",
     )
+    argparser.add_argument(
+        "--outcome-categories",
+        type=str,
+        default=None,
+        help="Path to the outcome category table (default: data/outcome_categories.json)",
+    )
     args = argparser.parse_args()
+    # A missing or invalid outcome table is a usage error; without the default table the
+    # outcome counts are left out
+    try:
+        outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
+    except (FileNotFoundError, OutcomeCategoryError) as e:
+        argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
     evaluation = asyncio.run(
@@ -131,6 +168,7 @@ if __name__ == "__main__":
             max_variants=args.max_variants,
             blocklist=load_blocklist(args.blocklist),
             variant_weight=args.variant_weight,
+            outcome_categories=outcome_categories,
         )
     )
     stats = evaluation.utilization_stats
@@ -155,6 +193,9 @@ if __name__ == "__main__":
     )
     if evaluation.archetype_stats is not None:
         print("Archetypes (distinct combos): " + format_archetype_stats(evaluation.archetype_stats))
+    if evaluation.outcome_stats is not None:
+        print("Outcomes (distinct combos): " + format_outcome_stats(evaluation.outcome_stats))
+    print("Popularity (distinct combos): " + format_popularity_stats(evaluation.popularity_stats))
 
     cube_cards = read_cube_file(args.cube_file)
     attributes = asyncio.run(fetch_card_attributes(cube_cards, read_cache=True))

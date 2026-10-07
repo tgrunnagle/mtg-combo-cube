@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import logging
 import runpy
 import sys
 from pathlib import Path
@@ -198,6 +199,69 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *args)
 
+    def test_outcome_and_popularity_defaults(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(monkeypatch)
+
+        assert received["min_outcome_combos"] == 40
+        assert received["max_outcome_share"] == 0
+        assert received["outcome_categories_path"] is None
+        assert received["popularity_weight"] == 0
+
+    def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        # The table is validated up front, so it must exist
+        table = tmp_path / "outcomes.json"
+        table.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
+        received = run_cli(
+            monkeypatch,
+            "--min-outcome-combos",
+            "7",
+            "--max-outcome-share",
+            "0.5",
+            "--outcome-categories",
+            str(table),
+            "--popularity-weight",
+            "0.5",
+        )
+
+        assert received["min_outcome_combos"] == 7
+        assert received["max_outcome_share"] == 0.5
+        assert received["outcome_categories_path"] == str(table)
+        assert received["popularity_weight"] == 0.5
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--min-outcome-combos", "-1"),
+            ("--max-outcome-share", "1.5"),
+            ("--max-outcome-share", "-0.1"),
+            ("--popularity-weight", "-1"),
+            ("--popularity-weight", "nan"),
+            ("--popularity-weight", "inf"),
+        ],
+    )
+    def test_invalid_outcome_and_popularity_options_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *args)
+
+    def test_missing_outcome_table_is_a_usage_error(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--method", "ilp", "--outcome-categories", "missing.json")
+
+        assert "Outcome categories file not found: missing.json" in capsys.readouterr().err
+
+    def test_missing_default_table_is_a_usage_error_only_with_a_rule_on(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.chdir(tmp_path)
+
+        assert run_cli(monkeypatch, "--method", "ilp", "--min-outcome-combos", "0")
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--method", "ilp")
+
     def test_card_mix_error_names_the_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ):
@@ -244,6 +308,24 @@ class TestRunnerPlumbing:
         card_mix = CardMixRules(max_creature_share=0.5)
         await runner.run(method="ilp", cube_size=10, output_file="unused.txt", card_mix=card_mix)
         assert received["card_mix"] == card_mix
+        assert received["min_outcome_combos"] == 40
+        assert received["max_outcome_share"] == 0
+        assert received["outcome_categories_path"] is None
+        assert received["popularity_weight"] == 0
+
+        await runner.run(
+            method="ilp",
+            cube_size=10,
+            output_file="unused.txt",
+            outcome_categories_path="my/outcomes.json",
+            min_outcome_combos=7,
+            max_outcome_share=0.5,
+            popularity_weight=0.5,
+        )
+        assert received["outcome_categories_path"] == "my/outcomes.json"
+        assert received["min_outcome_combos"] == 7
+        assert received["max_outcome_share"] == 0.5
+        assert received["popularity_weight"] == 0.5
 
     @pytest.mark.parametrize("util_cap", [None, 3])
     async def test_run_ilp_passes_util_cap_to_optimizer(
@@ -310,6 +392,7 @@ class TestRunnerPlumbing:
             min_mono_combos=8,
             max_wide_combo_share=0.3,
             card_mix=card_mix,
+            min_outcome_combos=0,
         )
 
         assert len(created) == 1
@@ -355,3 +438,171 @@ class TestRunnerPlumbing:
         }
         assert stats["phase2"]["card_mix_limits"] == {"creature_cap": 2, "spell_floor": 1}
         assert stats["phase2"]["unknown_candidate_cards"] == 0
+        # The default outcome table was loaded: the combos have no features, so every
+        # completed combo is uncategorized; no outcome rule was asked for
+        assert created[0].outcome_categories is not None
+        assert created[0].min_outcome_combos == 0
+        assert created[0].popularity_weight == 0
+        assert stats["phase1"]["outcomes"]["uncategorized"] == 3
+        assert stats["phase2"]["outcomes"]["total"] == 3
+        assert stats["phase2"]["popularity"]["combo_count"] == 3
+        assert "outcome_minimums" not in stats["phase2"]
+        assert stats["metadata"]["popularity_weight"] == 0
+        assert "combo_score" not in stats["metadata"]
+
+    async def test_run_ilp_without_the_default_table_skips_the_outcome_statistics(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        # Outside the repository root there is no default table; with the rules off that
+        # is a warning, and the stats file has no outcome counts
+        monkeypatch.chdir(tmp_path)
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 10),
+            ComboData("bc", frozenset(["B", "C"]), [], 10),
+            ComboData("ca", frozenset(["C", "A"]), [], 10),
+        ]
+        cards = {name: CandidateCard(name, frozenset(), frozenset()) for name in ["A", "B", "C"]}
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, cards
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> None:
+            return None
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_runner"):
+            await ilp_runner.run_ilp(
+                cube_size=3,
+                output_file=str(tmp_path / "cube.txt"),
+                time_limit_seconds=10,
+                num_workers=1,
+                max_color_ratio=0,
+                min_pair_combos=0,
+                min_mono_combos=0,
+                max_wide_combo_share=0,
+                card_mix=CardMixRules(
+                    max_multicolor_share=0,
+                    max_colorless_share=0,
+                    max_expensive_share=0,
+                    max_creature_share=0,
+                    min_spell_share=0,
+                ),
+                min_outcome_combos=0,
+            )
+
+        assert created[0].outcome_categories is None
+        assert "No outcome category table at data/outcome_categories.json" in caplog.text
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert "outcomes" not in stats["phase2"]
+
+    async def test_run_ilp_fails_on_a_missing_outcome_table_before_loading_the_instance(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        calls: list[str] = []
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            calls.append("load_instance")
+            return [], {}
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+
+        with pytest.raises(FileNotFoundError):
+            await ilp_runner.run_ilp(
+                cube_size=3,
+                output_file=str(tmp_path / "cube.txt"),
+                outcome_categories_path=str(tmp_path / "missing.json"),
+            )
+
+        assert calls == []
+
+    async def test_run_ilp_passes_the_outcome_table_and_popularity_weight(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        mana = frozenset(["Infinite colored mana"])
+        damage = frozenset(["Infinite damage"])
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 100, features=mana),
+            ComboData("bc", frozenset(["B", "C"]), [], 100, features=mana),
+            ComboData("ca", frozenset(["C", "A"]), [], 100, features=mana),
+            ComboData("de", frozenset(["D", "E"]), [], 1, features=damage),
+        ]
+        cards = {
+            name: CandidateCard(name, frozenset(), frozenset())
+            for name in ["A", "B", "C", "D", "E"]
+        }
+        table = tmp_path / "outcomes.json"
+        table.write_text(
+            json.dumps({"mana": ["infinite colored mana"], "damage": ["infinite damage"]}),
+            encoding="utf-8",
+        )
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, cards
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> None:
+            return None
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+
+        # Five cards hold the triangle and the damage combo; the minimum asks for one of each
+        await ilp_runner.run_ilp(
+            cube_size=5,
+            output_file=str(tmp_path / "cube.txt"),
+            time_limit_seconds=10,
+            num_workers=1,
+            min_utilization_floor=0,
+            max_color_ratio=0,
+            min_pair_combos=0,
+            min_mono_combos=0,
+            max_wide_combo_share=0,
+            card_mix=CardMixRules(
+                max_multicolor_share=0,
+                max_colorless_share=0,
+                max_expensive_share=0,
+                max_creature_share=0,
+                min_spell_share=0,
+            ),
+            outcome_categories_path=str(table),
+            min_outcome_combos=1,
+            max_outcome_share=0.9,
+            popularity_weight=0.5,
+        )
+
+        assert len(created) == 1
+        assert created[0].outcome_categories is not None
+        assert created[0].outcome_categories.names == ("mana", "damage")
+        assert created[0].min_outcome_combos == 1
+        assert created[0].max_outcome_share == 0.9
+        assert created[0].popularity_weight == 0.5
+
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["metadata"]["popularity_weight"] == 0.5
+        assert stats["metadata"]["combo_score"] == pytest.approx(stats["phase2"]["combo_score"])
+        assert stats["phase2"]["outcomes"]["combos_per_outcome"] == {"mana": 3, "damage": 1}
+        assert stats["phase2"]["outcomes"]["uncategorized"] == 0
+        assert stats["phase2"]["outcome_minimums"] == {"mana": 1, "damage": 1}
+        assert stats["phase2"]["max_outcome_share"] == 0.9
+        assert stats["phase2"]["popularity"]["median_popularity"] == 100
+        assert (
+            stats["phase2"]["reference_combo_score"]
+            > stats["phase2"]["reference_weighted_combo_count"]
+        )

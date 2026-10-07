@@ -1,0 +1,26 @@
+{
+  "mana": [
+    "infinite colored mana",
+    "infinite colorless mana",
+    "infinite mana",
+    "infinite white mana",
+    "infinite blue mana",
+    "infinite black mana",
+    "infinite red mana",
+    "infinite green mana"
+  ],
+  "damage": [
+    "re:infinite damage(?! to (all |most |some )?creatures)",
+    "infinite combat damage",
+    "infinite lifeloss"
+  ],
+  "tokens": ["infinite creature tokens", "infinite tapped creature tokens"],
+  "draw": ["infinite card draw"],
+  "mill": ["infinite mill", "infinite self-mill"],
+  "lifegain": ["re:infinite lifegain(?! triggers)"],
+  "counters": ["+1/+1 counters"],
+  "turns": ["infinite turns"],
+  "lock": ["re:^lock"],
+  "storm": ["infinite storm count"],
+  "win": ["win the game", "loses the game"]
+}

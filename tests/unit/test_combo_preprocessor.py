@@ -23,6 +23,8 @@ def make_mock_variant(
     popularity: int = 100,
     of: list[int] | None = None,
     identity: str = "C",
+    features: list[str] | None = None,
+    bracket_tag: str = "E",
 ):
     """Helper to create a mock Variant for testing.
 
@@ -33,12 +35,20 @@ def make_mock_variant(
         popularity: Popularity score
         of: Spellbook ids of the combos the variant belongs to (default: none)
         identity: Spellbook color identity (default: "C", colorless)
+        features: Names of the features the variant produces (default: none)
+        bracket_tag: Spellbook bracket tag (default: "E")
     """
     variant = MagicMock()
     variant.id = variant_id
     variant.popularity = popularity
     variant.of = [MagicMock(id=combo_id) for combo_id in (of or [])]
     variant.identity = identity
+    variant.produces = []
+    for name in features or []:
+        produced = MagicMock()
+        produced.feature.name = name
+        variant.produces.append(produced)
+    variant.bracket_tag = bracket_tag
 
     # Create mock CardUse objects
     uses = []
@@ -110,6 +120,31 @@ class TestComboPreprocessorColorIdentity:
         combo_data_list, _ = await preprocessor.preprocess_variants([variant])
 
         assert combo_data_list[0].color_identity == expected
+
+    @pytest.mark.asyncio
+    async def test_features_and_bracket_tag(self):
+        preprocessor = ComboPreprocessor()
+        variant = make_mock_variant(
+            "v",
+            ["Card A", "Card B"],
+            features=["Infinite colored mana", "Infinite creature ETB"],
+            bracket_tag="S",
+        )
+
+        combo_data_list, _ = await preprocessor.preprocess_variants([variant])
+
+        assert combo_data_list[0].features == {"Infinite colored mana", "Infinite creature ETB"}
+        assert combo_data_list[0].bracket_tag == "S"
+
+    @pytest.mark.asyncio
+    async def test_features_default_to_empty(self):
+        preprocessor = ComboPreprocessor()
+
+        combo_data_list, _ = await preprocessor.preprocess_variants(
+            [make_mock_variant("v", ["Card A", "Card B"])]
+        )
+
+        assert combo_data_list[0].features == frozenset()
 
 
 class TestComboPreprocessorBlocklist:

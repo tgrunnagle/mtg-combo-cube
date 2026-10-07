@@ -6,6 +6,12 @@ import logging
 import math
 
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.outcomes import (
+    OutcomeCategoryError,
+    outcome_rules_requested,
+    resolve_outcome_categories,
+)
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
@@ -52,7 +58,7 @@ if __name__ == "__main__":
         default=0.1,
         help="Tolerance of the phase 2 combo window (default: 0.1 = 10%%), measured from the "
         "combo score of the best cube found under the Phase 2 cube rules (coverage, color "
-        "balance, archetype support, card mix). "
+        "balance, archetype support, card mix, outcome rules). "
         "The score is in weighted combos when --variant-weight is below 1 (see the README, "
         "'Combos and variants'). Set to 0 to hold the score exactly.",
     )
@@ -216,6 +222,40 @@ if __name__ == "__main__":
         "mono-colored cards of another color, as --max-color-ratio on mono-colored cards "
         f"only (default: {card_mix_defaults.mono_color_ratio:g}, disabled). 0 or at least 1.",
     )
+    argparser.add_argument(
+        "--min-outcome-combos",
+        type=int,
+        default=ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
+        help="Outcome support for phase 2: the cube must complete at least this many distinct "
+        "combos of every outcome category in the table (what the combos do: mana, damage, "
+        "tokens, ...), unless the table gives a category its own minimum (default: "
+        f"{ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS}). Set to 0 to disable.",
+    )
+    argparser.add_argument(
+        "--max-outcome-share",
+        type=float,
+        default=0,
+        help="Outcome support for phase 2: at most this share of the completed combos may be "
+        "in any one outcome category (default: 0, disabled). Between 0 and 1, in hundredths; "
+        "0 or 1 removes the cap. Costly: every combo in a category is linked exactly in the "
+        "warm-start repair models too, so a tight cap may find no cube within the time limit.",
+    )
+    argparser.add_argument(
+        "--outcome-categories",
+        type=str,
+        default=None,
+        help="Path to the outcome category table, a JSON object of category name to feature "
+        "name patterns (default: data/outcome_categories.json)",
+    )
+    argparser.add_argument(
+        "--popularity-weight",
+        type=float,
+        default=0,
+        help="How much a combo's Spellbook popularity adds to its value in the Phase 1 "
+        "objective and the Phase 2 combo window: a combo is worth 1 + weight x its popularity "
+        "on a log scale relative to the most popular combo, so with 1 the most popular combo "
+        "is worth two obscure ones (default: 0, popularity is a tiebreak only). 0 or more.",
+    )
     args = argparser.parse_args()
     if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
@@ -225,6 +265,12 @@ if __name__ == "__main__":
         argparser.error("--min-pair-combos and --min-mono-combos must be 0 or more")
     if not 0 <= args.max_wide_combo_share <= 1:
         argparser.error("--max-wide-combo-share must be between 0 and 1")
+    if args.min_outcome_combos < 0:
+        argparser.error("--min-outcome-combos must be 0 or more")
+    if not 0 <= args.max_outcome_share <= 1:
+        argparser.error("--max-outcome-share must be between 0 and 1")
+    if not math.isfinite(args.popularity_weight) or args.popularity_weight < 0:
+        argparser.error("--popularity-weight must be 0 or more")
     # The card mix settings are validated once, by CardMixRules; the error names the field
     try:
         card_mix = CardMixRules(
@@ -238,6 +284,15 @@ if __name__ == "__main__":
         )
     except CardMixRuleError as e:
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
+    if args.method == "ilp":
+        # A missing or invalid outcome table is a usage error, not a traceback
+        try:
+            resolve_outcome_categories(
+                args.outcome_categories,
+                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share),
+            )
+        except (FileNotFoundError, OutcomeCategoryError) as e:
+            argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -266,5 +321,9 @@ if __name__ == "__main__":
             min_mono_combos=args.min_mono_combos,
             max_wide_combo_share=args.max_wide_combo_share,
             card_mix=card_mix,
+            outcome_categories_path=args.outcome_categories,
+            min_outcome_combos=args.min_outcome_combos,
+            max_outcome_share=args.max_outcome_share,
+            popularity_weight=args.popularity_weight,
         )
     )
