@@ -12,7 +12,7 @@ COMBOS = [
     ComboData("h1", frozenset(["H", "P1"]), [], 10, group_key="big", color_identity="W"),
     ComboData("h2", frozenset(["H", "P2"]), [], 10, group_key="big", color_identity="WU"),
     ComboData("ab", frozenset(["A", "B"]), [], 10, color_identity="UB"),
-    ComboData("cd", frozenset(["C", "D"]), [], 10),
+    ComboData("cd", frozenset(["C", "D"]), [], 10, color_identity=""),
 ]
 CARDS = {
     name: CandidateCard(name, frozenset(), frozenset())
@@ -52,6 +52,7 @@ class TestEvaluateCube:
         assert [
             (g.group_key, g.variant_count, g.cards) for g in evaluation.largest_combo_groups
         ] == [("big", 2, ["H", "P1", "P2"]), ("ab", 1, ["A", "B"])]
+        assert evaluation.archetype_stats is not None
         counts = evaluation.archetype_stats.combos_per_archetype
         assert counts["W"] == 1 and counts["WU"] == 1 and counts["UB"] == 1 and counts["C"] == 0
         assert evaluation.archetype_stats.combos_by_color_count[1] == 1

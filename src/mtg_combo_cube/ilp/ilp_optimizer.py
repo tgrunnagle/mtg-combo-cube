@@ -17,11 +17,13 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     COLORS,
     MONO_COLORS,
     card_utilization,
+    color_identities_known,
     completable_combo_ids,
     completed_group_sizes,
     compute_archetype_stats,
     compute_utilization_stats,
     fits_archetype,
+    known_color_identity,
     largest_combo_groups,
     weighted_combo_count,
 )
@@ -61,6 +63,8 @@ class _BaseModel:
     # Phase 2 only: z[cards] = 1 iff at least one card of that option pool is in the cube.
     # One variable per distinct pool of two or more cards, shared by every combo using it.
     option_satisfied: dict[frozenset[str], cp_model.IntVar] = field(default_factory=dict)
+    # Variants whose y is exact in both directions (_add_exact_combo_linking)
+    exact_combo_ids: set[str] = field(default_factory=set)
     # Archetype rules: h[name, group] = 1 only if a variant of the group that fits the named
     # archetype is completable, for groups where only some variants fit (see
     # _fitting_group_count). Holds the variable and the ids of those variants.
@@ -106,7 +110,7 @@ class _Solution:
     largest_combo_groups: list[ComboGroupStats]
     utilization_per_card: dict[str, int]
     utilization_stats: UtilizationStats
-    archetype_stats: ArchetypeStats
+    archetype_stats: ArchetypeStats | None  # None when the combos carry no color identities
     requirement_type_stats: list[RequirementTypeStats]
     requirement_coverage_stats: RequirementCoverageStats
     cross_template_stats: CrossTemplateStats
@@ -235,7 +239,7 @@ class ILPOptimizer:
         self.min_pair_combos = min_pair_combos
         self.min_mono_combos = min_mono_combos
         self.max_wide_combo_share = max_wide_combo_share
-        self.has_color_identities = any(combo.color_identity for combo in combos)
+        self.has_color_identities = color_identities_known(combos)
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -707,7 +711,9 @@ class ILPOptimizer:
             )
         base.counts["coverage"] = coverage_constraints
 
-    def _add_exact_combo_linking(self, base: _BaseModel) -> None:
+    def _add_exact_combo_linking(
+        self, base: _BaseModel, combos: list[ComboData] | None = None
+    ) -> None:
         """
         Make y exact: y[j] = 1 if and only if the selected cards complete combo j.
 
@@ -722,6 +728,10 @@ class ILPOptimizer:
         Written as linear constraints. The equivalent clause form (add_bool_or /
         add_implication) was compared on rungs S and M and was not better; see
         docs/plans/ilp-improvement-plan.md, Stage 3.
+
+        `combos` restricts the linking to those variants (every variant by default). Variants
+        linked by an earlier call are skipped, so the wide combo cap can link the variants it
+        needs exact in the one-sided repair models before Phase 2 links the rest.
         """
         model = base.model
         x = base.x
@@ -744,15 +754,18 @@ class ILPOptimizer:
                 base.option_satisfied[cards] = z
             return base.option_satisfied[cards]
 
-        for combo in self.combos:
+        for combo in self.combos if combos is None else combos:
+            if combo.id in base.exact_combo_ids:
+                continue
             literals = [x[card] for card in sorted(combo.required_cards)]
             for cards in dict.fromkeys(opt.cards for opt in combo.requirement_options):
                 literals.append(option_literal(cards))
             model.add(base.y[combo.id] >= sum(literals) - (len(literals) - 1))
+            base.exact_combo_ids.add(combo.id)
 
         base.counts["variables_option"] = len(base.option_satisfied)
-        base.counts["option_linking"] = option_linking_count
-        base.counts["combo_exact_linking"] = len(self.combos)
+        base.counts["option_linking"] = base.counts.get("option_linking", 0) + option_linking_count
+        base.counts["combo_exact_linking"] = len(base.exact_combo_ids)
 
     def _add_utilization_vars(self, base: _BaseModel) -> dict[str, cp_model.IntVar]:
         """
@@ -1207,7 +1220,16 @@ class ILPOptimizer:
     @staticmethod
     def _is_narrow(combo: ComboData) -> bool:
         """A variant of at most two colors, which a two-color drafter can assemble."""
-        return combo.color_count < 3
+        return len(known_color_identity(combo)) < 3
+
+    def _wide_only_variants(self) -> list[ComboData]:
+        """The variants of the groups whose every variant needs three or more colors."""
+        return [
+            combo
+            for members in self.combo_groups.values()
+            if not any(self._is_narrow(combo) for combo in members)
+            for combo in members
+        ]
 
     def _group_indicator(self, base: _BaseModel, key: str) -> cp_model.IntVar:
         """
@@ -1261,7 +1283,9 @@ class ILPOptimizer:
             count = self._fitting_group_count(
                 base,
                 archetype,
-                lambda combo, archetype=archetype: fits_archetype(combo.color_identity, archetype),
+                lambda combo, archetype=archetype: fits_archetype(
+                    known_color_identity(combo), archetype
+                ),
             )
             base.model.add(count >= minimum)
         logger.info(
@@ -1276,10 +1300,18 @@ class ILPOptimizer:
         At most max_wide_combo_share of the completed combos may need three or more
         colors. Written as (den - num) * total <= den * narrow over the completed groups,
         where narrow counts the groups with a completed variant of at most two colors.
+
+        In the Phase 1 style repair models y is one-sided, so the solver could meet the cap
+        by leaving y at 0 for a wide combo the cube completes. The variants of the groups
+        that only count as wide are therefore linked exactly (_add_exact_combo_linking),
+        which makes total exact where under-counting would loosen the cap; under-counting a
+        narrow group only tightens it.
         """
         share = self._wide_share_fraction()
         if share is None:
             return
+        wide_only = self._wide_only_variants()
+        self._add_exact_combo_linking(base, wide_only)
         total = cp_model.LinearExpr.sum(
             [self._group_indicator(base, key) for key in self.combo_groups]
         )
@@ -1287,7 +1319,8 @@ class ILPOptimizer:
         base.model.add((share.denominator - share.numerator) * total <= share.denominator * narrow)
         logger.info(
             f"Phase 2: Added the wide combo cap (at most {self.max_wide_combo_share:.0%} of the "
-            f"completed combos may need three or more colors)"
+            f"completed combos may need three or more colors; {len(wide_only)} wide variants "
+            f"linked exactly)"
         )
         base.counts["wide_combo_cap"] = 1
 
@@ -1300,6 +1333,7 @@ class ILPOptimizer:
         if not minimums:
             return {}
         stats = compute_archetype_stats(cards, self.combos)
+        assert stats is not None  # the minimums are empty without identities
         return {
             archetype: (stats.combos_per_archetype[archetype], minimum)
             for archetype, minimum in minimums.items()
@@ -1316,6 +1350,7 @@ class ILPOptimizer:
         if share is None:
             return 0
         stats = compute_archetype_stats(cards, self.combos)
+        assert stats is not None  # there is no cap without identities
         total = sum(stats.combos_by_color_count.values())
         return int(share.denominator * stats.wide_combo_count > share.numerator * total)
 
@@ -1325,7 +1360,7 @@ class ILPOptimizer:
             available = sum(
                 1
                 for members in self.combo_groups.values()
-                if any(fits_archetype(combo.color_identity, archetype) for combo in members)
+                if any(fits_archetype(known_color_identity(combo), archetype) for combo in members)
             )
             if available < minimum:
                 logger.warning(
@@ -1367,6 +1402,31 @@ class ILPOptimizer:
     def _cube_rule_violations(self, cards: Collection[str]) -> dict[str, int]:
         """Constraints of each cube rule that a cube breaks, by rule label."""
         return {rule.label: rule.violations(cards) for rule in self._cube_rules()}
+
+    def _describe_broken_rules(self, cards: Collection[str]) -> str:
+        """'11 coverage, 1 wide combo cap' for the cube rules a cube breaks, or '' if none."""
+        violations = self._cube_rule_violations(cards)
+        return ", ".join(f"{count} {label}" for label, count in violations.items() if count)
+
+    def _log_archetype_fallback(self, reference: _WarmStart) -> None:
+        """
+        After a Phase 2 failure, say whether the archetype minimums are the likely cause:
+        they are when no cube meeting them was found (the reference is then the Phase 1
+        cube, below them); when the reference cube meets them, the cause lies elsewhere.
+        """
+        if not self._archetype_minimums():
+            return
+        shortfalls = self._describe_archetype_shortfalls(reference.cards)
+        if shortfalls:
+            logger.warning(
+                f"Phase 2: no cube meeting the archetype minimums was found; the reference "
+                f"cube is below them for {shortfalls}"
+            )
+        else:
+            logger.warning(
+                "Phase 2: the reference cube meets the archetype minimums, so the failure "
+                "lies in the combo window, the utilization floor or the time limit"
+            )
 
     def _repair_model(self, hint: _WarmStart) -> _BaseModel:
         """The Phase 1 model with the Phase 2 cube rules, hinted with a cube."""
@@ -1462,6 +1522,10 @@ class ILPOptimizer:
         )
         if repaired is None or not self._satisfies_window_and_floor(repaired, min_score):
             return None, status_str
+        broken = self._describe_broken_rules(repaired.cards)
+        if broken:
+            logger.warning(f"Phase 2: the repaired warm start breaks {broken} constraints")
+            return None, status_str
         return repaired, status_str
 
     def _describe_combos(self, combo_ids: Collection[str]) -> str:
@@ -1507,6 +1571,16 @@ class ILPOptimizer:
             if shortfalls:
                 problem += f" (archetypes below their minimum: {shortfalls})"
             best, status_str = self._best_constrained_cube(phase1_start)
+            # The rules are checked on the true completions of the cube found: the repair
+            # model is one-sided in y, so a rule not written to be exact there could be met
+            # by the solver's y rather than by the cards
+            still_broken = self._describe_broken_rules(best.cards) if best is not None else ""
+            if still_broken:
+                logger.warning(
+                    f"Phase 2: the best cube found ({status_str}) still breaks {still_broken} "
+                    f"constraints; it is not used as the reference"
+                )
+                best = None
             if best is None:
                 logger.warning(
                     f"Phase 2: {problem}; no cube satisfying them was found ({status_str}), "
@@ -1655,7 +1729,11 @@ class ILPOptimizer:
         combo_groups = largest_combo_groups(
             selected_name_set, self.combos, completed_ids=completed_set
         )
-        archetype_stats = compute_archetype_stats(selected_name_set, self.combos, completed_set)
+        archetype_stats = (
+            compute_archetype_stats(selected_name_set, self.combos, completed_set)
+            if self.has_color_identities
+            else None
+        )
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 
@@ -1948,14 +2026,7 @@ class ILPOptimizer:
         # If Phase 2 fails, fall back to Phase 1
         if status_str not in ("OPTIMAL", "FEASIBLE"):
             logger.warning(f"Phase 2 failed ({status_str}), falling back to Phase 1 result")
-            shortfalls = self._describe_archetype_shortfalls(
-                {card.name for card in phase1_result.selected_cards}
-            )
-            if shortfalls:
-                logger.warning(
-                    f"Phase 2: the Phase 1 cube is below the archetype minimums for "
-                    f"{shortfalls}; those minimums may be what Phase 2 could not meet"
-                )
+            self._log_archetype_fallback(reference)
             profile_data = phase1_result.profile_data
             if profile_result:
                 profile_result.log_summary()

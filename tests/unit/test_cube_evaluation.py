@@ -28,7 +28,7 @@ def make_combo(
     required: list[str],
     options: list[list[str]] | None = None,
     group: str = "",
-    identity: str = "",
+    identity: str | None = "",
 ) -> ComboData:
     return ComboData(
         id=combo_id,
@@ -171,6 +171,7 @@ class TestArchetypes:
     def test_compute_archetype_stats(self):
         stats = compute_archetype_stats(EVERY_COLORED_CARD, COLORED)
 
+        assert stats is not None
         assert stats.combos_per_archetype == combos_per_archetype(EVERY_COLORED_CARD, COLORED)
         assert stats.wide_combo_count == 1
 
@@ -185,8 +186,18 @@ class TestArchetypes:
     def test_empty_cube(self):
         stats = compute_archetype_stats([], COLORED)
 
+        assert stats is not None
         assert set(stats.combos_per_archetype.values()) == {0}
         assert stats.wide_combo_count == 0
+
+    def test_unknown_identity_gives_no_stats(self):
+        combos = [*COLORED, make_combo("x", ["X1", "X2"], identity=None)]
+
+        assert combos[-1].color_identity is None
+        assert combos[-1].color_count == 0
+        assert compute_archetype_stats(EVERY_COLORED_CARD, combos) is None
+        with pytest.raises(ValueError, match="no color identity"):
+            combos_per_archetype(["X1", "X2"], combos)
 
 
 class TestCompletableComboIds:

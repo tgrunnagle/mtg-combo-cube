@@ -244,8 +244,7 @@ class TestRunnerPlumbing:
                 "R": 0,
                 "G": 0,
             }
-            # The combos carry no color identity, so they count as colorless everywhere
-            assert stats[phase]["archetypes"]["combos_per_archetype"]["C"] == 3
-            assert stats[phase]["archetypes"]["combos_by_color_count"]["0"] == 3
+            # The combos carry no color identity: no archetype counts are reported ...
+            assert "archetypes" not in stats[phase]
         # ... and the archetype rules were not applied
         assert "min_pair_combos" not in stats["phase2"]

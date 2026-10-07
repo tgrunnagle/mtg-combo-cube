@@ -6,7 +6,12 @@ from typing import Any
 
 import pytest
 
-from mtg_combo_cube.ilp.cube_evaluation import COLOR_PAIRS, MONO_COLORS, fits_archetype
+from mtg_combo_cube.ilp.cube_evaluation import (
+    COLOR_PAIRS,
+    MONO_COLORS,
+    completable_combo_ids,
+    fits_archetype,
+)
 from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from tests.unit.test_ilp_optimizer import build_candidate_cards
@@ -130,7 +135,24 @@ class TestPairMinimum:
         assert result.phase2_fell_back
         assert result.phase2_min_mono_combos == 1
         assert "the pool has only 0 combos for U, below the minimum of 1" in caplog.text
-        assert "below the archetype minimums for U 0 < 1, B 0 < 1, R 0 < 1, G 0 < 1" in caplog.text
+        assert (
+            "no cube meeting the archetype minimums was found; the reference cube is below "
+            "them for U 0 < 1, B 0 < 1, R 0 < 1, G 0 < 1"
+        ) in caplog.text
+
+    def test_fallback_for_another_reason_says_the_minimums_were_met(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        # The minimum is met by the triangle plus six gold pairs, but a floor of 2 is not:
+        # gold cards take part in one combo each
+        optimizer = make_optimizer(PAIRS, cube_size=15, min_pair_combos=1, min_utilization_floor=2)
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            result = optimizer.solve_two_phase()
+
+        assert result.phase2_fell_back
+        assert "the reference cube meets the archetype minimums" in caplog.text
+        assert "no cube meeting the archetype minimums" not in caplog.text
 
     @pytest.mark.parametrize("name", ["min_pair_combos", "min_mono_combos"])
     def test_negative_minimum_is_rejected(self, name: str):
@@ -161,9 +183,11 @@ class TestMonoMinimum:
 
 class TestWideComboCap:
     def test_cap_excludes_the_wide_combo(self):
-        result = make_optimizer(MONO, cube_size=7, max_wide_combo_share=0.1).solve_two_phase(
-            profile=True
-        )
+        # Tolerance 0: the window is exactly the reference, so a reference cube that broke
+        # the cap (six combos) would leave Phase 2 nothing to find
+        result = make_optimizer(
+            MONO, cube_size=7, max_wide_combo_share=0.1, combo_tolerance=0
+        ).solve_two_phase(profile=True)
 
         assert result.is_multi_objective
         assert result.phase2_max_wide_combo_share == 0.1
@@ -173,6 +197,24 @@ class TestWideComboCap:
         assert not {"A", "B", "C"} <= set(result.get_selected_card_names())
         assert result.profile_data is not None
         assert result.profile_data["phase2"]["counts"]["wide_combo_cap"] == 1
+        # The best cube under the cap has three combos, and Phase 2 keeps them
+        assert result.combo_count == 3
+        assert result.phase2_reference_combo_count == 3
+        # The cap's own exact linking and Phase 2's cover every variant once
+        assert result.profile_data["phase2"]["counts"]["combo_exact_linking"] == len(MONO)
+
+    def test_repair_model_cannot_meet_the_cap_through_y(self):
+        """In the one-sided repair model a wide combo the cube completes counts as wide."""
+        optimizer = make_optimizer(MONO, cube_size=7, max_wide_combo_share=0.1)
+        phase1 = optimizer._warm_start_for({"A", "B", "C", "G1", "G2", "R1", "R2"})
+        assert optimizer._wide_cap_violations(phase1.cards) == 1
+
+        best, status = optimizer._best_constrained_cube(phase1)
+
+        assert best is not None, status
+        assert optimizer._wide_cap_violations(best.cards) == 0
+        assert not {"A", "B", "C"} <= best.cards
+        assert len(completable_combo_ids(best.cards, MONO)) == 3
 
     def test_cap_at_the_current_share_keeps_the_wide_combo(self):
         # One wide combo in six is under 25%
@@ -222,9 +264,24 @@ class TestWithoutColorIdentities:
         assert "no color identities; archetype support is not enforced" in caplog.text
         assert result.profile_data is not None
         assert "archetype_minimum" not in result.profile_data["phase2"]["counts"]
-        # Colorless combos count for every archetype in the statistics
-        assert per_archetype(result)["RG"] == 3
-        assert per_archetype(result)["C"] == 3
+        # Unknown identities are not reported as colorless: there are no archetype counts
+        assert result.phase1_archetype_stats is None
+        assert result.phase2_archetype_stats is None
+
+    def test_colorless_pool_is_not_unknown(self):
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 10, color_identity=""),
+            ComboData("bc", frozenset(["B", "C"]), [], 10, color_identity=""),
+        ]
+        optimizer = make_optimizer(combos, cube_size=3, min_pair_combos=2)
+
+        assert optimizer.has_color_identities
+        result = optimizer.solve_two_phase()
+
+        assert result.is_multi_objective
+        assert result.phase2_min_pair_combos == 2
+        assert per_archetype(result)["RG"] == 2
+        assert per_archetype(result)["C"] == 2
 
 
 class TestViolations:
@@ -303,6 +360,20 @@ class TestMixedIdentityGroups:
         assert optimizer._status_to_string(solver.solve(base.model)) == "INFEASIBLE"  # type: ignore[arg-type]
         # One fit variable, for the group that only partly fits mono white
         assert set(base.fit_vars) == {("W", "g")}
+
+    def test_variant_weight_one_keeps_variant_scoring(self):
+        """At weight 1 a rule creates the g variables, which play no part in the score."""
+        optimizer = make_optimizer(self.COMBOS, cube_size=2, variant_weight=1, min_pair_combos=1)
+        plain = make_optimizer(self.COMBOS, cube_size=2, variant_weight=1)
+        base = optimizer._build_base_model()
+
+        assert set(base.g) == {"g"}
+        assert not plain._build_base_model().g
+        assert optimizer._combo_score({"g1", "g2"}) == 2 * ILPOptimizer.WEIGHT_SCALE
+        assert optimizer._combo_score({"g1"}) == ILPOptimizer.WEIGHT_SCALE
+        # Both score a cube the same way and Phase 1 finds the same optimum
+        assert optimizer.solve().objective_value == plain.solve().objective_value
+        assert optimizer.solve().combo_count == 1
 
     def test_fit_variables_are_hinted_and_counted(self):
         optimizer = make_optimizer(self.COMBOS, cube_size=2, min_pair_combos=1)

@@ -203,12 +203,33 @@ cube, found only 1,081 combos in its 30 s. Rerunning that repair on the same Pha
 | No minimums, 30 s | 2,418 / 1,390 / 1,492.8 | 217 / 123 | 25% | 26 |
 | No archetype rules, 30 s | 2,408 / 1,401 / 1,501.7 | 204 / 107 | 26% | 23 |
 
-- The wide cap is what starves the 30 s repair: one constraint over every group indicator
-  that the Phase 1 cube breaks. With 60 s the cap costs nothing. The archetype minimums cost
-  about 2.5% of the weighted count, and they bind: without them the lowest pair falls to
-  204 and the lowest mono to 107.
+Code review then found that the wide cap was one-sided in the repair models: `y` is only
+bounded from above there, so the solver could meet the cap by leaving `y` at 0 for wide
+combos the cube still completes, and the "defaults" rows above are partly that. The fix
+links the variants of every wide-only group exactly in the cap (`_add_exact_combo_linking`
+on a subset), and the repair results are now checked against the true completions. The same
+Phase 1 cube, repaired with the exact cap:
+
+| Repair (exact cap) | Variants / combos / weighted | Lowest pair / mono | Wide | Cards swapped |
+|---|---|---|---|---|
+| Defaults, 30 s (two runs) | 1,831 / 1,098 / 1,171.3 and 2,126 / 1,214 / 1,305.2 | 324 / 226 and 307 / 192 | 9%, 13% | 120, 87 |
+| Defaults, 60 s | 2,274 / 1,390 / 1,478.4 | 253 / 154 | 23% | 38 |
+| Defaults, 120 s | 2,374 / 1,374 / 1,474.0 | 261 / 157 | 23% | 39 |
+| Defaults, 240 s | 2,176 / 1,363 / 1,444.3 | 304 / 188 | 22% | 68 |
+| No wide cap, 60 s | 2,310 / 1,384 / 1,476.6 | 255 / 152 | 24% | 38 |
+| No minimums, 60 s | 2,102 / 1,334 / 1,410.8 | 297 / 182 | 21% | 88 |
+| No archetype rules, 60 s | 2,386 / 1,405 / 1,503.1 | 196 / 105 | 28% | 23 |
+
+- With 30 s the exact cap still leaves the repair short (it swaps 90 to 120 cards and
+  overshoots to 9-13% wide); with 60 s it costs nothing against no cap. The archetype
+  minimums cost about 2% of the weighted count, and they bind: without them the lowest pair
+  falls to about 200 and the lowest mono to about 105.
 - **Change:** `WARM_START_MAXIMIZE_FRACTION` is 0.2 (60 s at the default time limit). The
   warm start preparation then takes about 80 s of the Phase 2 limit.
+- The two full runs in the table above were made before the cap fix. Their final cubes are
+  valid, because the Phase 2 model links every variant exactly, and the second run's cube
+  meets every rule (wide 19%); only the reference it was measured from may have been a
+  little high.
 - The second run keeps 10% fewer distinct combos than the tracked cube (1,149 against
   1,279) for a lowest pair 35% higher and a lowest mono 41% higher. Part of the gap is the
   reference solve: on the first run's Phase 1 cube the 60 s repair reached 1,369 combos,

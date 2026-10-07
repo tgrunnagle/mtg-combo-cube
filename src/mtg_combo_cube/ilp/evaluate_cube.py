@@ -52,7 +52,7 @@ class CubeEvaluation:
     weighted_combo_count: float  # groups + variant_weight x further variants
     utilization_stats: UtilizationStats
     largest_combo_groups: list[ComboGroupStats]
-    archetype_stats: ArchetypeStats  # distinct combos per draft archetype
+    archetype_stats: ArchetypeStats | None  # distinct combos per draft archetype, if known
 
 
 async def evaluate_cube(
@@ -151,7 +151,8 @@ if __name__ == "__main__":
         f"mean={stats.mean_utilization:.2f}, median={stats.median_utilization:.1f}, "
         f"std_dev={stats.std_deviation:.2f}"
     )
-    print(f"Archetypes (distinct combos): {format_archetype_stats(evaluation.archetype_stats)}")
+    if evaluation.archetype_stats is not None:
+        print("Archetypes (distinct combos): " + format_archetype_stats(evaluation.archetype_stats))
 
     cube_cards = read_cube_file(args.cube_file)
     color_identities = asyncio.run(fetch_color_identities(cube_cards, read_cache=True))

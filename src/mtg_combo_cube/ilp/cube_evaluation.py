@@ -34,6 +34,18 @@ def fits_archetype(color_identity: str, archetype: str) -> bool:
     return set(color_identity) <= set(archetype_colors(archetype))
 
 
+def known_color_identity(combo: ComboData) -> str:
+    """The combo's color identity, which the archetype counts need; raises if unknown."""
+    if combo.color_identity is None:
+        raise ValueError(f"combo {combo.id} has no color identity")
+    return combo.color_identity
+
+
+def color_identities_known(combos: list[ComboData]) -> bool:
+    """Whether every combo carries a color identity (the preprocessor always sets one)."""
+    return all(combo.color_identity is not None for combo in combos)
+
+
 def completable_combo_ids(selected_cards: Collection[str], combos: list[ComboData]) -> list[str]:
     """
     Return the ids of the combos the selected cards complete, in the order of `combos`.
@@ -141,12 +153,14 @@ def combos_per_archetype(
 
     A combo counts for an archetype when one of its completed variants has a color identity
     within the archetype's colors, so mono-colored and colorless combos count for every
-    pair they fit. `completed_ids` saves recomputing the completed variants.
+    pair they fit. `completed_ids` saves recomputing the completed variants. Every combo
+    must carry a color identity (see compute_archetype_stats).
     """
     groups: dict[str, set[str]] = {archetype: set() for archetype in ARCHETYPES}
     for combo in _completed_variants(selected_cards, combos, completed_ids):
+        identity = known_color_identity(combo)
         for archetype, keys in groups.items():
-            if fits_archetype(combo.color_identity, archetype):
+            if fits_archetype(identity, archetype):
                 keys.add(combo.group_key)
     return {archetype: len(keys) for archetype, keys in groups.items()}
 
@@ -163,9 +177,10 @@ def combos_by_color_count(
     """
     fewest: dict[str, int] = {}
     for combo in _completed_variants(selected_cards, combos, completed_ids):
+        colors = len(known_color_identity(combo))
         current = fewest.get(combo.group_key)
-        if current is None or combo.color_count < current:
-            fewest[combo.group_key] = combo.color_count
+        if current is None or colors < current:
+            fewest[combo.group_key] = colors
     counts = dict.fromkeys(range(len(COLORS) + 1), 0)
     for colors in fewest.values():
         counts[colors] += 1
@@ -176,8 +191,14 @@ def compute_archetype_stats(
     selected_cards: Collection[str],
     combos: list[ComboData],
     completed_ids: Collection[str] | None = None,
-) -> ArchetypeStats:
-    """The distinct combos per archetype and by color count of a set of cards."""
+) -> ArchetypeStats | None:
+    """
+    The distinct combos per archetype and by color count of a set of cards, or None when
+    a combo has no color identity (so nothing is reported rather than counting it as
+    colorless).
+    """
+    if not color_identities_known(combos):
+        return None
     completed = (
         completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
     )

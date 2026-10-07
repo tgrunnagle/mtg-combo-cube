@@ -56,9 +56,10 @@ class ComboData:
     # combo with a piece swapped. Defaults to the variant id (a group of one).
     group_key: str = ""
     # Color identity of the variant as given by Spellbook: WUBRG letters in that order,
-    # empty for colorless. It covers the required cards; a template requirement filled by a
-    # colored card can add a color the identity does not show.
-    color_identity: str = ""
+    # "" for colorless, None when unknown (an instance built without identities). It covers
+    # the required cards; a template requirement filled by a colored card can add a color
+    # the identity does not show.
+    color_identity: str | None = None
 
     def __post_init__(self) -> None:
         if not self.group_key:
@@ -66,8 +67,8 @@ class ComboData:
 
     @property
     def color_count(self) -> int:
-        """Number of colors in the variant's color identity."""
-        return len(self.color_identity)
+        """Number of colors in the variant's color identity (0 when unknown)."""
+        return len(self.color_identity or "")
 
     def all_requirements_resolvable(self) -> bool:
         """Check if all template requirements have at least one card option."""
