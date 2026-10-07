@@ -1588,8 +1588,8 @@ class ILPOptimizer:
     def _group_indicator(self, base: _BaseModel, key: str) -> cp_model.IntVar:
         """
         The variable that is 1 iff a variant of the group is completable: g, or the y of a
-        single variant. Groups of several variants have a g whenever an archetype rule is
-        enabled (see grouped_keys).
+        single variant. Groups of several variants have a g whenever an archetype or outcome
+        rule is enabled (see grouped_keys).
         """
         if key in base.g:
             return base.g[key]
