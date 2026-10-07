@@ -13,12 +13,12 @@ from mtg_combo_cube import runner
 from mtg_combo_cube.ilp import ilp_runner
 from mtg_combo_cube.ilp.ilp_models import (
     CandidateCard,
+    CardAttributes,
     CardMixRules,
     ComboData,
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 
 
 def run_cli(monkeypatch: pytest.MonkeyPatch, *args: str) -> dict[str, Any]:
@@ -179,6 +179,7 @@ class TestCliPlumbing:
         [
             ("--max-multicolor-share", "1.5"),
             ("--max-colorless-share", "-0.1"),
+            ("--max-colorless-share", "x"),
             ("--max-expensive-share", "2"),
             ("--expensive-mana-value", "-1"),
             ("--max-creature-share", "-0.5"),

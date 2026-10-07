@@ -70,7 +70,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --min-mono-combos      Phase 2 archetype support: distinct combos every mono color must be able to assemble (default: 150, 0 disables)
 --max-wide-combo-share Phase 2 cap on the share of completed combos that need three or more colors (default: 0.25, 0 or 1 disables)
 --max-multicolor-share Phase 2 card mix: at most this share of the cube may be multicolor cards (default: 0.15, 0 or 1 disables)
---max-colorless-share  Phase 2 card mix: at most this share may be colorless cards (default: 0.25, 0 or 1 disables)
+--max-colorless-share  Phase 2 card mix: at most this share may be colorless nonland cards (default: 0.25, 0 or 1 disables)
 --max-expensive-share  Phase 2 card mix: at most this share may have mana value --expensive-mana-value or more (default: 0.2, 0 or 1 disables)
 --expensive-mana-value Mana value from which a card counts as expensive (default: 5)
 --max-creature-share   Phase 2 card mix: at most this share may be creatures (default: 0.6, 0 or 1 disables)
@@ -151,7 +151,7 @@ Every combo count and utilization number is computed from the selected cards, no
 
 - `type_counts`: cards of each card type (Creature, Instant, Sorcery, Artifact, Enchantment, Planeswalker, Battle, Land); a card counts once for every type it has, taken from the front face of a multi-faced card.
 - `multicolor`, `colorless`: cards with two or more colors and with none. `unknown` counts cards without Scryfall data, which count as colorless.
-- `mana_value_counts`, `mean_mana_value`, `mean_mana_value_per_color`: the nonland cards by mana value (`7` means 7 or more), their mean, and the mean of the nonland cards of each color. A double-faced card has its front face's mana value, a split card the sum.
+- `mana_value_counts`, `mean_mana_value`, `mean_mana_value_per_color`: the nonland cards by mana value (`7` means 7 or more), their mean, and the mean of the nonland cards of each color. A double-faced card has its front face's mana value, a split card the sum; cards without Scryfall data are left out.
 
 The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ..."), color distribution, archetype counts ("Archetypes, Phase 2: pairs WU=358, WB=335, ...; mono W=219, ...; colorless 128; 3+ colors 304 of 1380 (22%)") and card mix ("Card mix, Phase 2: types Creature=180 (60%), Instant=10, ...; multicolor 43 (14%), colorless 74 (25%); mana value (nonland) mean 3.2, ...") at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` and `card_mix` are left out.
 
@@ -181,7 +181,7 @@ Three kinds of API responses are cached in `data/cache/`:
 - By default, API responses are written to `data/cache/` after fetching
 - Use `--read-api-cache` to read from cache when available (falls back to live API on cache miss)
 - Use `--skip-api-caching` to disable writing to cache
-- Both flags cover both caches. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
+- Both flags cover all three caches. `scryfall_card_colors.json`, written by earlier versions, is no longer read and can be deleted. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
 - Scryfall requests are rate-limited (about 10 per second) and retried on HTTP 429 / 5xx and network errors. Failed requests are not cached, so a later run retries them.
 - The greedy method always queries Commander Spellbook live; only its Scryfall lookups are cached.
 
@@ -263,7 +263,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 | `--min-mono-combos` | `150` | Archetype support: every mono color must be able to assemble at least this many distinct combos (its own plus colorless ones; 0 disables) |
 | `--max-wide-combo-share` | `0.25` | At most this share of the completed combos may need three or more colors (0 or 1 disables) |
 | `--max-multicolor-share` | `0.15` | Card mix: at most this share of the cube may be multicolor cards (0 or 1 disables) |
-| `--max-colorless-share` | `0.25` | Card mix: at most this share may be colorless cards; cards without Scryfall data count as colorless (0 or 1 disables) |
+| `--max-colorless-share` | `0.25` | Card mix: at most this share may be colorless nonland cards; cards without Scryfall data count as colorless, lands do not count (0 or 1 disables) |
 | `--max-expensive-share` | `0.2` | Card mix: at most this share may have a mana value of `--expensive-mana-value` (default 5) or more (0 or 1 disables) |
 | `--max-creature-share` | `0.6` | Card mix: at most this share may be creatures (0 or 1 disables) |
 | `--min-spell-share` | `0.05` | Card mix: at least this share must be instants or sorceries (0 disables) |
@@ -295,7 +295,7 @@ Notes:
 
 - The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`), the color balance (`--max-color-ratio`), the archetype rules (`--min-pair-combos`, `--min-mono-combos`, `--max-wide-combo-share`) and the card mix rules (`--max-multicolor-share` and the other share options) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
 - Color balance counts a card once for each color of its color identity, so a white-blue card counts as white and as blue. Colorless cards are not limited by it (see `--max-colorless-share`). The rule needs every color to be present; if it cannot be met within the combo tolerance, Phase 2 fails and the Phase 1 cube is returned. If card data cannot be fetched from Scryfall, a warning is logged and the run continues without the color balance and the card mix rules.
-- The card mix rules are shares of the cube size, rounded to hundredths: a cap allows `floor(share x cube size)` cards and the spell floor requires `ceil(share x cube size)`. Card types are those of the front face of a multi-faced card, and a card without Scryfall data counts as colorless, typeless and mana value 0 (a warning gives their number). The defaults were chosen from the measurements in [docs/plans/card-mix-plan.md](docs/plans/card-mix-plan.md): each costs between 1% and 4% of the weighted combo count alone, with the colorless cap, the expensive cap and the spell floor the most binding.
+- The card mix rules are shares of the cube size, rounded to hundredths: a cap allows `floor(share x cube size)` cards and the spell floor requires `ceil(share x cube size)`. Card types are those of the front face of a multi-faced card; lands do not count toward the colorless cap; and a card without Scryfall data counts as colorless, typeless and mana value 0 (a warning gives their number). Before solving, a warning names any rule the whole pool cannot meet. The defaults were chosen from the measurements in [docs/plans/card-mix-plan.md](docs/plans/card-mix-plan.md): each costs between 1% and 4% of the weighted combo count alone, with the colorless cap, the expensive cap and the spell floor the most binding.
 - Archetype support counts distinct combos (not variants) by their Spellbook color identity, as in the `archetypes` statistics. The minimums are absolute counts chosen for the default configuration (300 cards, 20,000 variants, see [docs/plans/archetype-support-plan.md](docs/plans/archetype-support-plan.md)); a much smaller cube or pool cannot reach them, so lower them or pass 0 there. Before solving, a warning names any archetype the whole pool has too few combos for; if the minimums cannot be met, Phase 2 fails, the Phase 1 cube is returned and the log says which archetypes that cube falls short on.
 - The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under the Phase 2 cube rules (coverage, color balance and, since the archetype rules, their minimums and the wide cap), so the same value allows fewer combos than it did then.
 - For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.

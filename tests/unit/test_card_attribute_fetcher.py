@@ -4,11 +4,8 @@ import json
 
 import pytest
 
-from mtg_combo_cube.scryfall.card_attribute_fetcher import (
-    UNKNOWN_CARD,
-    CardAttributeFetcher,
-    CardAttributes,
-)
+from mtg_combo_cube.ilp.ilp_models import UNKNOWN_CARD, CardAttributes
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from tests.unit.scryfall_fakes import FakeResponse, FakeSession, make_fetcher
 
 URL = CardAttributeFetcher.COLLECTION_URL

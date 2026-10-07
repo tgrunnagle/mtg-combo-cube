@@ -8,14 +8,15 @@ from collections.abc import Collection, Mapping
 from itertools import combinations
 
 from mtg_combo_cube.ilp.ilp_models import (
+    UNKNOWN_CARD,
     ArchetypeStats,
+    CardAttributes,
     CardMixStats,
     ColorStats,
     ComboData,
     ComboGroupStats,
     UtilizationStats,
 )
-from mtg_combo_cube.scryfall.card_attribute_fetcher import UNKNOWN_CARD, CardAttributes
 
 COLORS = "WUBRG"
 # The ten two-color pairs, in WUBRG order
@@ -333,7 +334,8 @@ def compute_card_mix_stats(
     Compute the make-up of the cards by type, color count and mana value.
 
     Cards missing from attributes are counted as unknown and, as in the card mix rules,
-    as colorless, typeless and mana value 0. Mana values are over nonland cards.
+    as colorless and typeless; they are left out of the mana values, which are over the
+    nonland cards with data.
     """
     type_counts = dict.fromkeys(CARD_TYPES, 0)
     mana_value_counts = dict.fromkeys(range(MANA_VALUE_CAP + 1), 0)
@@ -353,7 +355,7 @@ def compute_card_mix_stats(
             multicolor += 1
         elif card_attributes.is_colorless:
             colorless += 1
-        if "Land" in types:
+        if "Land" in types or card_attributes is UNKNOWN_CARD:
             continue
         mana_value = card_attributes.mana_value
         mana_value_counts[min(int(mana_value), MANA_VALUE_CAP)] += 1

@@ -5,9 +5,8 @@ from typing import Any
 import pytest
 
 from mtg_combo_cube.ilp.cube_evaluation import compute_color_stats
-from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult
+from mtg_combo_cube.ilp.ilp_models import CardAttributes, ComboData, OptimizationResult
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 from tests.unit.test_ilp_card_mix import NO_CARD_MIX
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 

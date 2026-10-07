@@ -221,18 +221,28 @@ if __name__ == "__main__":
         argparser.error("--min-pair-combos and --min-mono-combos must be 0 or more")
     if not 0 <= args.max_wide_combo_share <= 1:
         argparser.error("--max-wide-combo-share must be between 0 and 1")
-    try:
-        card_mix = CardMixRules(
-            max_multicolor_share=args.max_multicolor_share,
-            max_colorless_share=args.max_colorless_share,
-            max_expensive_share=args.max_expensive_share,
-            expensive_mana_value=args.expensive_mana_value,
-            max_creature_share=args.max_creature_share,
-            min_spell_share=args.min_spell_share,
-            mono_color_ratio=args.mono_color_ratio,
-        )
-    except ValueError as e:
-        argparser.error(f"--{str(e).replace('_', '-')}")
+    for share_flag in (
+        "max_multicolor_share",
+        "max_colorless_share",
+        "max_expensive_share",
+        "max_creature_share",
+        "min_spell_share",
+    ):
+        if not 0 <= getattr(args, share_flag) <= 1:
+            argparser.error(f"--{share_flag.replace('_', '-')} must be between 0 and 1")
+    if args.expensive_mana_value < 0:
+        argparser.error("--expensive-mana-value must be 0 or more")
+    if 0 < args.mono_color_ratio < 1:
+        argparser.error("--mono-color-ratio must be 0 or at least 1")
+    card_mix = CardMixRules(
+        max_multicolor_share=args.max_multicolor_share,
+        max_colorless_share=args.max_colorless_share,
+        max_expensive_share=args.max_expensive_share,
+        expensive_mana_value=args.expensive_mana_value,
+        max_creature_share=args.max_creature_share,
+        min_spell_share=args.min_spell_share,
+        mono_color_ratio=args.mono_color_ratio,
+    )
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(

@@ -265,8 +265,10 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    `--max-creature-share` (0.6); and at least `ceil(--min-spell-share x cube size)` (0.05)
    selected cards are instants or sorceries. Each is one linear constraint over the
    candidate cards that count for it, decided from the Scryfall attributes before the solve;
-   a card without attributes counts as colorless, typeless and mana value 0. A share of 0
-   skips a rule (a cap of 1 too), as does missing card data.
+   lands are left out of the colorless cap, and a card without attributes counts as
+   colorless, typeless and mana value 0. A share of 0 skips a rule (a cap of 1 too), as does
+   missing card data. Before the solve, a warning names any rule the pool cannot meet
+   (too few candidates for the floor, or too few cards outside a cap to fill the cube).
 10. **Mono-colored balance.** `--mono-color-ratio` (default 0, off) applies the color balance
     form to the cards whose identity is exactly one color.
 11. **The objective**, chosen with `--phase2-objective`.

@@ -192,6 +192,9 @@ Decisions:
   of the other rules, but it is a floor on interaction only in name (see the open questions).
 - The multicolor cap and the mono-colored balance are not binding at the default
   configuration; the multicolor cap is kept as a guard, the mono balance is off.
+- Lands do not count toward the colorless cap ("Lands: leave alone" above): the cap is about
+  artifacts, and a land's color identity is empty. The measurements above counted lands (the
+  cubes had 0 to 9), which changes the 0.25 figure by at most 3 cards.
 
 ### Verification
 

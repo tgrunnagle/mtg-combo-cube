@@ -6,9 +6,13 @@ from typing import Any
 
 import pytest
 
-from mtg_combo_cube.ilp.ilp_models import CardMixRules, ComboData, OptimizationResult
+from mtg_combo_cube.ilp.ilp_models import (
+    CardAttributes,
+    CardMixRules,
+    ComboData,
+    OptimizationResult,
+)
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 # Every card mix rule off, for tests of other Phase 2 rules that pass card attributes
@@ -152,6 +156,19 @@ class TestShareCaps:
         assert result.is_multi_objective
         assert cube(result) == {"X1", "X2", "B1", "B2", "S1", "S2"}
 
+    def test_lands_do_not_count_toward_the_colorless_cap(self):
+        attributes = {**ATTRIBUTES, "R1": CardAttributes("", "Land", 0)}
+        optimizer = make_optimizer(
+            card_attributes=attributes, card_mix=rules(max_colorless_share=0.2)
+        )
+
+        result = optimizer.solve_two_phase()
+
+        # Only R2 counts, and one colorless card is allowed: the artifact pair stays
+        assert optimizer.colorless_cards == {"R2"}
+        assert result.is_multi_objective
+        assert cube(result) == PHASE1_CUBE
+
     def test_expensive_cap_swaps_out_the_big_creatures(self):
         result = make_optimizer(card_mix=rules(max_expensive_share=0.2)).solve_two_phase()
 
@@ -164,7 +181,7 @@ class TestShareCaps:
 
         result = optimizer.solve_two_phase()
 
-        assert optimizer.expensive_cards == ["B2"]
+        assert optimizer.expensive_cards == {"B2"}
         assert result.is_multi_objective
         assert cube(result) == PHASE1_CUBE
 
@@ -221,9 +238,9 @@ class TestMissingCardData:
             card_mix=rules(max_colorless_share=0.4, max_creature_share=0.5),
         )
 
-        assert optimizer.colorless_cards == ["B1", "B2", "R1", "R2"]
-        assert optimizer.creature_cards == ["X1", "X2"]
-        assert optimizer.expensive_cards == []
+        assert optimizer.colorless_cards == {"B1", "B2", "R1", "R2"}
+        assert optimizer.creature_cards == {"X1", "X2"}
+        assert optimizer.expensive_cards == frozenset()
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             result = optimizer.solve_two_phase()
 
@@ -279,7 +296,38 @@ class TestFallback:
             result = optimizer.solve_two_phase()
 
         assert result.phase2_fell_back
-        assert "no candidate card counts for the spell floor; it cannot be met" in caplog.text
+        assert (
+            "the pool has only 0 instants and sorceries, below the spell floor of 1; Phase 2 "
+            "cannot meet it"
+        ) in caplog.text
+
+    def test_pool_check_names_a_floor_and_a_cap_the_pool_cannot_meet(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        # Two spells in the pool against a floor of four; six of the eight cards are
+        # creatures or artifacts, so a creature cap of one leaves too few other cards
+        optimizer = make_optimizer(
+            card_mix=rules(min_spell_share=0.6, max_creature_share=0.2),
+        )
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer._check_card_mix_pool()
+
+        assert (
+            "the pool has only 2 instants and sorceries, below the spell floor of 4"
+        ) in caplog.text
+        assert (
+            "the pool has only 4 cards outside the creature cap, fewer than the 5 the cube "
+            "needs beside the 1 it allows"
+        ) in caplog.text
+
+    def test_pool_check_is_quiet_when_the_pool_suffices(self, caplog: pytest.LogCaptureFixture):
+        optimizer = make_optimizer(card_mix=rules(min_spell_share=0.3, max_creature_share=0.5))
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer._check_card_mix_pool()
+
+        assert caplog.text == ""
 
 
 class TestViolations:

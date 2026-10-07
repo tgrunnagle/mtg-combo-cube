@@ -12,6 +12,7 @@ from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CandidateCard,
+    CardAttributes,
     CardMixRules,
     ComboGroupStats,
     OptimizationResult,
@@ -24,7 +25,6 @@ from mtg_combo_cube.ilp.ilp_runner import (
     log_phase_summary,
     write_stats,
 )
-from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
