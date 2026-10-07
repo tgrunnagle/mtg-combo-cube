@@ -3,12 +3,18 @@
 import pytest
 
 from mtg_combo_cube.ilp.cube_evaluation import (
+    ARCHETYPES,
+    COLOR_PAIRS,
     card_utilization,
+    combos_by_color_count,
+    combos_per_archetype,
     completable_combo_ids,
     completable_group_keys,
     completed_group_sizes,
+    compute_archetype_stats,
     compute_color_stats,
     compute_utilization_stats,
+    fits_archetype,
     largest_combo_groups,
     weighted_combo_count,
 )
@@ -22,6 +28,7 @@ def make_combo(
     required: list[str],
     options: list[list[str]] | None = None,
     group: str = "",
+    identity: str = "",
 ) -> ComboData:
     return ComboData(
         id=combo_id,
@@ -32,6 +39,7 @@ def make_combo(
         ],
         popularity=1,
         group_key=group,
+        color_identity=identity,
     )
 
 
@@ -96,6 +104,89 @@ class TestComboGroups:
         with_ids = largest_combo_groups(cards, GROUPED, completed_ids=["h1", "h2", "ab"])
 
         assert with_ids == largest_combo_groups(cards, GROUPED)
+
+
+COLORED = [
+    make_combo("w", ["W1", "W2"], identity="W"),
+    make_combo("wu", ["W1", "U1"], identity="WU"),
+    make_combo("c", ["C1", "C2"]),
+    make_combo("wub", ["W1", "U1", "B1"], identity="WUB"),
+    # One combo with a white variant and a white-blue variant
+    make_combo("m1", ["M", "W2"], group="m", identity="W"),
+    make_combo("m2", ["M", "U1"], group="m", identity="WU"),
+]
+EVERY_COLORED_CARD = ["W1", "W2", "U1", "B1", "C1", "C2", "M"]
+
+
+class TestArchetypes:
+    """Test fits_archetype, combos_per_archetype, combos_by_color_count."""
+
+    def test_archetype_order(self):
+        assert ARCHETYPES == (
+            "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
+            "W", "U", "B", "R", "G", "C",
+        )  # fmt: skip
+
+    def test_fits_archetype(self):
+        assert fits_archetype("W", "WU")
+        assert fits_archetype("", "WU")
+        assert fits_archetype("WU", "WU")
+        assert not fits_archetype("WB", "WU")
+        assert fits_archetype("", "C")
+        assert not fits_archetype("W", "C")
+        assert fits_archetype("W", "W")
+        assert not fits_archetype("WU", "W")
+
+    def test_combos_per_archetype_counts_groups_that_fit(self):
+        counts = combos_per_archetype(EVERY_COLORED_CARD, COLORED)
+
+        # w, c and m fit mono white (m through its white variant); wu, wub do not
+        assert counts["W"] == 3
+        assert counts["WU"] == 4  # w, wu, c, m
+        assert counts["WB"] == 3  # w, c, m
+        assert counts["UB"] == 1  # c
+        assert counts["U"] == 1
+        assert counts["C"] == 1
+        assert all(counts[pair] >= 1 for pair in COLOR_PAIRS)
+
+    def test_mixed_group_counts_only_through_a_completed_fitting_variant(self):
+        # Only the white-blue variant of m is complete
+        counts = combos_per_archetype(["M", "U1"], COLORED)
+
+        assert counts["WU"] == 1
+        assert counts["W"] == 0
+        assert counts["U"] == 0
+
+    def test_combos_by_color_count_uses_the_fewest_colors_of_a_group(self):
+        assert combos_by_color_count(EVERY_COLORED_CARD, COLORED) == {
+            0: 1,  # c
+            1: 2,  # w, m
+            2: 1,  # wu
+            3: 1,  # wub
+            4: 0,
+            5: 0,
+        }
+        assert combos_by_color_count(["M", "U1"], COLORED)[2] == 1
+
+    def test_compute_archetype_stats(self):
+        stats = compute_archetype_stats(EVERY_COLORED_CARD, COLORED)
+
+        assert stats.combos_per_archetype == combos_per_archetype(EVERY_COLORED_CARD, COLORED)
+        assert stats.wide_combo_count == 1
+
+    def test_accepts_completed_ids(self):
+        completed = completable_combo_ids(EVERY_COLORED_CARD, COLORED)
+
+        assert compute_archetype_stats(
+            EVERY_COLORED_CARD, COLORED, completed
+        ) == compute_archetype_stats(EVERY_COLORED_CARD, COLORED)
+        assert combos_per_archetype(EVERY_COLORED_CARD, COLORED, ["c"])["C"] == 1
+
+    def test_empty_cube(self):
+        stats = compute_archetype_stats([], COLORED)
+
+        assert set(stats.combos_per_archetype.values()) == {0}
+        assert stats.wide_combo_count == 0
 
 
 class TestCompletableComboIds:

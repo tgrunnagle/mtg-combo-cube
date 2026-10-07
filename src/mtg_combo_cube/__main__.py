@@ -133,11 +133,38 @@ if __name__ == "__main__":
         "(default: 0.1; 1 counts every variant as a combo, 0 counts distinct combos only). "
         "Between 0 and 1.",
     )
+    argparser.add_argument(
+        "--min-pair-combos",
+        type=int,
+        default=250,
+        help="Archetype support for phase 2: every two-color pair must be able to assemble at "
+        "least this many distinct combos, counting the pair's combos plus mono-colored and "
+        "colorless ones (default: 250). Set to 0 to disable.",
+    )
+    argparser.add_argument(
+        "--min-mono-combos",
+        type=int,
+        default=150,
+        help="Archetype support for phase 2: every mono color must be able to assemble at "
+        "least this many distinct combos, counting colorless ones (default: 150). Set to 0 "
+        "to disable.",
+    )
+    argparser.add_argument(
+        "--max-wide-combo-share",
+        type=float,
+        default=0.25,
+        help="Archetype support for phase 2: at most this share of the completed combos may "
+        "need three or more colors (default: 0.25). Between 0 and 1; 0 removes the cap.",
+    )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
     if not 0 <= args.variant_weight <= 1:
         argparser.error("--variant-weight must be between 0 and 1")
+    if args.min_pair_combos < 0 or args.min_mono_combos < 0:
+        argparser.error("--min-pair-combos and --min-mono-combos must be 0 or more")
+    if not 0 <= args.max_wide_combo_share <= 1:
+        argparser.error("--max-wide-combo-share must be between 0 and 1")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -162,5 +189,8 @@ if __name__ == "__main__":
             util_cap=args.util_cap,
             max_color_ratio=args.max_color_ratio,
             variant_weight=args.variant_weight,
+            min_pair_combos=args.min_pair_combos,
+            min_mono_combos=args.min_mono_combos,
+            max_wide_combo_share=args.max_wide_combo_share,
         )
     )

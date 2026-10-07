@@ -22,6 +22,7 @@ def make_mock_variant(
     requirements: list[tuple[str, str | None]] | None = None,
     popularity: int = 100,
     of: list[int] | None = None,
+    identity: str = "C",
 ):
     """Helper to create a mock Variant for testing.
 
@@ -31,11 +32,13 @@ def make_mock_variant(
         requirements: List of (template_name, scryfall_api) tuples for optional requirements
         popularity: Popularity score
         of: Spellbook ids of the combos the variant belongs to (default: none)
+        identity: Spellbook color identity (default: "C", colorless)
     """
     variant = MagicMock()
     variant.id = variant_id
     variant.popularity = popularity
     variant.of = [MagicMock(id=combo_id) for combo_id in (of or [])]
+    variant.identity = identity
 
     # Create mock CardUse objects
     uses = []
@@ -90,6 +93,24 @@ class TestComboPreprocessorGroupKey:
         combo_data_list, _ = await preprocessor.preprocess_variants([variant])
 
         assert combo_data_list[0].group_key == "lonely"
+
+
+class TestComboPreprocessorColorIdentity:
+    """The color identity comes from Spellbook, normalized to WUBRG order."""
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize(
+        ("identity", "expected"),
+        [("C", ""), ("W", "W"), ("GU", "UG"), ("RW", "WR"), ("BRG", "BRG"), ("WUBRG", "WUBRG")],
+    )
+    async def test_identity_is_normalized(self, identity: str, expected: str):
+        preprocessor = ComboPreprocessor()
+        variant = make_mock_variant("v", ["Card A", "Card B"], identity=identity)
+
+        combo_data_list, _ = await preprocessor.preprocess_variants([variant])
+
+        assert combo_data_list[0].color_identity == expected
+        assert combo_data_list[0].color_count == len(expected)
 
 
 class TestComboPreprocessorBlocklist:

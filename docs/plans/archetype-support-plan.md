@@ -120,10 +120,113 @@ above is the baseline), total combos, utilization, colors, Phase 2 time. Record 
 here and update `README.md` and `docs/architecture.md` (Phase 2 constraint list, flags,
 stats file).
 
+## Results (6 October 2026)
+
+### Step 1: measurement
+
+Phase 1 style model plus coverage and color balance (`_build_base_model`, `_add_cube_rules`),
+300 cards, the cached 20,000 variants (19,848 after preprocessing, 8,662 groups), 120 s per
+solve, 8 workers, `variant_weight` 0.1. No solve proved optimality, so the differences
+between rows include solver noise of a few percent. "Lowest pair" is the pair with the
+fewest fitting distinct combos (gold plus mono plus colorless); "wide" is the share of the
+completed distinct combos needing three or more colors.
+
+| Setting | Variants | Distinct combos | Weighted | Lowest pair | Lowest mono | Wide |
+|---|---|---|---|---|---|---|
+| Baseline (coverage + color only) | 2,119 | 1,380 | 1,453.9 | 300 | 199 | 22.0% |
+| Maximize the lowest pair | 1,546 | 958 | 1,016.8 | 433 | 322 | 2.0% |
+| Maximize the lowest mono | 1,192 | 824 | 860.8 | 460 | 362 | 0.6% |
+| Pair >= 216, mono >= 181 | 2,042 | 1,351 | 1,420.1 | 318 | 217 | 23.9% |
+| Pair >= 325, mono >= 181 | 2,039 | 1,314 | 1,386.5 | 353 | 231 | 22.5% |
+| Wide cap 25% alone | 2,099 | 1,368 | 1,441.1 | 301 | 194 | 21.3% |
+| Pair >= 216, mono >= 181, wide cap 25% | 2,275 | 1,354 | 1,446.1 | 324 | 209 | 23.4% |
+
+Pool, in distinct combos with at least one fitting variant: pairs 1,500 (WG) to 2,361 (UG),
+mono 732 (W) to 1,222 (U), colorless 292; 1,839 groups have only variants of three or more
+colors; 526 groups have variants of differing identity.
+
+- With combo grouping (`variant_weight` 0.1) the problem in the table at the top is mostly
+  gone: the unconstrained cube already gives every pair at least 300 distinct combos and
+  every mono color at least 199. That table was the variant-counting cube.
+- Pair minimums up to about 300 and mono minimums up to about 200 cost nothing
+  measurable. 325 per pair costs about 5% of the weighted count; the maximum (433) costs
+  30%, and maximizing the lowest mono color drives the cube to mono and colorless combos.
+- The 25% wide cap is not binding; the pool is 21% wide-only groups and the optimizer
+  completes them at about that rate. Raising the pair minimum pushes wide combos out by
+  itself (2% at the maximum).
+
+### Decisions
+
+- Defaults `--min-pair-combos 250`, `--min-mono-combos 150`, `--max-wide-combo-share 0.25`:
+  a guarantee at about 80% of what the unconstrained cube gives, binding only when a run
+  drifts, at no measured cost.
+- Identity: `Variant.identity` normalized to WUBRG order; "C" becomes "". A group counts
+  for an archetype through any completed variant that fits, so groups of mixed identity
+  get one extra bool per archetype they only partly fit (`_fitting_group_count`).
+- Step 4 (the rule registry) is done: `_cube_rules` lists coverage, color balance, the
+  archetype minimums and the wide cap as `(add, violations)` pairs, applied by
+  `_solve_phase2`, `_repair_model` and `_build_warm_start`.
+- Group variables now exist whenever an archetype rule is enabled, also at
+  `variant_weight` 1, where they play no part in the objective.
+
+### Verification
+
+Full runs at the defaults (300 cards, 20,000 variants, 300 s per phase, 8 workers, `tiered`,
+`variant_weight` 0.1), compared with the tracked best cube from the combo grouping plan,
+scored with `evaluate_cube`. "Lowest pair" and "lowest mono" are the archetypes with the
+fewest fitting distinct combos. Phase 1 and Phase 2 hit their time limits in both runs.
+
+| | Tracked cube (before) | First run, reference solve at 10% | Second run, reference solve at 20% (new tracked cube) |
+|---|---|---|---|
+| Phase 1 variants / combos / weighted | | 2,498 / 1,514 / 1,612.4 | 2,432 / 1,523 / 1,613.9 |
+| Phase 1 cube breaks | | 11 coverage, BR 233, RG 234, R 125, wide 27% | 13 coverage, BR 229, B 149, R 143 |
+| Reference variants / combos / weighted | 2,391 / 1,392 / 1,491.9 | 1,757 / 1,081 / 1,148.6 | 2,148 / 1,257 / 1,346.1 |
+| Warm start preparation | 64 s | 66 s | 81 s |
+| Final variants / combos | 1,913 / 1,279 | 1,414 / 991 | 1,771 / 1,149 |
+| Lowest pair / lowest mono | BR 196 / B 129 | UB 252 / B 185 | UR 264 / U 182 |
+| Pairs (WU WB WR WG UB UR UG BR BG RG) | 342 261 331 298 271 265 381 196 282 246 | 317 289 374 285 252 303 281 285 295 313 | 334 369 375 339 301 264 315 308 368 306 |
+| Mono (W U B R G) / colorless | 172 183 129 130 169 / 78 | 206 198 185 221 199 / 138 | 226 182 223 190 213 / 125 |
+| 3+ color combos | 292 (23%) | 196 (20%) | 224 (19%) |
+| Utilization min-max, std | 2-259, 25.5 | 2-173, 18.8 | 2-238, 26.1 |
+| Colors W U B R G | 63 65 53 47 77 | 54 46 35 59 53 | 61 49 53 52 62 |
+
+The first run lost 22% of the distinct combos. The reference repair, hinted with the Phase 1
+cube, found only 1,081 combos in its 30 s. Rerunning that repair on the same Phase 1 cube
+(`_best_constrained_cube` with other time budgets and rule subsets):
+
+| Repair | Variants / combos / weighted | Lowest pair / mono | Wide | Cards swapped |
+|---|---|---|---|---|
+| Defaults, 30 s | 1,631 / 1,081 / 1,136.0 | 327 / 273 | 21% | 139 |
+| Defaults, 60 s | 2,304 / 1,369 / 1,462.5 | 270 / 162 | 24% | 43 |
+| Defaults, 120 s | 2,252 / 1,378 / 1,465.4 | 263 / 155 | 22% | 41 |
+| No wide cap, 30 s | 2,337 / 1,368 / 1,464.9 | 260 / 155 | 24% | 41 |
+| No minimums, 30 s | 2,418 / 1,390 / 1,492.8 | 217 / 123 | 25% | 26 |
+| No archetype rules, 30 s | 2,408 / 1,401 / 1,501.7 | 204 / 107 | 26% | 23 |
+
+- The wide cap is what starves the 30 s repair: one constraint over every group indicator
+  that the Phase 1 cube breaks. With 60 s the cap costs nothing. The archetype minimums cost
+  about 2.5% of the weighted count, and they bind: without them the lowest pair falls to
+  204 and the lowest mono to 107.
+- **Change:** `WARM_START_MAXIMIZE_FRACTION` is 0.2 (60 s at the default time limit). The
+  warm start preparation then takes about 80 s of the Phase 2 limit.
+- The second run keeps 10% fewer distinct combos than the tracked cube (1,149 against
+  1,279) for a lowest pair 35% higher and a lowest mono 41% higher. Part of the gap is the
+  reference solve: on the first run's Phase 1 cube the 60 s repair reached 1,369 combos,
+  on the second run's 1,257, so run-to-run variation of about 100 combos sits on top of the
+  measured 2.5% cost. Utilization is unchanged (std 26.1 against 25.5, maximum 238 against
+  259).
+- Every pair ends well above the minimum (lowest 264 against 250) because the minimums
+  shape the reference cube and Phase 2 keeps the shape; the mono minimum is the one that
+  binds in the repair (B 149, R 143 in the Phase 1 cube).
+- `data/current_best_cube.txt` and its stats file are replaced by the second run.
+
 ## Open questions
 
 - Whether a minimum per pair should scale with cube size (a share of the window rather than
-  a count).
+  a count). *Still open, and more pressing now that the defaults are non-zero:* a 100-card
+  run from 1,000 variants cannot reach 250 combos per pair and falls back to Phase 1 unless
+  the minimums are lowered or disabled. A share of the completed distinct combos per pair
+  (the wide cap's form, `den * fitting >= num * total`) would scale with everything.
 - Three-color combos are a large part of the pool (3,377 of 20,000) and of what the
   optimizer likes. A cap on them will cost combos; the measurement in Step 1 should include
   the cap.

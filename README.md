@@ -66,6 +66,9 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --min-util-floor       Minimum utilization floor for Phase 2, any objective (default: 2)
 --max-color-ratio      Phase 2 color balance: largest color at most this many times the smallest (default: 2.0, 0 disables)
 --variant-weight       Value of each further variant of a combo the cube already completes (default: 0.1; 1 counts variants, 0 counts distinct combos)
+--min-pair-combos      Phase 2 archetype support: distinct combos every two-color pair must be able to assemble (default: 250, 0 disables)
+--min-mono-combos      Phase 2 archetype support: distinct combos every mono color must be able to assemble (default: 150, 0 disables)
+--max-wide-combo-share Phase 2 cap on the share of completed combos that need three or more colors (default: 0.25, 0 disables)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization
@@ -99,8 +102,9 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --phase2-objective maxut
 # Penalize every card used in more than 40 combos
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --util-cap 40
 
-# Small, fast configuration for trying things out (about 1 minute with a warm cache)
-uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache
+# Small, fast configuration for trying things out (about 1 minute with a warm cache);
+# the archetype minimums are sized for a full build, so they are switched off here
+uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache --min-pair-combos 0 --min-mono-combos 0
 
 # Greedy with custom ratio
 uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
@@ -117,7 +121,7 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 The stats file contains:
 
 - `metadata`: cube size, `combo_count` (completed variants), `distinct_combo_count` (completed combos, see "Combos and variants" below), the `variant_weight` used, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
-- `phase1` / `phase2`: `combo_count`, `distinct_combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation) and `colors`, the color distribution of that phase's cube (see below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the reference cube the tolerance was measured from (`reference_combo_count` variants, `reference_distinct_combo_count` combos and `reference_weighted_combo_count`, the weighted count the window holds) and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap, reference and `fell_back_to_phase1: true`.
+- `phase1` / `phase2`: `combo_count`, `distinct_combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation), `colors`, the color distribution of that phase's cube, and `archetypes`, the distinct combos each draft archetype can assemble (both described below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the archetype settings applied (`min_pair_combos`, `min_mono_combos`, `max_wide_combo_share`, each left out when disabled), the reference cube the tolerance was measured from (`reference_combo_count` variants, `reference_distinct_combo_count` combos and `reference_weighted_combo_count`, the weighted count the window holds) and, for `softcap` / `tiered`, the `util_cap` used. After a fallback it holds only the status, time, objective, cap, archetype settings, reference and `fell_back_to_phase1: true`.
 - `improvement`: Phase 1 to Phase 2 changes, including the variant and distinct combo counts before and after and the cards swapped.
 - `largest_combo_groups`: the ten combos with the most completed variants in the final cube, each with its Spellbook combo id, variant count and the cube cards that take part.
 - `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
@@ -131,13 +135,18 @@ Every combo count and utilization number is computed from the selected cards, no
 - `mono_colored`, `multicolor`, `colorless`: the cube split into exclusive groups. `unknown` counts cards without color data.
 - `variance` / `std_deviation`: spread of the five `cards_per_color` counts. Zero means the colors are evenly represented.
 
-The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ...") and color distribution at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
+`archetypes` counts distinct combos by the drafter who could assemble them, from each combo's Commander Spellbook color identity:
 
-[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,913 variants in 1,279 distinct combos).
+- `combos_per_archetype`: for each of the ten two-color pairs (`WU` ... `RG`), the five mono colors and `C` (colorless), the completed combos whose color identity fits within those colors. A mono-white combo counts for `W` and for every pair with white; a colorless combo counts everywhere. The identity covers a combo's named cards; a template requirement filled by a colored card can add a color it does not show.
+- `combos_by_color_count`: completed combos by the number of colors they need (0 to 5). A combo with variants of different identities needs the fewest colors of its completed variants.
+
+The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ..."), color distribution and archetype counts ("Archetypes, Phase 2: pairs WU=358, WB=335, ...; mono W=219, ...; colorless 128; 3+ colors 304 of 1380 (22%)") at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` is left out.
+
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,771 variants in 1,149 distinct combos; every two-color pair can assemble at least 264 of them and every mono color at least 182).
 
 ### Evaluating a Cube
 
-To score an existing cube list (true variant and distinct combo counts, the largest combo groups, utilization statistics and color distribution) against the cached data:
+To score an existing cube list (true variant and distinct combo counts, the largest combo groups, utilization statistics, combos per draft archetype and color distribution) against the cached data:
 
 ```bash
 uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
@@ -236,6 +245,9 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 | `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
 | `--min-coverage-ratio` | `0.1` | Minimum cards per requirement template (10% of the combos using it, at most the template's card pool; 0 disables) |
 | `--variant-weight` | `0.1` | Value of each further completed variant of a combo relative to its first (both phases; `1` counts every variant, `0` counts distinct combos only). The combo window is measured in the same weighted units |
+| `--min-pair-combos` | `250` | Archetype support: every two-color pair must be able to assemble at least this many distinct combos (the pair's own plus mono-colored and colorless ones; 0 disables) |
+| `--min-mono-combos` | `150` | Archetype support: every mono color must be able to assemble at least this many distinct combos (its own plus colorless ones; 0 disables) |
+| `--max-wide-combo-share` | `0.25` | At most this share of the completed combos may need three or more colors (0 disables) |
 
 **Phase 2 Objectives:**
 
@@ -261,8 +273,9 @@ The objectives fall into two families: `tiered`, `softcap` and `mad` give a lowe
 
 Notes:
 
-- The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`) and the color balance (`--max-color-ratio`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
+- The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`), the color balance (`--max-color-ratio`) and the archetype rules (`--min-pair-combos`, `--min-mono-combos`, `--max-wide-combo-share`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
 - Color balance counts a card once for each color of its color identity, so a white-blue card counts as white and as blue. Colorless cards are not limited. The rule needs every color to be present; if it cannot be met within the combo tolerance, Phase 2 fails and the Phase 1 cube is returned. If card colors cannot be fetched from Scryfall, a warning is logged and the run continues without the rule.
+- Archetype support counts distinct combos (not variants) by their Spellbook color identity, as in the `archetypes` statistics. The minimums are absolute counts chosen for the default configuration (300 cards, 20,000 variants, see [docs/plans/archetype-support-plan.md](docs/plans/archetype-support-plan.md)); a much smaller cube or pool cannot reach them, so lower them or pass 0 there. Before solving, a warning names any archetype the whole pool has too few combos for; if the minimums cannot be met, Phase 2 fails, the Phase 1 cube is returned and the log says which archetypes that cube falls short on.
 - The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under coverage and color balance, so the same value allows fewer combos than it did then.
 - For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.
 - If Phase 2 finds no solution (infeasible or out of time), the Phase 1 cube is written, a warning is logged and the stats file says `two_phase_fallback_to_phase1`.
@@ -282,6 +295,7 @@ Key concepts:
 - **Utilization Cap**: The `tiered` (default) and `softcap` objectives penalize utilization above a cap, by default twice the Phase 1 median
 - **Utilization Floor**: Every card in a Phase 2 cube takes part in at least `--min-util-floor` completable combos
 - **Color Balance**: In a Phase 2 cube no color has more than `--max-color-ratio` times the cards of another color
+- **Archetype Support**: In a Phase 2 cube every two-color pair can assemble at least `--min-pair-combos` distinct combos and every mono color `--min-mono-combos`, counting the combos whose color identity fits the archetype, and at most `--max-wide-combo-share` of the completed combos need three or more colors
 - **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results, marked as a fallback in the log and the stats file
 
 ## Development
@@ -369,7 +383,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support), from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the cube rules and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity

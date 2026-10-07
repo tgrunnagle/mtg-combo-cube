@@ -1,262 +1,435 @@
 {
   "metadata": {
-    "timestamp": "2026-10-06T22:14:38.504160+00:00",
+    "timestamp": "2026-10-07T03:59:25.102010+00:00",
     "cube_size": 300,
-    "combo_count": 1913,
+    "combo_count": 1771,
     "optimization_method": "two_phase",
     "phase1_status": "FEASIBLE",
-    "total_solve_time_seconds": 602.3338605999888,
-    "distinct_combo_count": 1279,
+    "total_solve_time_seconds": 601.8589838999906,
+    "distinct_combo_count": 1149,
+    "weighted_combo_count": 1211.2,
     "variant_weight": 0.1
   },
   "phase1": {
-    "combo_count": 2476,
-    "distinct_combo_count": 1496,
-    "solve_time_seconds": 301.50672469998244,
-    "min_utilization": 5,
-    "max_utilization": 332,
-    "mean_utilization": 26.553333333333335,
-    "median_utilization": 16.0,
-    "std_deviation": 33.648880450255035,
-    "total_absolute_deviation": 5697,
+    "combo_count": 2432,
+    "distinct_combo_count": 1523,
+    "weighted_combo_count": 1613.9,
+    "solve_time_seconds": 301.5296648000076,
+    "min_utilization": 6,
+    "max_utilization": 276,
+    "mean_utilization": 25.663333333333334,
+    "median_utilization": 17.0,
+    "std_deviation": 29.141093360102712,
+    "total_absolute_deviation": 5056,
     "colors": {
       "cards_per_color": {
-        "W": 60,
-        "U": 55,
-        "B": 62,
-        "R": 42,
-        "G": 76
+        "W": 65,
+        "U": 69,
+        "B": 49,
+        "R": 41,
+        "G": 80
       },
       "mono_colored": {
-        "W": 29,
-        "U": 33,
-        "B": 36,
+        "W": 31,
+        "U": 45,
+        "B": 24,
         "R": 21,
         "G": 42
       },
-      "multicolor": 55,
-      "colorless": 84,
+      "multicolor": 59,
+      "colorless": 78,
       "unknown": 0,
-      "variance": 120.8,
-      "std_deviation": 10.99090533122727
+      "variance": 196.95999999999998,
+      "std_deviation": 14.034243834279065
+    },
+    "archetypes": {
+      "combos_per_archetype": {
+        "WU": 440,
+        "WB": 306,
+        "WR": 368,
+        "WG": 349,
+        "UB": 308,
+        "UR": 317,
+        "UG": 457,
+        "BR": 229,
+        "BG": 325,
+        "RG": 273,
+        "W": 189,
+        "U": 233,
+        "B": 149,
+        "R": 143,
+        "G": 194,
+        "C": 89
+      },
+      "combos_by_color_count": {
+        "0": 89,
+        "1": 460,
+        "2": 628,
+        "3": 301,
+        "4": 4,
+        "5": 41
+      }
     }
   },
   "phase2": {
-    "combo_count": 1913,
-    "distinct_combo_count": 1279,
-    "solve_time_seconds": 300.8271359000064,
+    "combo_count": 1771,
+    "distinct_combo_count": 1149,
+    "weighted_combo_count": 1211.2,
+    "solve_time_seconds": 300.32931909998297,
     "status": "FEASIBLE",
     "min_utilization": 2,
-    "max_utilization": 259,
-    "mean_utilization": 21.7,
-    "median_utilization": 15.0,
-    "std_deviation": 25.49110956130915,
-    "total_absolute_deviation": 4394,
+    "max_utilization": 238,
+    "mean_utilization": 21.003333333333334,
+    "median_utilization": 13.5,
+    "std_deviation": 26.139688640498807,
+    "total_absolute_deviation": 4691,
     "objective": "tiered",
-    "util_cap": 32,
+    "util_cap": 34,
     "max_color_ratio": 2.0,
-    "reference_combo_count": 2391,
-    "reference_distinct_combo_count": 1392,
-    "reference_weighted_combo_count": 1491.9,
+    "min_pair_combos": 250,
+    "min_mono_combos": 150,
+    "max_wide_combo_share": 0.25,
+    "reference_combo_count": 2148,
+    "reference_distinct_combo_count": 1257,
+    "reference_weighted_combo_count": 1346.1,
+    "combo_tolerance": 0.1,
     "colors": {
       "cards_per_color": {
-        "W": 63,
-        "U": 65,
+        "W": 61,
+        "U": 49,
         "B": 53,
-        "R": 47,
-        "G": 77
+        "R": 52,
+        "G": 62
       },
       "mono_colored": {
-        "W": 34,
-        "U": 37,
-        "B": 27,
-        "R": 23,
-        "G": 42
+        "W": 31,
+        "U": 23,
+        "B": 33,
+        "R": 27,
+        "G": 39
       },
-      "multicolor": 58,
-      "colorless": 79,
+      "multicolor": 49,
+      "colorless": 98,
       "unknown": 0,
-      "variance": 107.2,
-      "std_deviation": 10.353743284435827
+      "variance": 26.639999999999997,
+      "std_deviation": 5.161395160225576
+    },
+    "archetypes": {
+      "combos_per_archetype": {
+        "WU": 334,
+        "WB": 369,
+        "WR": 375,
+        "WG": 339,
+        "UB": 301,
+        "UR": 264,
+        "UG": 315,
+        "BR": 308,
+        "BG": 368,
+        "RG": 306,
+        "W": 226,
+        "U": 182,
+        "B": 223,
+        "R": 190,
+        "G": 213,
+        "C": 125
+      },
+      "combos_by_color_count": {
+        "0": 125,
+        "1": 405,
+        "2": 395,
+        "3": 190,
+        "4": 5,
+        "5": 29
+      }
     }
   },
   "improvement": {
-    "std_deviation_reduction_percent": 24.24381072947126,
-    "mad_reduction_percent": 22.87168685272951,
-    "range_before": 327,
-    "range_after": 257,
-    "combo_count_before": 2476,
-    "combo_count_after": 1913,
-    "combo_count_change_percent": -22.738287560581583,
-    "distinct_combo_count_before": 1496,
-    "distinct_combo_count_after": 1279,
+    "std_deviation_reduction_percent": 10.2995611129442,
+    "mad_reduction_percent": 7.219145569620256,
+    "range_before": 270,
+    "range_after": 236,
+    "combo_count_before": 2432,
+    "combo_count_after": 1771,
+    "combo_count_change_percent": -27.179276315789473,
+    "distinct_combo_count_before": 1523,
+    "distinct_combo_count_after": 1149,
     "card_changes": {
       "cards_added": [
         "Aetherflux Reservoir",
+        "Aggravated Assault",
+        "Akroma's Memorial",
         "Akroma's Will",
-        "Aluren",
-        "Ancestral Statue",
-        "Azor, the Lawbringer",
+        "Aurelia, the Warleader",
+        "Battered Golem",
+        "Birds of Paradise",
+        "Bloodline Pretender",
+        "Bolas's Citadel",
+        "Boromir, Warden of the Tower",
         "Breath of Fury",
-        "Bristly Bill, Spine Sower",
         "Broodhatch Nantuko",
-        "Capture of Jingzhou",
+        "Brudiclad, Telchor Engineer",
+        "Bumi, Unleashed",
         "Chronomantic Escape",
-        "Conjurer's Closet",
-        "Experiment Kraj",
+        "Combat Celebrant",
+        "Contagion Engine",
+        "Crackdown Construct",
+        "Crime Novelist",
+        "Delighted Halfling",
+        "Fain, the Broker",
+        "Farmstead Gleaner",
         "Filigree Sages",
+        "Gemstone Array",
+        "Geralf's Messenger",
         "Glen Elendra Archmage",
-        "Grinning Ignus",
-        "Hancock, Ghoulish Mayor",
+        "Heartless Summoning",
         "Heliod, Sun-Crowned",
-        "Ioreth of the Healing House",
-        "Ley Weaver",
-        "Maze of Ith",
-        "Mesmeric Orb",
-        "Mirror Entity",
+        "Imotekh the Stormlord",
+        "Inkmoth Nexus",
+        "Inspirit, Flagship Vessel",
+        "Invisible Woman, Sue Storm",
+        "Iron Spider, Stark Upgrade",
+        "Jenson Carthalion, Druid Exile",
+        "Junk Diver",
+        "Karn, Silver Golem",
+        "Kilo, Apogee Mind",
+        "Krenko, Baron of Tin Street",
+        "Leech Bonder",
+        "Liliana, Untouched by Death",
+        "Liquimetal Torque",
+        "Lithoform Engine",
+        "Lotus Petal",
+        "Magda, Brazen Outlaw",
+        "Magus Lucea Kane",
+        "Marneus Calgar",
+        "Marvin, Murderous Mimic",
+        "Mass Hysteria",
+        "Mindslaver",
+        "Mishra's Bauble",
+        "Mistblade Shinobi",
         "Mithril Coat",
-        "Morophon, the Boundless",
+        "Moon-Circuit Hacker",
+        "Moritte of the Frost",
+        "Mortuary",
+        "Mycosynth Golem",
+        "Myr Galvanizer",
+        "Myr Retriever",
         "Persistent Constrictor",
+        "Phyrexian Devourer",
+        "Pir, Imaginative Rascal",
+        "Port Razer",
+        "Powerstone Shard",
         "Puppeteer Clique",
+        "Realmwalker",
+        "Rings of Brighthearth",
+        "Rite of Replication",
         "River Kelpie",
+        "Rooftop Storm",
         "Rousing Refrain",
+        "Ruthless Knave",
+        "Salvaging Station",
         "Satoru Umezawa",
-        "Scuzzback Marauders",
+        "Scrap Trawler",
+        "Seeker of Skybreak",
         "Silver-Fur Master",
         "Skullsnatcher",
+        "Sky Hussar",
+        "Sol Ring",
+        "Splinter Twin",
+        "Springheart Nantuko",
+        "Swiftfoot Boots",
         "Taigam, Master Opportunist",
-        "Teleportation Circle",
-        "Thassa, Deep-Dwelling",
-        "The Fire Crystal",
+        "Teferi, Who Slows the Sunset",
+        "Teshar, Ancestor's Apostle",
+        "The Enigma Jewel // Locus of Enlightenment",
+        "The Sibsig Ceremony",
         "The Tenth Doctor",
+        "The Unbeatable Squirrel Girl",
+        "There and Back Again",
         "Thousand-Faced Shadow",
+        "Thran Dynamo",
         "Thunderblust",
-        "Timestream Navigator",
+        "Tireless Provisioner",
         "Toph, the First Metalbender",
+        "Tortured Existence",
+        "Transmutation Font",
         "Twilight Shepherd",
-        "Voice of Victory",
-        "Walk the Aeons",
-        "War of the Last Alliance",
-        "Wirewood Symbiote",
-        "Witch-king of Angmar",
+        "Venerated Stormsinger",
+        "Virulent Emissary",
+        "Vorel of the Hull Clade",
+        "Vorinclex, Monstrous Raider",
         "Woodfall Primus",
-        "Yuriko, the Tiger's Shadow",
+        "Workshop Assistant",
+        "Zaxara, the Exemplary",
         "Zinnia, Valley's Voice",
-        "Zuran Orb",
         "Zurgo Stormrender",
         "Zurgo, Thunder's Decree"
       ],
       "cards_removed": [
-        "Aerie Ouphes",
+        "Adrix and Nev, Twincasters",
         "Agatha's Soul Cauldron",
-        "Angelic Renewal",
-        "Butcher Ghoul",
-        "Carnival of Souls",
+        "Angel of Glory's Rise",
+        "Animate Dead",
+        "Ant Queen",
+        "Aphetto Alchemist",
+        "Archaeomancer",
+        "Arixmethes, Slumbering Isle",
+        "Auriok Steelshaper",
+        "Azorius Chancery",
+        "Bloom Tender",
+        "Body Double",
+        "Branching Evolution",
+        "Bristly Bill, Spine Sower",
+        "Camellia, the Seedmiser",
+        "Capture of Jingzhou",
+        "Carmen, Cruel Skymarcher",
         "Chrome Dome",
-        "Cinderhaze Wretch",
-        "Clan Crafter",
-        "Cogwork Assembler",
+        "Clever Impersonator",
+        "Cloud of Faeries",
         "Conclave Mentor",
+        "Conjurer's Closet",
         "Coral Atoll",
-        "Corpse Knight",
-        "Cult Conscript",
+        "Crystal Shard",
         "Deathbringer Thoctar",
+        "Deeproot Pilgrimage",
+        "Derevi, Empyrial Tactician",
+        "Dimir Aqueduct",
         "Dino DNA",
-        "Elenda, the Dusk Rose",
+        "Displace",
         "Encroaching Mycosynth",
         "Essence Flux",
-        "Forsaken Miner",
+        "Eternal Witness",
+        "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+        "Faeburrow Elder",
+        "Faerie Mastermind",
+        "Farmer Cotton",
+        "Fatestitcher",
         "Gaea's Cradle",
         "Gerrard, Weatherlight Hero",
+        "Ghostly Flicker",
+        "Glasspool Mimic // Glasspool Shore",
+        "Glorious Protector",
         "Goblin Welder",
+        "Grafted Wargear",
+        "Great Whale",
+        "Grim Monolith",
         "Gwenna, Eyes of Gaea",
-        "Heartstone",
-        "Imotekh the Stormlord",
+        "Hope Tender",
+        "Horseshoe Crab",
+        "Hullbreaker Horror",
+        "Icewind Stalwart",
         "Impulsive Pilferer",
-        "Mikaeus, the Unhallowed",
-        "Myr Moonvessel",
+        "Invasion of Arcavios // Invocation of the Founders",
+        "Izzet Boilerworks",
+        "Jaheira, Friend of the Forest",
+        "Kiora's Follower",
+        "Knacksaw Clique",
+        "Kobolds of Kher Keep",
+        "Kodama of the East Tree",
+        "Lagrella, the Magpie",
+        "Leyline of Abundance",
+        "Lightning Crafter",
+        "Long Feng, Grand Secretariat",
+        "Lonis, Cryptozoologist",
+        "Lonis, Genetics Expert",
+        "Lotus Field",
+        "Lotus Vale",
+        "Lumbering Battlement",
+        "Metamorphosis Fanatic",
+        "Molten Echoes",
+        "Najeela, the Blade-Blossom",
+        "Panharmonicon",
         "Phantom Steed",
         "Phyrexian Triniform",
-        "Presence of Gond",
-        "Ruthless Knave",
-        "Sai, Master Thopterist",
-        "Stonybrook Schoolmaster",
-        "Strangleroot Geist",
-        "Su-Chi Cave Guard",
+        "Prosperous Innkeeper",
+        "Prossh, Skyraider of Kher",
+        "Renata, Called to the Hunt",
+        "Renegade Rallier",
+        "Restoration Angel",
+        "Ruthless Technomancer",
+        "Sakashima of a Thousand Faces",
+        "Samwise Gamgee",
+        "Scholar of the Ages",
+        "Shrieking Drake",
+        "Simic Growth Chamber",
+        "Slimefoot, the Stowaway",
+        "Smothering Tithe",
+        "Spark Double",
         "Sword of the Paruns",
-        "Tatterkite",
-        "Thermopod",
-        "Tivit, Seller of Secrets",
-        "Triplicate Titan",
-        "Umbral Collar Zealot",
-        "Urtet, Remnant of Memnarch",
-        "Viscera Seer",
+        "Thassa, Deep-Dwelling",
+        "Tidewater Minion",
+        "Time Stretch",
+        "Time Warp",
+        "Timestream Navigator",
+        "Tribute to the World Tree",
+        "Urza, Lord High Artificer",
         "Vishgraz, the Doomhive",
-        "Vizier of Remedies",
+        "Vizier of Tumbling Sands",
+        "Voyaging Satyr",
+        "Wernog, Rider's Chaplain",
+        "Witch's Oven",
         "Woe Strider",
-        "Workhorse",
+        "Xavier Sal, Infested Captain",
         "Yahenni, Undying Partisan",
-        "Yawgmoth, Thran Physician",
-        "Young Wolf",
-        "Zirda, the Dawnwaker",
-        "Zulaport Cutthroat"
+        "Yannik, Scavenging Sentinel",
+        "Yurlok of Scorch Thrash",
+        "Zirda, the Dawnwaker"
       ],
-      "total_changed": 106
+      "total_changed": 216
     }
   },
   "top_utilized_cards": [
     {
       "card": "Ashnod's Altar",
-      "utilization": 259
+      "utilization": 238
     },
     {
       "card": "Phyrexian Altar",
-      "utilization": 183
-    },
-    {
-      "card": "Goblin Bombardment",
-      "utilization": 112
+      "utilization": 165
     },
     {
       "card": "Pitiless Plunderer",
-      "utilization": 107
-    },
-    {
-      "card": "Karmic Guide",
-      "utilization": 106
-    },
-    {
-      "card": "Altar of Dementia",
-      "utilization": 105
-    },
-    {
-      "card": "Koll, the Forgemaster",
-      "utilization": 89
+      "utilization": 120
     },
     {
       "card": "Putrid Goblin",
-      "utilization": 84
-    },
-    {
-      "card": "Murderous Redcap",
-      "utilization": 81
+      "utilization": 104
     },
     {
       "card": "Woodfall Primus",
-      "utilization": 80
+      "utilization": 103
+    },
+    {
+      "card": "Murderous Redcap",
+      "utilization": 102
+    },
+    {
+      "card": "Goblin Bombardment",
+      "utilization": 99
+    },
+    {
+      "card": "Puppeteer Clique",
+      "utilization": 98
+    },
+    {
+      "card": "Altar of Dementia",
+      "utilization": 96
+    },
+    {
+      "card": "River Kelpie",
+      "utilization": 95
     }
   ],
   "bottom_utilized_cards": [
     {
-      "card": "Rousing Refrain",
-      "utilization": 3
-    },
-    {
-      "card": "Akroma's Will",
+      "card": "Heliod, Sun-Crowned",
       "utilization": 2
     },
     {
-      "card": "Broodhatch Nantuko",
+      "card": "Inkmoth Nexus",
+      "utilization": 2
+    },
+    {
+      "card": "Invisible Woman, Sue Storm",
       "utilization": 2
     },
     {
@@ -264,7 +437,7 @@
       "utilization": 2
     },
     {
-      "card": "Morophon, the Boundless",
+      "card": "Phyrexian Devourer",
       "utilization": 2
     },
     {
@@ -272,11 +445,11 @@
       "utilization": 2
     },
     {
-      "card": "Voice of Victory",
+      "card": "There and Back Again",
       "utilization": 2
     },
     {
-      "card": "Zuran Orb",
+      "card": "Virulent Emissary",
       "utilization": 2
     },
     {
@@ -290,57 +463,11 @@
   ],
   "largest_combo_groups": [
     {
-      "group_key": "26943",
-      "variant_count": 24,
-      "cards": [
-        "Altar of Dementia",
-        "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
-        "Blasting Station",
-        "Bloodspore Thrinax",
-        "Carrion Feeder",
-        "Glen Elendra Archmage",
-        "Goblin Bombardment",
-        "Lesser Masticore",
-        "Metallic Mimic",
-        "Murderous Redcap",
-        "Persistent Constrictor",
-        "Phyrexian Altar",
-        "Puppeteer Clique",
-        "Putrid Goblin",
-        "Renata, Called to the Hunt",
-        "River Kelpie",
-        "Spawning Pit",
-        "Thunderblust",
-        "Twilight Shepherd",
-        "Woodfall Primus"
-      ]
-    },
-    {
-      "group_key": "28956",
-      "variant_count": 24,
-      "cards": [
-        "Altar of Dementia",
-        "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
-        "Blasting Station",
-        "Carrion Feeder",
-        "Felidar Guardian",
-        "Goblin Bombardment",
-        "Karmic Guide",
-        "Metamorphosis Fanatic",
-        "Phyrexian Altar",
-        "Restoration Angel",
-        "Sister Hospitaller"
-      ]
-    },
-    {
       "group_key": "32981",
-      "variant_count": 22,
+      "variant_count": 27,
       "cards": [
         "Altar of Dementia",
         "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
         "Blasting Station",
         "Carrion Feeder",
         "Cathars' Crusade",
@@ -356,42 +483,60 @@
         "Putrid Goblin",
         "River Kelpie",
         "Spawning Pit",
+        "Thermopod",
         "Thunderblust",
         "Twilight Shepherd",
+        "Umbral Collar Zealot",
+        "Viscera Seer",
         "Woodfall Primus"
       ]
     },
     {
       "group_key": "9546",
-      "variant_count": 22,
+      "variant_count": 21,
       "cards": [
         "Altar of Dementia",
         "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
         "Blasting Station",
         "Carrion Feeder",
         "Fiend Hunter",
         "Goblin Bombardment",
         "Karmic Guide",
-        "Metamorphosis Fanatic",
         "Phyrexian Altar",
         "Sister Hospitaller",
         "Spawning Pit",
-        "Sun Titan"
+        "Sun Titan",
+        "Thermopod",
+        "Umbral Collar Zealot",
+        "Viscera Seer"
       ]
     },
     {
-      "group_key": "34088",
-      "variant_count": 21,
+      "group_key": "26943",
+      "variant_count": 20,
       "cards": [
-        "Crimson Kobolds",
-        "Crookshank Kobolds",
-        "Hullbreaker Horror",
-        "Kobolds of Kher Keep",
-        "Memnite",
-        "Ornithopter",
-        "Phyrexian Walker",
-        "Rograkh, Son of Rohgahh"
+        "Altar of Dementia",
+        "Ashnod's Altar",
+        "Blasting Station",
+        "Bloodspore Thrinax",
+        "Carrion Feeder",
+        "Glen Elendra Archmage",
+        "Goblin Bombardment",
+        "Lesser Masticore",
+        "Metallic Mimic",
+        "Murderous Redcap",
+        "Persistent Constrictor",
+        "Phyrexian Altar",
+        "Puppeteer Clique",
+        "Putrid Goblin",
+        "River Kelpie",
+        "Spawning Pit",
+        "Thermopod",
+        "Thunderblust",
+        "Twilight Shepherd",
+        "Umbral Collar Zealot",
+        "Viscera Seer",
+        "Woodfall Primus"
       ]
     },
     {
@@ -400,94 +545,146 @@
       "cards": [
         "Altar of Dementia",
         "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
         "Blasting Station",
         "Carrion Feeder",
         "Goblin Bombardment",
         "Karmic Guide",
         "Kiki-Jiki, Mirror Breaker",
-        "Metamorphosis Fanatic",
         "Phyrexian Altar",
         "Sister Hospitaller",
-        "Spawning Pit"
+        "Spawning Pit",
+        "Thermopod",
+        "Umbral Collar Zealot",
+        "Viscera Seer"
+      ]
+    },
+    {
+      "group_key": "1825",
+      "variant_count": 16,
+      "cards": [
+        "Altar of Dementia",
+        "Ashnod's Altar",
+        "Blasting Station",
+        "Goblin Bombardment",
+        "Grinding Station",
+        "Krark-Clan Ironworks",
+        "Lotus Petal",
+        "Mishra's Bauble",
+        "Phyrexian Altar",
+        "Scrap Trawler",
+        "Spawning Pit",
+        "Teshar, Ancestor's Apostle"
+      ]
+    },
+    {
+      "group_key": "28956",
+      "variant_count": 15,
+      "cards": [
+        "Altar of Dementia",
+        "Ashnod's Altar",
+        "Blasting Station",
+        "Carrion Feeder",
+        "Felidar Guardian",
+        "Goblin Bombardment",
+        "Karmic Guide",
+        "Phyrexian Altar",
+        "Sister Hospitaller",
+        "Thermopod",
+        "Umbral Collar Zealot",
+        "Viscera Seer"
+      ]
+    },
+    {
+      "group_key": "20172",
+      "variant_count": 13,
+      "cards": [
+        "Altar of Dementia",
+        "Ashnod's Altar",
+        "Bolas's Citadel",
+        "Carrion Feeder",
+        "Memnite",
+        "Mortuary",
+        "Ornithopter",
+        "Phyrexian Altar",
+        "Phyrexian Walker",
+        "Umbral Collar Zealot",
+        "Viscera Seer"
       ]
     },
     {
       "group_key": "18",
-      "variant_count": 16,
+      "variant_count": 12,
       "cards": [
         "Altar of Dementia",
         "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
         "Carrion Feeder",
         "Goblin Bombardment",
         "Karmic Guide",
-        "Metamorphosis Fanatic",
         "Phyrexian Altar",
-        "Renegade Rallier",
         "Saffi Eriksdotter",
         "Sister Hospitaller",
-        "Spawning Pit"
-      ]
-    },
-    {
-      "group_key": "29482",
-      "variant_count": 16,
-      "cards": [
-        "Altar of Dementia",
-        "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
-        "Blasting Station",
-        "Carrion Feeder",
-        "Goblin Bombardment",
-        "Phyrexian Altar",
-        "Pitiless Plunderer",
-        "Quina, Qu Gourmet",
         "Spawning Pit",
-        "Stridehangar Automaton"
+        "Umbral Collar Zealot",
+        "Viscera Seer"
       ]
     },
     {
-      "group_key": "31778",
-      "variant_count": 14,
+      "group_key": "31445",
+      "variant_count": 12,
       "cards": [
-        "Adrix and Nev, Twincasters",
-        "Anointed Procession",
-        "Doubling Season",
-        "Kenrith, the Returned King",
-        "Mondrak, Glory Dominus",
-        "Parallel Lives",
-        "Primal Vigor",
-        "Smothering Tithe"
+        "Crimson Kobolds",
+        "Crookshank Kobolds",
+        "Koll, the Forgemaster",
+        "Memnite",
+        "Ornithopter",
+        "Paradise Mantle",
+        "Phyrexian Altar",
+        "Phyrexian Walker",
+        "Rograkh, Son of Rohgahh",
+        "Skullclamp",
+        "Swiftfoot Boots",
+        "Thermopod"
       ]
     },
     {
-      "group_key": "31085",
-      "variant_count": 11,
+      "group_key": "12951",
+      "variant_count": 10,
       "cards": [
         "Altar of Dementia",
         "Ashnod's Altar",
-        "Bartolom\u00e9 del Presidio",
         "Blasting Station",
         "Carrion Feeder",
-        "Herd Baloth",
-        "Long Feng, Grand Secretariat",
+        "Glen Elendra Archmage",
+        "Goblin Bombardment",
+        "Lesser Masticore",
+        "Mikaeus, the Unhallowed",
+        "Murderous Redcap",
+        "Persistent Constrictor",
         "Phyrexian Altar",
-        "Scurry Oak"
+        "Puppeteer Clique",
+        "Putrid Goblin",
+        "River Kelpie",
+        "Spawning Pit",
+        "Thermopod",
+        "Thunderblust",
+        "Twilight Shepherd",
+        "Umbral Collar Zealot",
+        "Viscera Seer",
+        "Woodfall Primus"
       ]
     }
   ],
   "requirement_types": {
     "summary": {
-      "mean_coverage_ratio": 0.82609033266928,
-      "std_dev_coverage_ratio": 0.5708759227980544
+      "mean_coverage_ratio": 1.5007014590347925,
+      "std_dev_coverage_ratio": 1.5022332818500252
     },
     "by_type": [
       {
         "template_name": "Persist Creature",
-        "combo_count": 54,
+        "combo_count": 72,
         "card_count": 10,
-        "coverage_ratio": 0.18518518518518517,
+        "coverage_ratio": 0.1388888888888889,
         "cards": [
           "Glen Elendra Archmage",
           "Lesser Masticore",
@@ -503,12 +700,11 @@
       },
       {
         "template_name": "Creature with Persist or Undying",
-        "combo_count": 19,
-        "card_count": 8,
-        "coverage_ratio": 0.42105263157894735,
+        "combo_count": 22,
+        "card_count": 7,
+        "coverage_ratio": 0.3181818181818182,
         "cards": [
           "Glen Elendra Archmage",
-          "Hancock, Ghoulish Mayor",
           "Murderous Redcap",
           "Persistent Constrictor",
           "Puppeteer Clique",
@@ -519,41 +715,64 @@
       },
       {
         "template_name": "Equipment with Equip Cost = {1}",
-        "combo_count": 9,
-        "card_count": 2,
-        "coverage_ratio": 0.2222222222222222,
+        "combo_count": 14,
+        "card_count": 3,
+        "coverage_ratio": 0.21428571428571427,
         "cards": [
           "Paradise Mantle",
-          "Skullclamp"
-        ]
-      },
-      {
-        "template_name": "Creature with ETB: Earthbend",
-        "combo_count": 8,
-        "card_count": 1,
-        "coverage_ratio": 0.125,
-        "cards": [
-          "Badgermole Cub"
+          "Skullclamp",
+          "Swiftfoot Boots"
         ]
       },
       {
         "template_name": "Green Persist Creature",
-        "combo_count": 7,
+        "combo_count": 9,
         "card_count": 2,
-        "coverage_ratio": 0.2857142857142857,
+        "coverage_ratio": 0.2222222222222222,
         "cards": [
-          "Scuzzback Marauders",
+          "Aerie Ouphes",
           "Woodfall Primus"
         ]
       },
       {
-        "template_name": "Card with \"The Ring tempts you\"",
-        "combo_count": 4,
+        "template_name": "Creature with ETB: Earthbend",
+        "combo_count": 7,
         "card_count": 2,
+        "coverage_ratio": 0.2857142857142857,
+        "cards": [
+          "Badgermole Cub",
+          "Bumi, Unleashed"
+        ]
+      },
+      {
+        "template_name": "Card that Earthbends",
+        "combo_count": 6,
+        "card_count": 3,
         "coverage_ratio": 0.5,
         "cards": [
-          "War of the Last Alliance",
-          "Witch-king of Angmar"
+          "Badgermole Cub",
+          "Bumi, Unleashed",
+          "Toph, the First Metalbender"
+        ]
+      },
+      {
+        "template_name": "Noncreature Artifact with MV<=1",
+        "combo_count": 3,
+        "card_count": 3,
+        "coverage_ratio": 1.0,
+        "cards": [
+          "Lotus Petal",
+          "Skullclamp",
+          "Sol Ring"
+        ]
+      },
+      {
+        "template_name": "Spacecraft",
+        "combo_count": 3,
+        "card_count": 1,
+        "coverage_ratio": 0.3333333333333333,
+        "cards": [
+          "Inspirit, Flagship Vessel"
         ]
       },
       {
@@ -562,7 +781,7 @@
         "card_count": 3,
         "coverage_ratio": 1.5,
         "cards": [
-          "Voice of Victory",
+          "Venerated Stormsinger",
           "Zurgo Stormrender",
           "Zurgo, Thunder's Decree"
         ]
@@ -592,22 +811,12 @@
       {
         "template_name": "Mana Dork or Mana Dork Creator",
         "combo_count": 2,
-        "card_count": 2,
-        "coverage_ratio": 1.0,
-        "cards": [
-          "Bloom Tender",
-          "Selvala, Heart of the Wilds"
-        ]
-      },
-      {
-        "template_name": "Card That Copies a Creature",
-        "combo_count": 2,
         "card_count": 3,
         "coverage_ratio": 1.5,
         "cards": [
-          "Helm of the Host",
-          "Spark Double",
-          "The Fire Crystal"
+          "Birds of Paradise",
+          "Delighted Halfling",
+          "Selvala, Heart of the Wilds"
         ]
       },
       {
@@ -621,33 +830,100 @@
         ]
       },
       {
-        "template_name": "Creature with MV<=1",
+        "template_name": "Creature Castable for {C}{C}",
+        "combo_count": 1,
+        "card_count": 5,
+        "coverage_ratio": 5.0,
+        "cards": [
+          "Marvin, Murderous Mimic",
+          "Metallic Mimic",
+          "Myr Retriever",
+          "Ornithopter",
+          "Walking Ballista"
+        ]
+      },
+      {
+        "template_name": "Hero Creature",
+        "combo_count": 1,
+        "card_count": 3,
+        "coverage_ratio": 3.0,
+        "cards": [
+          "Bloodline Pretender",
+          "Metallic Mimic",
+          "Realmwalker"
+        ]
+      },
+      {
+        "template_name": "Creature That Can Be Cast for {2}",
+        "combo_count": 1,
+        "card_count": 5,
+        "coverage_ratio": 5.0,
+        "cards": [
+          "Marvin, Murderous Mimic",
+          "Metallic Mimic",
+          "Myr Retriever",
+          "Ornithopter",
+          "Walking Ballista"
+        ]
+      },
+      {
+        "template_name": "Man-Land that Enters Untapped",
         "combo_count": 1,
         "card_count": 1,
         "coverage_ratio": 1.0,
         "cards": [
-          "Walking Ballista"
+          "Inkmoth Nexus"
+        ]
+      },
+      {
+        "template_name": "Artifact Creature with Mana Cost Equal to {0}",
+        "combo_count": 1,
+        "card_count": 3,
+        "coverage_ratio": 3.0,
+        "cards": [
+          "Memnite",
+          "Ornithopter",
+          "Phyrexian Walker"
         ]
       }
     ]
   },
   "cross_template_overlap": {
     "summary": {
-      "multi_template_card_count": 28,
-      "max_templates_per_card": 9,
-      "mean_templates_per_card": 0.42,
+      "multi_template_card_count": 38,
+      "max_templates_per_card": 10,
+      "mean_templates_per_card": 0.55,
       "cards_by_template_count": {
-        "0": 236,
-        "1": 36,
-        "2": 16,
+        "0": 228,
+        "3": 7,
         "4": 4,
-        "3": 3,
-        "5": 3,
+        "1": 34,
+        "2": 19,
         "8": 1,
+        "7": 2,
+        "5": 2,
+        "10": 1,
+        "6": 1,
         "9": 1
       }
     },
     "top_versatile_cards": [
+      {
+        "card": "Lotus Petal",
+        "template_count": 10,
+        "requirement_keys": [
+          "scryfall:q=((-t:creature ((mv=0 (is:permanent -m<{0} -t:land c=0 c=0) or or otag:potentially-free))) toughness!=0)",
+          "scryfall:q=((-t:creature -m<{0} -t:instant -t:sorcery) mv=0 or toughness!=0)",
+          "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+          "scryfall:q=(-t:creature (mv=0 (t:artifact -m<{0}) or or otag:potentially-free) toughness>0)",
+          "scryfall:q=(-t:creature -m<{0}) mv=0 t:artifact",
+          "scryfall:q=(is:permanent -m<{0}) -t:creature -t:land mv=0",
+          "scryfall:q=(mana={0} (mv<=1 is:permanent) mana={1} mana={C}) or or",
+          "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
+          "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2",
+          "scryfall:q=(t:artifact -t:attraction) -t:creature mv<=1"
+        ]
+      },
       {
         "card": "Ornithopter",
         "template_count": 9,
@@ -678,6 +954,44 @@
         ]
       },
       {
+        "card": "Swiftfoot Boots",
+        "template_count": 7,
+        "requirement_keys": [
+          "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+          "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
+          "scryfall:q=(o:\"Equip (t:equipment -o:/^Equip -o:/^Equip -o:/^Equip \\{1\\}\\sc/ \\{2\\}\\sc/ \\{3\\}\\sc/)) o:\"Equip o:\"Equip or or {1}\" {2}\" {3}\"",
+          "scryfall:q=(o:\"Equip (t:equipment -o:/^Equip -o:/^Equip \\{1\\}\\sc/)) \\{2\\}\\sc/ o:\"Equip or {1}\" {2}\"",
+          "scryfall:q=(otag:gives-haste t:equipment)",
+          "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2",
+          "scryfall:q=(t:equipment o:\"Equip {1}\")"
+        ]
+      },
+      {
+        "card": "Realmwalker",
+        "template_count": 7,
+        "requirement_keys": [
+          "scryfall:q=((keyword:changeling mv<=3) or t:insect)",
+          "scryfall:q=((keyword:changeling or t:creature) t:zombie)",
+          "scryfall:q=((kw:changeling chosen creature is o:\"This or or t:creature) t:hero the type\")",
+          "scryfall:q=((t:dragon kw:changeling) or t:creature)",
+          "scryfall:q=((t:eldrazi keyword:changeling) or t:creature)",
+          "scryfall:q=(t:creature (t:lhurgoyf keyword:changeling or power>=0))",
+          "scryfall:q=(t:creature (t:merfolk keyword:changeling)) or"
+        ]
+      },
+      {
+        "card": "Sol Ring",
+        "template_count": 6,
+        "requirement_keys": [
+          "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+          "scryfall:q=(mana={0} (mv<=1 is:permanent) mana={1} mana={C}) or or",
+          "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
+          "scryfall:q=(o:/^{T}: (t:artifact -o:\"spend -o:\"~ -t:creature -t:land / Add enters keyword:haste)) mana only or t:creature tapped\" this to\"",
+          "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2",
+          "scryfall:q=(t:artifact -t:attraction) -t:creature mv<=1"
+        ]
+      },
+      {
         "card": "Walking Ballista",
         "template_count": 5,
         "requirement_keys": [
@@ -689,18 +1003,7 @@
         ]
       },
       {
-        "card": "Mirror Entity",
-        "template_count": 5,
-        "requirement_keys": [
-          "scryfall:q=((keyword:changeling mv<=3) or t:insect)",
-          "scryfall:q=((kw:changeling chosen creature is o:\"This or or t:creature) t:hero the type\")",
-          "scryfall:q=((t:eldrazi keyword:changeling) or t:creature)",
-          "scryfall:q=(t:creature (t:lhurgoyf keyword:changeling or power>=0))",
-          "scryfall:q=(t:creature (t:merfolk keyword:changeling)) or"
-        ]
-      },
-      {
-        "card": "Zuran Orb",
+        "card": "Mishra's Bauble",
         "template_count": 5,
         "requirement_keys": [
           "scryfall:q=((-t:creature ((mv=0 (is:permanent -m<{0} -t:land c=0 c=0) or or otag:potentially-free))) toughness!=0)",
@@ -708,36 +1011,6 @@
           "scryfall:q=(-t:creature (mv=0 (t:artifact -m<{0}) or or otag:potentially-free) toughness>0)",
           "scryfall:q=(-t:creature -m<{0}) mv=0 t:artifact",
           "scryfall:q=(is:permanent -m<{0}) -t:creature -t:land mv=0"
-        ]
-      },
-      {
-        "card": "Phyrexian Walker",
-        "template_count": 4,
-        "requirement_keys": [
-          "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
-          "scryfall:q=(mana={0} (t:creature mana={1} mana={C} mana={X})) mv<=1 or or or",
-          "scryfall:q=(t:artifact mana={0}) t:creature",
-          "scryfall:q=(t:creature -m<{0}) mv=0 toughness!=0"
-        ]
-      },
-      {
-        "card": "Lightning Greaves",
-        "template_count": 4,
-        "requirement_keys": [
-          "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
-          "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
-          "scryfall:q=(otag:gives-haste t:equipment)",
-          "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2"
-        ]
-      },
-      {
-        "card": "Memnite",
-        "template_count": 4,
-        "requirement_keys": [
-          "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
-          "scryfall:q=(mana={0} (t:creature mana={1} mana={C} mana={X})) mv<=1 or or or",
-          "scryfall:q=(t:artifact mana={0}) t:creature",
-          "scryfall:q=(t:creature -m<{0}) mv=0 toughness!=0"
         ]
       },
       {
@@ -751,12 +1024,13 @@
         ]
       },
       {
-        "card": "Woodfall Primus",
-        "template_count": 3,
+        "card": "Phyrexian Walker",
+        "template_count": 4,
         "requirement_keys": [
-          "scryfall:q=(keyword:persist (t:creature keyword:undying)) or",
-          "scryfall:q=(keyword:persist c:g) t:creature",
-          "scryfall:q=(keyword:persist t:creature)"
+          "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
+          "scryfall:q=(mana={0} (t:creature mana={1} mana={C} mana={X})) mv<=1 or or or",
+          "scryfall:q=(t:artifact mana={0}) t:creature",
+          "scryfall:q=(t:creature -m<{0}) mv=0 toughness!=0"
         ]
       }
     ],
@@ -774,18 +1048,58 @@
           "Woodfall Primus"
         ],
         "overlap_count": 7,
-        "jaccard_similarity": 0.636
+        "jaccard_similarity": 0.7
       },
       {
-        "template1": "scryfall:q=(!\"Thraben (t:creature (t:creature (t:creature -is:tdfc)) -keyword:devoid -o:\"asmora\" -o:\"asmora\") -t:land -t:land Gargoyle\" color=c mana:{X}) mv<=2 mv=0 mv=0 or or or tou>=1",
-        "template2": "scryfall:q=(mana={0} (t:creature mana={1} mana={2} mana={X} mana={X}{X})) mv<=2 or or or or",
+        "template1": "Creature Castable for {C}{C}",
+        "template2": "Creature That Can Be Cast for {2}",
         "shared_cards": [
+          "Marvin, Murderous Mimic",
           "Metallic Mimic",
           "Myr Retriever",
           "Ornithopter",
           "Walking Ballista"
         ],
-        "overlap_count": 4,
+        "overlap_count": 5,
+        "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+        "template2": "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
+        "shared_cards": [
+          "Lightning Greaves",
+          "Lotus Petal",
+          "Skullclamp",
+          "Sol Ring",
+          "Swiftfoot Boots"
+        ],
+        "overlap_count": 5,
+        "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+        "template2": "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2",
+        "shared_cards": [
+          "Lightning Greaves",
+          "Lotus Petal",
+          "Skullclamp",
+          "Sol Ring",
+          "Swiftfoot Boots"
+        ],
+        "overlap_count": 5,
+        "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=(mana={0} (t:artifact mana={1})) mana={2} mana={X} mana={X}{X} mv<=2 or or or or",
+        "template2": "scryfall:q=(t:artifact -mana<{0} -t:creature color=0) mv<=2",
+        "shared_cards": [
+          "Lightning Greaves",
+          "Lotus Petal",
+          "Skullclamp",
+          "Sol Ring",
+          "Swiftfoot Boots"
+        ],
+        "overlap_count": 5,
         "jaccard_similarity": 1.0
       },
       {
@@ -798,91 +1112,60 @@
           "Rograkh, Son of Rohgahh"
         ],
         "overlap_count": 4,
-        "jaccard_similarity": 0.571
-      },
-      {
-        "template1": "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
-        "template2": "Creature Castable for {C}",
-        "shared_cards": [
-          "Memnite",
-          "Ornithopter",
-          "Phyrexian Walker"
-        ],
-        "overlap_count": 3,
-        "jaccard_similarity": 0.75
-      },
-      {
-        "template1": "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
-        "template2": "scryfall:q=(t:artifact mana={0}) t:creature",
-        "shared_cards": [
-          "Memnite",
-          "Ornithopter",
-          "Phyrexian Walker"
-        ],
-        "overlap_count": 3,
-        "jaccard_similarity": 1.0
-      },
-      {
-        "template1": "scryfall:q=(mana={0} (t:artifact mana={1} mana={X})) or or t:creature",
-        "template2": "scryfall:q=(t:creature -m<{0}) mv=0 toughness!=0",
-        "shared_cards": [
-          "Memnite",
-          "Ornithopter",
-          "Phyrexian Walker"
-        ],
-        "overlap_count": 3,
-        "jaccard_similarity": 0.429
-      },
-      {
-        "template1": "Creature Castable for {C}",
-        "template2": "scryfall:q=(t:artifact mana={0}) t:creature",
-        "shared_cards": [
-          "Memnite",
-          "Ornithopter",
-          "Phyrexian Walker"
-        ],
-        "overlap_count": 3,
-        "jaccard_similarity": 0.75
-      },
-      {
-        "template1": "scryfall:q=(t:artifact mana={0}) t:creature",
-        "template2": "scryfall:q=(t:creature -m<{0}) mv=0 toughness!=0",
-        "shared_cards": [
-          "Memnite",
-          "Ornithopter",
-          "Phyrexian Walker"
-        ],
-        "overlap_count": 3,
-        "jaccard_similarity": 0.429
-      },
-      {
-        "template1": "scryfall:q=(!\"Thraben (t:creature (t:creature (t:creature -is:tdfc)) -keyword:devoid -o:\"asmora\" -o:\"asmora\") -t:land -t:land Gargoyle\" color=c mana:{X}) mv<=2 mv=0 mv=0 or or or tou>=1",
-        "template2": "scryfall:q=((o:\"enters 1 1/ color=c) counter\" keyword:modular) mv<=2 o:\" or t:creature with\"",
-        "shared_cards": [
-          "Metallic Mimic",
-          "Walking Ballista"
-        ],
-        "overlap_count": 2,
-        "jaccard_similarity": 0.4
+        "jaccard_similarity": 0.667
       },
       {
         "template1": "scryfall:q=((-t:creature ((mv=0 (is:permanent -m<{0} -t:land c=0 c=0) or or otag:potentially-free))) toughness!=0)",
         "template2": "scryfall:q=((-t:creature -m<{0} -t:instant -t:sorcery) mv=0 or toughness!=0)",
         "shared_cards": [
-          "Ornithopter",
-          "Zuran Orb"
+          "Lotus Petal",
+          "Mishra's Bauble",
+          "Ornithopter"
         ],
-        "overlap_count": 2,
+        "overlap_count": 3,
         "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=((-t:creature ((mv=0 (is:permanent -m<{0} -t:land c=0 c=0) or or otag:potentially-free))) toughness!=0)",
+        "template2": "scryfall:q=(-t:creature (mv=0 (t:artifact -m<{0}) or or otag:potentially-free) toughness>0)",
+        "shared_cards": [
+          "Lotus Petal",
+          "Mishra's Bauble",
+          "Ornithopter"
+        ],
+        "overlap_count": 3,
+        "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=((-t:creature -m<{0} -t:instant -t:sorcery) mv=0 or toughness!=0)",
+        "template2": "scryfall:q=(-t:creature (mv=0 (t:artifact -m<{0}) or or otag:potentially-free) toughness>0)",
+        "shared_cards": [
+          "Lotus Petal",
+          "Mishra's Bauble",
+          "Ornithopter"
+        ],
+        "overlap_count": 3,
+        "jaccard_similarity": 1.0
+      },
+      {
+        "template1": "scryfall:q=((mana=0 is:permanent) mana={1} mana={1}{C} mana={2} mana={C} mana={C}{C} mana={X} mana={X}{X}) or or or or or or or",
+        "template2": "scryfall:q=(mana={0} (mv<=1 is:permanent) mana={1} mana={C}) or or",
+        "shared_cards": [
+          "Lotus Petal",
+          "Skullclamp",
+          "Sol Ring"
+        ],
+        "overlap_count": 3,
+        "jaccard_similarity": 0.6
       }
     ]
   },
   "profiling": {
     "phase1": {
       "timings": {
-        "model_build": 0.7628635999863036,
-        "solver": 300.7437905999832,
-        "extraction": 0.030992999993031844
+        "model_build": 0.7303289000119548,
+        "solver": 300.79926699999487,
+        "extraction": 0.04812150000361726
       },
       "counts": {
         "variables_card": 4555,
@@ -894,21 +1177,21 @@
         "group_linking": 13638
       },
       "solver_stats": {
-        "wall_time": 300.6894845,
-        "branches": 23816,
+        "wall_time": 300.7438311,
+        "branches": 15236,
         "conflicts": 0,
         "booleans": 25624,
-        "best_objective_bound": 17424533.0,
-        "objective_value": 16091215.0,
-        "relative_gap": 0.08285999534528624
+        "best_objective_bound": 17272529.0,
+        "objective_value": 16231443.0,
+        "relative_gap": 0.06414007676335369
       }
     },
     "phase2": {
       "timings": {
-        "warm_start_repair": 42.08461350001744,
-        "model_build": 1.2551186999771744,
-        "solver": 257.47653079999145,
-        "extraction": 0.03169099998194724
+        "warm_start_repair": 80.90891689999262,
+        "model_build": 1.53154659998836,
+        "solver": 217.78860620001797,
+        "extraction": 0.03650190000189468
       },
       "counts": {
         "variables_card": 4555,
@@ -921,24 +1204,26 @@
         "combo_count": 2,
         "coverage": 16,
         "color_balance": 20,
+        "archetype_minimum": 15,
+        "wide_combo_cap": 1,
         "variables_option": 82,
         "option_linking": 873,
         "combo_exact_linking": 19848,
         "variables_utilization": 4555,
         "utilization_linking": 5135,
         "utilization_floor": 4555,
-        "variables_overage": 687,
-        "overage_linking": 687,
-        "warm_start_hints": 30266
+        "variables_overage": 631,
+        "overage_linking": 631,
+        "warm_start_hints": 32703
       },
       "solver_stats": {
-        "wall_time": 257.39592780000004,
+        "wall_time": 217.7014365,
         "branches": 0,
         "conflicts": 0,
         "booleans": 0,
         "best_objective_bound": -139.0,
-        "objective_value": 23789970.0,
-        "relative_gap": 1.0000058427984566
+        "objective_value": 23659957.0,
+        "relative_gap": 1.0000058749050136
       }
     }
   }

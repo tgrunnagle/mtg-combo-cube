@@ -30,6 +30,9 @@ async def run(
     util_cap: int | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
+    min_pair_combos: int = 250,
+    min_mono_combos: int = 150,
+    max_wide_combo_share: float = 0.25,
 ):
     """
     Run the cube building algorithm.
@@ -58,6 +61,12 @@ async def run(
             (0 disables)
         variant_weight: Value of each further completed variant of a combo the cube already
             completes, relative to the first (1 counts variants, 0 counts distinct combos)
+        min_pair_combos: Phase 2 minimum number of distinct combos every two-color pair can
+            assemble (0 disables)
+        min_mono_combos: Phase 2 minimum number of distinct combos every mono color can
+            assemble (0 disables)
+        max_wide_combo_share: Phase 2 cap on the share of completed combos that need three
+            or more colors (0 disables)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -81,6 +90,9 @@ async def run(
             util_cap=util_cap,
             max_color_ratio=max_color_ratio,
             variant_weight=variant_weight,
+            min_pair_combos=min_pair_combos,
+            min_mono_combos=min_mono_combos,
+            max_wide_combo_share=max_wide_combo_share,
         )
     elif method == "greedy":
         await run_greedy(

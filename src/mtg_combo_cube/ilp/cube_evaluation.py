@@ -5,8 +5,10 @@ so it is the reference for every reported combo count and utilization number.
 """
 
 from collections.abc import Collection, Mapping
+from itertools import combinations
 
 from mtg_combo_cube.ilp.ilp_models import (
+    ArchetypeStats,
     ColorStats,
     ComboData,
     ComboGroupStats,
@@ -14,6 +16,22 @@ from mtg_combo_cube.ilp.ilp_models import (
 )
 
 COLORS = "WUBRG"
+# The ten two-color pairs, in WUBRG order
+COLOR_PAIRS: tuple[str, ...] = tuple(a + b for a, b in combinations(COLORS, 2))
+MONO_COLORS: tuple[str, ...] = tuple(COLORS)
+COLORLESS = "C"
+# The draft archetypes a cube is measured for: pairs, mono colors and colorless
+ARCHETYPES: tuple[str, ...] = COLOR_PAIRS + MONO_COLORS + (COLORLESS,)
+
+
+def archetype_colors(archetype: str) -> str:
+    """The colors a drafter of the archetype plays: its letters, none for colorless."""
+    return "" if archetype == COLORLESS else archetype
+
+
+def fits_archetype(color_identity: str, archetype: str) -> bool:
+    """Whether a combo of the color identity can be assembled in the archetype."""
+    return set(color_identity) <= set(archetype_colors(archetype))
 
 
 def completable_combo_ids(selected_cards: Collection[str], combos: list[ComboData]) -> list[str]:
@@ -98,6 +116,75 @@ def largest_combo_groups(
 
     ranked = sorted(sizes, key=lambda key: (-sizes[key], key))[:limit]
     return [ComboGroupStats(key, sizes[key], sorted(cards[key])) for key in ranked]
+
+
+def _completed_variants(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None,
+) -> list[ComboData]:
+    """The completed variants, from `completed_ids` when the caller already has them."""
+    completed = set(
+        completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
+    )
+    return [combo for combo in combos if combo.id in completed]
+
+
+def combos_per_archetype(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+) -> dict[str, int]:
+    """
+    Return the number of completed combos (groups) each draft archetype can assemble, for
+    the ten color pairs, the five mono colors and "C" (colorless), in that order.
+
+    A combo counts for an archetype when one of its completed variants has a color identity
+    within the archetype's colors, so mono-colored and colorless combos count for every
+    pair they fit. `completed_ids` saves recomputing the completed variants.
+    """
+    groups: dict[str, set[str]] = {archetype: set() for archetype in ARCHETYPES}
+    for combo in _completed_variants(selected_cards, combos, completed_ids):
+        for archetype, keys in groups.items():
+            if fits_archetype(combo.color_identity, archetype):
+                keys.add(combo.group_key)
+    return {archetype: len(keys) for archetype, keys in groups.items()}
+
+
+def combos_by_color_count(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+) -> dict[int, int]:
+    """
+    Return the number of completed combos (groups) by the number of colors they need,
+    from 0 (colorless) to 5. A combo needs the colors of its completed variant with the
+    fewest.
+    """
+    fewest: dict[str, int] = {}
+    for combo in _completed_variants(selected_cards, combos, completed_ids):
+        current = fewest.get(combo.group_key)
+        if current is None or combo.color_count < current:
+            fewest[combo.group_key] = combo.color_count
+    counts = dict.fromkeys(range(len(COLORS) + 1), 0)
+    for colors in fewest.values():
+        counts[colors] += 1
+    return counts
+
+
+def compute_archetype_stats(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+) -> ArchetypeStats:
+    """The distinct combos per archetype and by color count of a set of cards."""
+    completed = (
+        completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
+    )
+    return ArchetypeStats(
+        combos_per_archetype=combos_per_archetype(selected_cards, combos, completed),
+        combos_by_color_count=combos_by_color_count(selected_cards, combos, completed),
+    )
 
 
 def card_utilization(selected_cards: Collection[str], combos: list[ComboData]) -> dict[str, int]:

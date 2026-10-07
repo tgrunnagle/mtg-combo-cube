@@ -95,6 +95,43 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, "--phase2-objective", "maxmin")
 
+    def test_archetype_defaults(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(monkeypatch)
+
+        assert received["min_pair_combos"] == 250
+        assert received["min_mono_combos"] == 150
+        assert received["max_wide_combo_share"] == 0.25
+
+    def test_archetype_options(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(
+            monkeypatch,
+            "--min-pair-combos",
+            "25",
+            "--min-mono-combos",
+            "8",
+            "--max-wide-combo-share",
+            "0.3",
+        )
+
+        assert received["min_pair_combos"] == 25
+        assert received["min_mono_combos"] == 8
+        assert received["max_wide_combo_share"] == 0.3
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--min-pair-combos", "-1"),
+            ("--min-mono-combos", "-3"),
+            ("--max-wide-combo-share", "1.5"),
+            ("--max-wide-combo-share", "-0.1"),
+        ],
+    )
+    def test_invalid_archetype_options_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *args)
+
 
 class TestRunnerPlumbing:
     """runner.run and ilp_runner pass util_cap down to the optimizer."""
@@ -116,6 +153,18 @@ class TestRunnerPlumbing:
 
         await runner.run(method="ilp", cube_size=10, output_file="unused.txt", variant_weight=0.25)
         assert received["variant_weight"] == 0.25
+
+        await runner.run(
+            method="ilp",
+            cube_size=10,
+            output_file="unused.txt",
+            min_pair_combos=25,
+            min_mono_combos=8,
+            max_wide_combo_share=0.3,
+        )
+        assert received["min_pair_combos"] == 25
+        assert received["min_mono_combos"] == 8
+        assert received["max_wide_combo_share"] == 0.3
 
     @pytest.mark.parametrize("util_cap", [None, 3])
     async def test_run_ilp_passes_util_cap_to_optimizer(
@@ -161,10 +210,16 @@ class TestRunnerPlumbing:
             num_workers=1,
             max_color_ratio=0,
             variant_weight=0.5,
+            min_pair_combos=25,
+            min_mono_combos=8,
+            max_wide_combo_share=0.3,
         )
 
         assert len(created) == 1
         assert created[0].util_cap == util_cap
+        assert created[0].min_pair_combos == 25
+        assert created[0].min_mono_combos == 8
+        assert created[0].max_wide_combo_share == 0.3
         assert created[0].phase2_objective == "softcap"
         assert created[0].variant_weight == 0.5
         # The colors of every candidate card reach the optimizer, with the ratio
@@ -189,3 +244,8 @@ class TestRunnerPlumbing:
                 "R": 0,
                 "G": 0,
             }
+            # The combos carry no color identity, so they count as colorless everywhere
+            assert stats[phase]["archetypes"]["combos_per_archetype"]["C"] == 3
+            assert stats[phase]["archetypes"]["combos_by_color_count"]["0"] == 3
+        # ... and the archetype rules were not applied
+        assert "min_pair_combos" not in stats["phase2"]
