@@ -1771,7 +1771,7 @@ class ILPOptimizer:
         from. Returns (warm start, reference).
 
         The reference is the cube with the highest combo score found under the Phase 2 cube
-        rules (coverage, color balance, archetype support). Phase 1 ignores those rules, so
+        rules (coverage, color balance, archetype support, card mix). Phase 1 ignores them, so
         measuring the combo tolerance from the Phase 1 score can leave no feasible cube at
         all.
 

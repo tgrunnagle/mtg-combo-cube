@@ -12,10 +12,10 @@ Given a target cube size (e.g., 360 cards), this tool selects cards that maximiz
 - Balance card utilization so each card contributes to roughly the same number of combos
 
 **Two-phase approach (default):**
-1. **Phase 1** - Maximize combo count using weighted optimization (popularity as tiebreaker)
-2. **Phase 2** - Balance card utilization while preserving combo count (within configurable tolerance)
+1. **Phase 1** - Maximize the combo score: distinct combos, with further variants of a combo the cube already completes worth `--variant-weight` each (popularity as tiebreaker)
+2. **Phase 2** - Balance card utilization while holding the combo score within a tolerance, under the *cube rules*: template coverage, color balance, archetype support (combos for every color pair and mono color, a cap on three-plus-color combos) and the card mix (caps on multicolor, colorless, expensive and creature cards, a floor on instants and sorceries)
 
-This produces cubes where every card pulls its weight: in a two-phase result every card takes part in at least `--min-util-floor` completable combos (default 2), and over-used "hub" cards are pushed down.
+This produces cubes where every card pulls its weight: in a two-phase result every card takes part in at least `--min-util-floor` completable combos (default 2), over-used "hub" cards are pushed down, and every draft archetype has combos to build around.
 
 ## Setup
 
@@ -253,7 +253,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 |--------|---------|-------------|
 | `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
-| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support), which scores lower than the Phase 1 cube |
+| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support and the card mix), which scores lower than the Phase 1 cube |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
 | `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
@@ -297,7 +297,7 @@ Notes:
 - Color balance counts a card once for each color of its color identity, so a white-blue card counts as white and as blue. Colorless cards are not limited by it (see `--max-colorless-share`). The rule needs every color to be present; if it cannot be met within the combo tolerance, Phase 2 fails and the Phase 1 cube is returned. If card data cannot be fetched from Scryfall, a warning is logged and the run continues without the color balance and the card mix rules.
 - The card mix rules are shares of the cube size, rounded to hundredths: a cap allows `floor(share x cube size)` cards and the spell floor requires `ceil(share x cube size)`. Card types are those of the front face of a multi-faced card; lands do not count toward the colorless cap; and a card without Scryfall data counts as colorless, typeless and mana value 0 (a warning gives their number). Before solving, a warning names any rule the whole pool cannot meet. The defaults were chosen from the measurements in [docs/plans/card-mix-plan.md](docs/plans/card-mix-plan.md): each costs between 1% and 4% of the weighted combo count alone, with the colorless cap, the expensive cap and the spell floor the most binding.
 - Archetype support counts distinct combos (not variants) by their Spellbook color identity, as in the `archetypes` statistics. The minimums are absolute counts chosen for the default configuration (300 cards, 20,000 variants, see [docs/plans/archetype-support-plan.md](docs/plans/archetype-support-plan.md)); a much smaller cube or pool cannot reach them, so lower them or pass 0 there. Before solving, a warning names any archetype the whole pool has too few combos for; if the minimums cannot be met, Phase 2 fails, the Phase 1 cube is returned and the log says which archetypes that cube falls short on.
-- The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under the Phase 2 cube rules (coverage, color balance and, since the archetype rules, their minimums and the wide cap), so the same value allows fewer combos than it did then.
+- The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under the Phase 2 cube rules (coverage, color balance, archetype support and the card mix), so the same value allows fewer combos than it did then.
 - For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.
 - If Phase 2 finds no solution (infeasible or out of time), the Phase 1 cube is written, a warning is logged and the stats file says `two_phase_fallback_to_phase1`.
 
@@ -381,9 +381,11 @@ Tests focus on:
 - Constraint satisfaction and optimization
 - Single-phase and two-phase solver behavior, with every Phase 2 objective checked against brute-force enumeration of a small instance
 - Edge cases (empty combos, insufficient cards, etc.)
-- Stats file generation and formatting
-- Scryfall fetching (cache, retries, rate limiting) against a fake HTTP session
-- CLI and runner plumbing
+- Combo grouping: the weighted score, group variables and distinct combo reporting
+- The Phase 2 cube rules on small hand-built instances: coverage, color balance, archetype minimums and the wide combo cap, the card mix caps and floor, and the fallback when a rule cannot be met
+- Stats file generation and formatting, including the `colors`, `archetypes` and `card_mix` blocks
+- Scryfall fetching (template searches and card attributes: cache, cache versioning, retries, rate limiting) against a fake HTTP session, and the precache script
+- CLI and runner plumbing, including a check that every layer declares the same defaults
 
 The unit tests make no network requests.
 
@@ -405,7 +407,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support), from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the cube rules and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support and the card mix), from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the cube rules and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity
@@ -414,22 +416,23 @@ The ILP model scales as follows (where **Q** = cube size, **N** = number of comb
 
 | Aspect | Phase 1 | Phase 2 |
 |--------|---------|---------|
-| Binary variables | C + N | C + N + P |
+| Binary variables | C + N + G | C + N + G + P + H |
 | Integer variables | 0 | C (utilization) + objective variables |
-| Constraints | O(N × R) | O(N × R + C + P × K) |
+| Constraints | O(N × R + N) | O(N × R + N + C + P × K + 15 + 7) |
 
-Where **R** is the average number of optional requirements per combo, **P** the number of distinct requirement card pools (48 at 200 cards / 5,000 variants) and **K** the cards per pool (at most 10). Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
+Where **R** is the average number of optional requirements per combo, **G** the number of combo groups with two or more variants (about 1,200 at 20,000 variants; they exist when `--variant-weight` is below 1 or an archetype rule is on), **P** the number of distinct requirement card pools (about 80 at 20,000 variants) and **K** the cards per pool (at most 10). **H** are the per-archetype indicators of the groups whose variants differ in color identity (about 2,200), used by the archetype minimums and the wide combo cap. The archetype rules add 15 constraints plus the cap, each card mix rule one, and the color balance 20. Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
 
-**Measured solve times** (8 workers, warm cache, default settings, October 2026; see the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md)):
+**Measured solve times** (8 workers, warm cache; see the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md)). The first three rows are from before combo grouping and the Phase 2 cube rules (`--variant-weight 1`, only coverage in Phase 2); the last is the tracked `data/current_best_cube.txt`, built with the current defaults by `task build:ilp` (360 s per phase):
 
 | Cube size | Variants | Phase 1 | Phase 2 (`tiered`) |
 |-----------|----------|---------|--------------------|
 | 100 | 1,000 | 0.2 s, optimal | runs to a 30 s limit |
 | 200 | 5,000 | about 3 s, optimal | about 80 s to reach the 5% gap limit (one run) |
 | 300 | 10,000 | about 5 s, optimal | runs to the 300 s limit (16-17.5% gap left) |
+| 300 | 20,000, current defaults | runs to the 360 s limit (best cube found, not proven) | runs to the 360 s limit, about 90 s of it the reference solve and warm-start repair |
 
-- Phase 1 is solved to optimality in seconds. Phase 2 is the expensive part: at full size no objective reaches its stop rule within 300 s, so the result is the best cube found when the time limit expires. Most of the improvement happens in the first 3 minutes.
-- `--time-limit` (default 300 s) applies to each phase separately; the Phase 2 limit includes the warm-start repair.
+- With `--variant-weight 1` Phase 1 is solved to optimality in seconds; with the default 0.1 the group variables make it run to its time limit at full size. Phase 2 is the expensive part either way: at full size no objective reaches its stop rule, so the result is the best cube found when the time limit expires. Most of the improvement happens in the first 3 minutes.
+- `--time-limit` (default 300 s; `task build:ilp` passes 360) applies to each phase separately; the Phase 2 limit includes the reference solve and the warm-start repair.
 - Phase 2 timings vary noticeably between runs (the parallel search is not deterministic).
 - **Keep `--workers` at 8.** CP-SAT chooses its set of search strategies by worker count, so fewer workers is not just slower: with 4 workers Phase 1 did not prove optimality within the time limit at any tested size (8 workers: about 5 s at full size), and Phase 2 found no solution at all at 200 and 300 cards. More than 8 workers has not been measured.
 
