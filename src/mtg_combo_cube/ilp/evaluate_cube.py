@@ -19,6 +19,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     completable_combo_ids,
     completed_group_sizes,
     compute_archetype_stats,
+    compute_card_mix_stats,
     compute_color_stats,
     compute_utilization_stats,
     largest_combo_groups,
@@ -26,8 +27,9 @@ from mtg_combo_cube.ilp.cube_evaluation import (
 )
 from mtg_combo_cube.ilp.ilp_models import ArchetypeStats, ComboGroupStats, UtilizationStats
 from mtg_combo_cube.ilp.ilp_runner import (
-    fetch_color_identities,
+    fetch_card_attributes,
     format_archetype_stats,
+    format_card_mix_stats,
     format_color_stats,
     format_combo_count,
     load_instance,
@@ -155,7 +157,9 @@ if __name__ == "__main__":
         print("Archetypes (distinct combos): " + format_archetype_stats(evaluation.archetype_stats))
 
     cube_cards = read_cube_file(args.cube_file)
-    color_identities = asyncio.run(fetch_color_identities(cube_cards, read_cache=True))
-    if color_identities is not None:
-        color_stats = compute_color_stats(cube_cards, color_identities)
+    attributes = asyncio.run(fetch_card_attributes(cube_cards, read_cache=True))
+    if attributes is not None:
+        color_stats = compute_color_stats(cube_cards, attributes)
         print(f"Colors (by color identity): {format_color_stats(color_stats)}")
+        card_mix = compute_card_mix_stats(cube_cards, attributes)
+        print(f"Card mix: {format_card_mix_stats(card_mix)}")

@@ -7,6 +7,8 @@ import pytest
 from mtg_combo_cube.ilp.cube_evaluation import compute_color_stats
 from mtg_combo_cube.ilp.ilp_models import ComboData, OptimizationResult
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
+from tests.unit.test_ilp_card_mix import NO_CARD_MIX
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 # Three white cards that form three combos, and one two-card combo in each other color.
@@ -20,7 +22,9 @@ COMBOS = [
     ComboData("r", frozenset(["R1", "R2"]), [], 10),
     ComboData("g", frozenset(["G1", "G2"]), [], 10),
 ]
-CARD_COLORS = {card: card[0] for combo in COMBOS for card in combo.required_cards}
+CARD_ATTRIBUTES = {
+    card: CardAttributes(card[0]) for combo in COMBOS for card in combo.required_cards
+}
 
 
 def make_optimizer(**kwargs: Any) -> ILPOptimizer:
@@ -32,14 +36,15 @@ def make_optimizer(**kwargs: Any) -> ILPOptimizer:
         "num_workers": 1,
         "min_utilization_floor": 0,
         "phase2_objective": "minmax",
-        "card_colors": CARD_COLORS,
+        "card_attributes": CARD_ATTRIBUTES,
+        "card_mix": NO_CARD_MIX,
     }
     settings.update(kwargs)
     return ILPOptimizer(combos=COMBOS, candidate_cards=build_candidate_cards(COMBOS), **settings)
 
 
 def color_counts(result: OptimizationResult) -> dict[str, int]:
-    return compute_color_stats(result.get_selected_card_names(), CARD_COLORS).cards_per_color
+    return compute_color_stats(result.get_selected_card_names(), CARD_ATTRIBUTES).cards_per_color
 
 
 class TestColorBalance:
@@ -82,7 +87,7 @@ class TestColorBalance:
         assert color_counts(result)["W"] == 3
 
     def test_no_color_data_disables_the_constraint(self):
-        result = make_optimizer(card_colors=None, combo_tolerance=0).solve_two_phase()
+        result = make_optimizer(card_attributes=None, combo_tolerance=0).solve_two_phase()
 
         assert result.is_multi_objective
         assert result.phase2_max_color_ratio is None
@@ -99,7 +104,8 @@ class TestColorBalance:
             time_limit_seconds=30,
             num_workers=1,
             min_utilization_floor=0,
-            card_colors=CARD_COLORS,
+            card_attributes=CARD_ATTRIBUTES,
+            card_mix=NO_CARD_MIX,
         )
 
         result = optimizer.solve_two_phase()
@@ -132,7 +138,13 @@ class TestColorViolations:
         assert optimizer._color_violations(["W1", "U1", "B1", "R1"]) == 4
 
     def test_multicolor_card_counts_for_each_color(self):
-        optimizer = make_optimizer(card_colors={**CARD_COLORS, "W2": "WUBRG", "W3": "WUBRG"})
+        optimizer = make_optimizer(
+            card_attributes={
+                **CARD_ATTRIBUTES,
+                "W2": CardAttributes("WUBRG"),
+                "W3": CardAttributes("WUBRG"),
+            }
+        )
 
         # W1 alone would leave four colors empty; the two five-color cards fill them
         assert optimizer._color_violations(["W1", "W2", "W3"]) == 0

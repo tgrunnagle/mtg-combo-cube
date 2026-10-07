@@ -4,6 +4,7 @@ import logging
 
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.greedy.greedy_runner import run_greedy
+from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
 from mtg_combo_cube.ilp.ilp_runner import run_ilp
 
 logger = logging.getLogger(__name__)
@@ -33,6 +34,7 @@ async def run(
     min_pair_combos: int = 250,
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
+    card_mix: CardMixRules = DEFAULT_CARD_MIX,
 ):
     """
     Run the cube building algorithm.
@@ -67,6 +69,8 @@ async def run(
             assemble (0 disables)
         max_wide_combo_share: Phase 2 cap on the share of completed combos that need three
             or more colors (0 or 1 disables)
+        card_mix: Phase 2 limits on the cube's make-up by color count, mana value and card
+            type, as shares of the cube size (see CardMixRules)
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -93,6 +97,7 @@ async def run(
             min_pair_combos=min_pair_combos,
             min_mono_combos=min_mono_combos,
             max_wide_combo_share=max_wide_combo_share,
+            card_mix=card_mix,
         )
     elif method == "greedy":
         await run_greedy(

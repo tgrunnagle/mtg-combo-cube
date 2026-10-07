@@ -1,6 +1,7 @@
 """Data structures for ILP optimization."""
 
 from dataclasses import dataclass
+from fractions import Fraction
 from typing import Any
 
 # =============================================================================
@@ -70,6 +71,70 @@ class ComboData:
         return all(len(opt.cards) > 0 for opt in self.requirement_options)
 
 
+@dataclass(frozen=True)
+class CardMixRules:
+    """
+    Phase 2 limits on the make-up of the cube by card type, mana value and color count,
+    each a share of the cube size. A share of 0 disables its rule (a cap of 1 too, since
+    every card may then count), as does a ratio of 0.
+    """
+
+    # At most this share of the cube may be multicolor cards (two or more colors)
+    max_multicolor_share: float = 0.15
+    # At most this share may be colorless cards (cards without Scryfall data count here)
+    max_colorless_share: float = 0.25
+    # At most this share may have a mana value of expensive_mana_value or more
+    max_expensive_share: float = 0.2
+    expensive_mana_value: float = 5
+    # At most this share may be creatures
+    max_creature_share: float = 0.6
+    # At least this share must be instants or sorceries
+    min_spell_share: float = 0.05
+    # No mono color may have more than this many times the mono-colored cards of another
+    # (the color balance form on mono-colored cards); 0 disables, otherwise at least 1
+    mono_color_ratio: float = 0
+
+    def __post_init__(self) -> None:
+        for name in (
+            "max_multicolor_share",
+            "max_colorless_share",
+            "max_expensive_share",
+            "max_creature_share",
+            "min_spell_share",
+        ):
+            if not 0 <= getattr(self, name) <= 1:
+                raise ValueError(f"{name} must be between 0 and 1, got {getattr(self, name)}")
+        if self.expensive_mana_value < 0:
+            raise ValueError(
+                f"expensive_mana_value must be 0 or more, got {self.expensive_mana_value}"
+            )
+        if 0 < self.mono_color_ratio < 1:
+            raise ValueError(f"mono_color_ratio must be 0 or >= 1, got {self.mono_color_ratio}")
+
+    @staticmethod
+    def fraction(share: float) -> Fraction:
+        """A share as an integer fraction, in hundredths."""
+        return Fraction(share).limit_denominator(100)
+
+    def enabled(self) -> dict[str, float]:
+        """The settings in force, for the stats file: every rule that is not disabled."""
+        settings: dict[str, float] = {}
+        for name in ("max_multicolor_share", "max_colorless_share", "max_creature_share"):
+            if 0 < self.fraction(getattr(self, name)) < 1:
+                settings[name] = getattr(self, name)
+        if 0 < self.fraction(self.max_expensive_share) < 1:
+            settings["max_expensive_share"] = self.max_expensive_share
+            settings["expensive_mana_value"] = self.expensive_mana_value
+        if self.fraction(self.min_spell_share) > 0:
+            settings["min_spell_share"] = self.min_spell_share
+        if self.mono_color_ratio > 0:
+            settings["mono_color_ratio"] = self.mono_color_ratio
+        return settings
+
+
+DEFAULT_CARD_MIX = CardMixRules()  # the default rules, shared by every layer's signature
+
+
 @dataclass
 class RequirementPool:
     """Aggregated requirement info for coverage constraint generation.
@@ -121,6 +186,22 @@ class ColorStats:
     unknown: int  # cards without color data
     variance: float  # population variance of cards_per_color
     std_deviation: float
+
+
+@dataclass
+class CardMixStats:
+    """The make-up of a set of cards by type, color count and mana value."""
+
+    card_count: int
+    # Cards of each card type (Creature, Instant, ...); a card counts once per type it has
+    type_counts: dict[str, int]
+    multicolor: int  # cards with two or more colors in their identity
+    colorless: int  # cards with none (cards without Scryfall data count here)
+    # Nonland cards by mana value, 0 to MANA_VALUE_CAP (the last bucket is "that or more")
+    mana_value_counts: dict[int, int]
+    mean_mana_value: float  # of the nonland cards
+    mean_mana_value_per_color: dict[str, float]  # of the nonland cards of each color
+    unknown: int  # cards without Scryfall data
 
 
 @dataclass
@@ -223,6 +304,8 @@ class OptimizationResult:
     phase2_min_pair_combos: int | None = None
     phase2_min_mono_combos: int | None = None
     phase2_max_wide_combo_share: float | None = None
+    # The card mix rules Phase 2 applied; None when there was no card data to apply them to
+    phase2_card_mix: CardMixRules | None = None
     # Distinct combos per draft archetype of each phase's cube
     phase1_archetype_stats: ArchetypeStats | None = None
     phase2_archetype_stats: ArchetypeStats | None = None

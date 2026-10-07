@@ -4,10 +4,11 @@ Usage:
     uv run python -m mtg_combo_cube.precache -n 20000
 
 Downloads what an ILP build with the same settings reads: the Commander Spellbook variants,
-the Scryfall template searches and the Scryfall card colors.
+the Scryfall template searches and the Scryfall card attributes (color identity, type line,
+mana value).
 
 Everything is fetched again and written over what the cache holds: the variants file is
-replaced, and so is every template and card color entry of this configuration. Entries that
+replaced, and so is every template and card attribute entry of this configuration. Entries that
 only other configurations use are left alone. With --keep-existing, entries already in the
 cache are kept instead, so an incomplete run can be finished without starting over.
 """
@@ -25,7 +26,7 @@ import aiohttp
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.models import Variant
-from mtg_combo_cube.scryfall.card_color_fetcher import CardColorFetcher
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
@@ -45,14 +46,16 @@ class PrecacheResult:
     variants_cached: bool = False
     failed_templates: int = 0
     cards: int = 0
-    cards_without_color: int = 0
-    failed_color_requests: int = 0
+    cards_without_attributes: int = 0
+    failed_attribute_requests: int = 0
 
     @property
     def complete(self) -> bool:
         """True when the variants file is in place and no request was left failing."""
         return (
-            self.variants_cached and self.failed_templates == 0 and self.failed_color_requests == 0
+            self.variants_cached
+            and self.failed_templates == 0
+            and self.failed_attribute_requests == 0
         )
 
 
@@ -170,31 +173,31 @@ async def _precache_templates(
     return card_names, failures
 
 
-async def _precache_colors(
+async def _precache_attributes(
     card_names: list[str],
-    color_fetcher: CardColorFetcher,
+    attribute_fetcher: CardAttributeFetcher,
     fetcher: ScryfallFetcher,
     max_passes: int,
     retry_wait_seconds: float,
     sleep: Sleep,
 ) -> tuple[int, int]:
     """
-    Look up the color identity of every card, which fills the card color cache.
+    Look up the attributes of every card, which fills the card attribute cache.
 
     Returns:
-        - Number of cards left without color data
+        - Number of cards left without Scryfall data
         - Number of requests that still failed in the last pass
     """
     remaining = list(card_names)
 
     async def run_pass() -> int:
         fetcher.clear_failures()
-        identities = await color_fetcher.fetch_color_identities(remaining)
-        remaining[:] = [name for name in remaining if name not in identities]
+        attributes = await attribute_fetcher.fetch_attributes(remaining)
+        remaining[:] = [name for name in remaining if name not in attributes]
         return fetcher.failed_requests
 
     failures = await _run_passes(
-        "Scryfall card colors", run_pass, max_passes, retry_wait_seconds, sleep
+        "Scryfall card attributes", run_pass, max_passes, retry_wait_seconds, sleep
     )
     return len(remaining), failures
 
@@ -212,12 +215,13 @@ async def precache(
     sleep: Sleep = asyncio.sleep,
 ) -> PrecacheResult:
     """
-    Fill the variants, Scryfall template and card color caches for one build configuration.
+    Fill the variants, Scryfall template and card attribute caches for one build
+    configuration.
 
     Args:
         max_cards_in_combo: Largest combo size to fetch (part of the variants cache key)
         max_variants: Maximum number of combo variants (part of the variants cache key)
-        blocklist: Blocked card names; decides which templates and card colors a build needs
+        blocklist: Blocked card names; decides which templates and cards a build needs
         cache_dir: Directory for the cache files (default: data/cache)
         keep_existing: Keep entries already in the cache instead of fetching them again and
             writing over them
@@ -257,11 +261,14 @@ async def precache(
     result.cards = len(card_names)
 
     async with ScryfallFetcher(session=session, sleep=sleep) as fetcher:
-        color_fetcher = CardColorFetcher(
+        attribute_fetcher = CardAttributeFetcher(
             fetcher, cache_dir=cache_dir, enable_read=keep_existing, enable_write=True
         )
-        result.cards_without_color, result.failed_color_requests = await _precache_colors(
-            card_names, color_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
+        (
+            result.cards_without_attributes,
+            result.failed_attribute_requests,
+        ) = await _precache_attributes(
+            card_names, attribute_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
         )
 
     return result
@@ -338,8 +345,8 @@ if __name__ == "__main__":
     print(f"Variants: {result.variants}" + ("" if result.variants_cached else " (NOT cached)"))
     print(f"Scryfall templates still failing: {result.failed_templates}")
     print(
-        f"Card colors: {result.cards - result.cards_without_color} of {result.cards} cards, "
-        f"{result.failed_color_requests} requests still failing"
+        f"Card attributes: {result.cards - result.cards_without_attributes} of {result.cards} "
+        f"cards, {result.failed_attribute_requests} requests still failing"
     )
     if not result.complete:
         print("Cache is INCOMPLETE; run again with --keep-existing to fetch what is missing.")

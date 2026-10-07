@@ -12,14 +12,14 @@ import pytest
 from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
 from mtg_combo_cube.precache import PrecacheResult, precache
-from mtg_combo_cube.scryfall.card_color_fetcher import CardColorFetcher
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 from tests.unit.scryfall_fakes import FakeResponse, FakeSession, SleepRecorder, read_cache_file
 
 CREATURE_API = "https://api.scryfall.com/cards/search?q=type%3Acreature"
 CREATURE_URL = prepare_scryfall_url(CREATURE_API)
-COLLECTION_URL = CardColorFetcher.COLLECTION_URL
+COLLECTION_URL = CardAttributeFetcher.COLLECTION_URL
 SCRYFALL_MAX_ATTEMPTS = 5  # ScryfallFetcher default: attempts before a request counts as failed
 
 CARD_STATES = {
@@ -168,8 +168,9 @@ async def run_precache(
 
 
 def read_colors(tmp_path: Path) -> dict[str, str]:
-    with open(tmp_path / CardColorFetcher.CACHE_FILENAME, encoding="utf-8") as f:
-        return json.load(f)["cards"]
+    """The color identities in the card attribute cache."""
+    with open(tmp_path / CardAttributeFetcher.CACHE_FILENAME, encoding="utf-8") as f:
+        return {name: entry["color_identity"] for name, entry in json.load(f)["cards"].items()}
 
 
 class TestVariantsCacheWrite:
@@ -396,7 +397,7 @@ class TestPrecache:
         result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session)
 
         assert result.complete
-        assert result.cards_without_color == 0
+        assert result.cards_without_attributes == 0
         assert read_colors(tmp_path) == {"Card A": "W", "Card B": "U", "Creature X": "G"}
 
     @pytest.mark.asyncio
@@ -411,8 +412,8 @@ class TestPrecache:
         result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, max_passes=2)
 
         assert not result.complete
-        assert result.failed_color_requests == 1
-        assert result.cards_without_color == 3
+        assert result.failed_attribute_requests == 1
+        assert result.cards_without_attributes == 3
 
     @pytest.mark.asyncio
     async def test_card_unknown_to_scryfall_is_not_a_failure(self, tmp_path):
@@ -427,5 +428,5 @@ class TestPrecache:
 
         # One pass only: asking again would not make Scryfall know the card
         assert result.complete
-        assert result.cards_without_color == 1
+        assert result.cards_without_attributes == 1
         assert session.requests.count(COLLECTION_URL) == 1

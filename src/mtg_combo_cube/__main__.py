@@ -4,9 +4,11 @@ import argparse
 import asyncio
 import logging
 
+from mtg_combo_cube.ilp.ilp_models import CardMixRules
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
+    card_mix_defaults = CardMixRules()
     argparser = argparse.ArgumentParser(
         description="Build MTG combo cube with optimal card selection"
     )
@@ -158,6 +160,58 @@ if __name__ == "__main__":
         "need three or more colors (default: 0.25). Between 0 and 1, in hundredths; 0 or 1 "
         "removes the cap.",
     )
+    argparser.add_argument(
+        "--max-multicolor-share",
+        type=float,
+        default=card_mix_defaults.max_multicolor_share,
+        help="Card mix for phase 2: at most this share of the cube may be multicolor cards "
+        f"(default: {card_mix_defaults.max_multicolor_share:g}). Between 0 and 1, in "
+        "hundredths; 0 or 1 removes the cap.",
+    )
+    argparser.add_argument(
+        "--max-colorless-share",
+        type=float,
+        default=card_mix_defaults.max_colorless_share,
+        help="Card mix for phase 2: at most this share of the cube may be colorless cards "
+        f"(default: {card_mix_defaults.max_colorless_share:g}). 0 or 1 removes the cap.",
+    )
+    argparser.add_argument(
+        "--max-expensive-share",
+        type=float,
+        default=card_mix_defaults.max_expensive_share,
+        help="Card mix for phase 2: at most this share of the cube may have a mana value of "
+        f"--expensive-mana-value or more (default: {card_mix_defaults.max_expensive_share:g}). "
+        "0 or 1 removes the cap.",
+    )
+    argparser.add_argument(
+        "--expensive-mana-value",
+        type=float,
+        default=card_mix_defaults.expensive_mana_value,
+        help="Mana value from which a card counts as expensive for --max-expensive-share "
+        f"(default: {card_mix_defaults.expensive_mana_value:g}).",
+    )
+    argparser.add_argument(
+        "--max-creature-share",
+        type=float,
+        default=card_mix_defaults.max_creature_share,
+        help="Card mix for phase 2: at most this share of the cube may be creatures "
+        f"(default: {card_mix_defaults.max_creature_share:g}). 0 or 1 removes the cap.",
+    )
+    argparser.add_argument(
+        "--min-spell-share",
+        type=float,
+        default=card_mix_defaults.min_spell_share,
+        help="Card mix for phase 2: at least this share of the cube must be instants or "
+        f"sorceries (default: {card_mix_defaults.min_spell_share:g}). 0 disables.",
+    )
+    argparser.add_argument(
+        "--mono-color-ratio",
+        type=float,
+        default=card_mix_defaults.mono_color_ratio,
+        help="Card mix for phase 2: no color may have more than this many times the "
+        "mono-colored cards of another color, as --max-color-ratio on mono-colored cards "
+        f"only (default: {card_mix_defaults.mono_color_ratio:g}, disabled). 0 or at least 1.",
+    )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
@@ -167,6 +221,18 @@ if __name__ == "__main__":
         argparser.error("--min-pair-combos and --min-mono-combos must be 0 or more")
     if not 0 <= args.max_wide_combo_share <= 1:
         argparser.error("--max-wide-combo-share must be between 0 and 1")
+    try:
+        card_mix = CardMixRules(
+            max_multicolor_share=args.max_multicolor_share,
+            max_colorless_share=args.max_colorless_share,
+            max_expensive_share=args.max_expensive_share,
+            expensive_mana_value=args.expensive_mana_value,
+            max_creature_share=args.max_creature_share,
+            min_spell_share=args.min_spell_share,
+            mono_color_ratio=args.mono_color_ratio,
+        )
+    except ValueError as e:
+        argparser.error(f"--{str(e).replace('_', '-')}")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(
@@ -194,5 +260,6 @@ if __name__ == "__main__":
             min_pair_combos=args.min_pair_combos,
             min_mono_combos=args.min_mono_combos,
             max_wide_combo_share=args.max_wide_combo_share,
+            card_mix=card_mix,
         )
     )

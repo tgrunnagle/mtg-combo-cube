@@ -12,6 +12,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     completable_group_keys,
     completed_group_sizes,
     compute_archetype_stats,
+    compute_card_mix_stats,
     compute_color_stats,
     compute_utilization_stats,
     fits_archetype,
@@ -20,6 +21,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
 )
 from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 from tests.unit.test_ilp_optimizer import build_candidate_cards
 
 
@@ -314,8 +316,9 @@ class TestComputeColorStats:
 
     def test_counts_and_categories(self):
         identities = {"Mono W": "W", "Mono U": "U", "Azorius": "WU", "Rock": "", "Five": "WUBRG"}
+        attributes = {name: CardAttributes(identity) for name, identity in identities.items()}
 
-        stats = compute_color_stats([*identities, "Mystery"], identities)
+        stats = compute_color_stats([*identities, "Mystery"], attributes)
 
         assert stats.cards_per_color == {"W": 3, "U": 3, "B": 1, "R": 1, "G": 1}
         assert stats.mono_colored == {"W": 1, "U": 1, "B": 0, "R": 0, "G": 0}
@@ -327,9 +330,9 @@ class TestComputeColorStats:
         assert stats.std_deviation == pytest.approx(0.96**0.5)
 
     def test_even_distribution_has_zero_variance(self):
-        identities = {color: color for color in "WUBRG"}
+        attributes = {color: CardAttributes(color) for color in "WUBRG"}
 
-        stats = compute_color_stats(list(identities), identities)
+        stats = compute_color_stats(list(attributes), attributes)
 
         assert stats.variance == 0.0
         assert stats.std_deviation == 0.0
@@ -339,3 +342,53 @@ class TestComputeColorStats:
 
         assert sum(stats.cards_per_color.values()) == 0
         assert stats.variance == 0.0
+
+
+class TestComputeCardMixStats:
+    """Test compute_card_mix_stats."""
+
+    ATTRIBUTES = {
+        "Elf": CardAttributes("G", "Creature \u2014 Elf", 1),
+        "Golem": CardAttributes("", "Artifact Creature \u2014 Golem", 7),
+        "Bolt": CardAttributes("R", "Instant", 1),
+        "Wrath": CardAttributes("W", "Sorcery", 4),
+        "Giant": CardAttributes("R", "Creature \u2014 Giant // Instant \u2014 Adventure", 3),
+        "Gold": CardAttributes("WU", "Legendary Enchantment", 9.5),
+        "Forest": CardAttributes("G", "Basic Land \u2014 Forest", 0),
+    }
+
+    def test_counts(self):
+        stats = compute_card_mix_stats([*self.ATTRIBUTES, "Mystery"], self.ATTRIBUTES)
+
+        assert stats.card_count == 8
+        # A card counts once per type; supertypes and the back face are not types
+        assert stats.type_counts == {
+            "Creature": 3,
+            "Instant": 1,
+            "Sorcery": 1,
+            "Artifact": 1,
+            "Enchantment": 1,
+            "Planeswalker": 0,
+            "Battle": 0,
+            "Land": 1,
+        }
+        assert stats.multicolor == 1
+        assert stats.colorless == 2  # the golem and the unknown card
+        assert stats.unknown == 1
+        # Nonland mana values: 1, 7, 1, 4, 3, 9.5 and the unknown card's 0
+        assert stats.mana_value_counts == {0: 1, 1: 2, 2: 0, 3: 1, 4: 1, 5: 0, 6: 0, 7: 2}
+        assert stats.mean_mana_value == pytest.approx(25.5 / 7)
+        assert stats.mean_mana_value_per_color == {
+            "W": pytest.approx(6.75),
+            "U": 9.5,
+            "B": 0.0,
+            "R": 2.0,
+            "G": 1.0,  # the forest is a land
+        }
+
+    def test_empty(self):
+        stats = compute_card_mix_stats([], {})
+
+        assert stats.card_count == 0
+        assert sum(stats.type_counts.values()) == 0
+        assert stats.mean_mana_value == 0.0

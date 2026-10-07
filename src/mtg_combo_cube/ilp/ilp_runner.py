@@ -11,19 +11,24 @@ from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.ilp.cube_evaluation import (
     COLOR_PAIRS,
     COLORLESS,
+    MANA_VALUE_CAP,
     MONO_COLORS,
+    compute_card_mix_stats,
     compute_color_stats,
 )
 from mtg_combo_cube.ilp.ilp_models import (
+    DEFAULT_CARD_MIX,
     ArchetypeStats,
     CandidateCard,
+    CardMixRules,
+    CardMixStats,
     ColorStats,
     ComboData,
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.models import Variant
-from mtg_combo_cube.scryfall.card_color_fetcher import CardColorFetcher
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher, CardAttributes
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
@@ -84,6 +89,8 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["min_mono_combos"] = result.phase2_min_mono_combos
     if result.phase2_max_wide_combo_share is not None:
         info["max_wide_combo_share"] = result.phase2_max_wide_combo_share
+    if result.phase2_card_mix is not None and (card_mix_rules := result.phase2_card_mix.enabled()):
+        info["card_mix_rules"] = card_mix_rules
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
@@ -148,19 +155,60 @@ def format_combo_count(variants: int, groups: int | None, weighted: float | None
 
 
 def _color_stats(
-    cards: list[CandidateCard] | None, color_identities: Mapping[str, str] | None
+    cards: list[CandidateCard] | None, attributes: Mapping[str, CardAttributes] | None
 ) -> ColorStats | None:
-    if cards is None or color_identities is None:
+    if cards is None or attributes is None:
         return None
-    return compute_color_stats([card.name for card in cards], color_identities)
+    return compute_color_stats([card.name for card in cards], attributes)
 
 
 def _colors_block(
-    cards: list[CandidateCard] | None, color_identities: Mapping[str, str] | None
+    cards: list[CandidateCard] | None, attributes: Mapping[str, CardAttributes] | None
 ) -> dict:
-    """The "colors" entry of a phase block, empty when there is no color data."""
-    stats = _color_stats(cards, color_identities)
+    """The "colors" entry of a phase block, empty when there is no card data."""
+    stats = _color_stats(cards, attributes)
     return {"colors": asdict(stats)} if stats is not None else {}
+
+
+def _card_mix_stats(
+    cards: list[CandidateCard] | None, attributes: Mapping[str, CardAttributes] | None
+) -> CardMixStats | None:
+    if cards is None or attributes is None:
+        return None
+    return compute_card_mix_stats([card.name for card in cards], attributes)
+
+
+def _card_mix_block(
+    cards: list[CandidateCard] | None, attributes: Mapping[str, CardAttributes] | None
+) -> dict:
+    """The "card_mix" entry of a phase block, empty when there is no card data."""
+    stats = _card_mix_stats(cards, attributes)
+    return {"card_mix": asdict(stats)} if stats is not None else {}
+
+
+def format_card_mix_stats(stats: CardMixStats) -> str:
+    """One-line summary of a card mix: types, color counts and mana values."""
+
+    def share(count: int) -> str:
+        return f" ({count / stats.card_count:.0%})" if stats.card_count else ""
+
+    types = ", ".join(
+        f"{card_type}={count}{share(count) if card_type == 'Creature' else ''}"
+        for card_type, count in stats.type_counts.items()
+    )
+    curve = " ".join(
+        f"{value}{'+' if value == MANA_VALUE_CAP else ''}:{count}"
+        for value, count in stats.mana_value_counts.items()
+    )
+    per_color = ", ".join(
+        f"{color}={mean:.1f}" for color, mean in stats.mean_mana_value_per_color.items()
+    )
+    unknown = f"; unknown={stats.unknown}" if stats.unknown else ""
+    return (
+        f"types {types}; multicolor {stats.multicolor}{share(stats.multicolor)}, "
+        f"colorless {stats.colorless}{share(stats.colorless)}; mana value (nonland) "
+        f"mean {stats.mean_mana_value:.2f}, {curve}, per color {per_color}{unknown}"
+    )
 
 
 def format_color_stats(stats: ColorStats) -> str:
@@ -199,9 +247,12 @@ def format_archetype_stats(stats: ArchetypeStats) -> str:
 
 
 def log_phase_summary(
-    result: OptimizationResult, color_identities: Mapping[str, str] | None
+    result: OptimizationResult, attributes: Mapping[str, CardAttributes] | None
 ) -> None:
-    """Log the combo count, color distribution and archetype counts of each phase's cube."""
+    """
+    Log the combo count, color distribution, archetype counts and card mix of each phase's
+    cube.
+    """
     phase1_count = _phase1_combo_count(result)
     phase1_text = format_combo_count(
         phase1_count or 0,
@@ -229,11 +280,11 @@ def log_phase_summary(
     elif phase1_count is not None:
         logger.info(f"Combos: Phase 1 {phase1_text}")
 
-    phase1_colors = _color_stats(_phase1_cards(result), color_identities)
+    phase1_colors = _color_stats(_phase1_cards(result), attributes)
     if phase1_colors is not None:
         logger.info(f"Colors, Phase 1: {format_color_stats(phase1_colors)}")
     if result.is_multi_objective:
-        phase2_colors = _color_stats(result.selected_cards, color_identities)
+        phase2_colors = _color_stats(result.selected_cards, attributes)
         if phase2_colors is not None:
             logger.info(f"Colors, Phase 2: {format_color_stats(phase2_colors)}")
 
@@ -242,18 +293,26 @@ def log_phase_summary(
     if result.is_multi_objective and result.phase2_archetype_stats is not None:
         logger.info(f"Archetypes, Phase 2: {format_archetype_stats(result.phase2_archetype_stats)}")
 
+    phase1_mix = _card_mix_stats(_phase1_cards(result), attributes)
+    if phase1_mix is not None:
+        logger.info(f"Card mix, Phase 1: {format_card_mix_stats(phase1_mix)}")
+    if result.is_multi_objective:
+        phase2_mix = _card_mix_stats(result.selected_cards, attributes)
+        if phase2_mix is not None:
+            logger.info(f"Card mix, Phase 2: {format_card_mix_stats(phase2_mix)}")
+
 
 def write_stats(
     result: OptimizationResult,
     output_file: str,
     cube_size: int,
-    color_identities: Mapping[str, str] | None = None,
+    attributes: Mapping[str, CardAttributes] | None = None,
 ) -> None:
     """
     Write utilization statistics to JSON file.
 
-    color_identities (card name -> WUBRG letters) adds the color distribution of each
-    phase's cube when given.
+    attributes (card name -> Scryfall attributes) adds the color distribution and card mix
+    of each phase's cube when given.
     """
     # Derive stats filename: data/cube.txt -> data/cube_stats.json
     output_path = Path(output_file)
@@ -296,8 +355,9 @@ def write_stats(
             "median_utilization": p1.median_utilization,
             "std_deviation": p1.std_deviation,
             "total_absolute_deviation": p1.total_absolute_deviation,
-            **_colors_block(_phase1_cards(result), color_identities),
+            **_colors_block(_phase1_cards(result), attributes),
             **_archetypes_block(result.phase1_archetype_stats),
+            **_card_mix_block(_phase1_cards(result), attributes),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -315,8 +375,9 @@ def write_stats(
             "std_deviation": p2.std_deviation,
             "total_absolute_deviation": p2.total_absolute_deviation,
             **_phase2_objective_info(result),
-            **_colors_block(result.selected_cards, color_identities),
+            **_colors_block(result.selected_cards, attributes),
             **_archetypes_block(result.phase2_archetype_stats),
+            **_card_mix_block(result.selected_cards, attributes),
         }
 
         # Calculate improvement metrics
@@ -483,22 +544,23 @@ async def load_instance(
     return await preprocessor.preprocess_variants(variants)
 
 
-async def fetch_color_identities(
+async def fetch_card_attributes(
     card_names: Iterable[str],
     enable_cache_write: bool = True,
     read_cache: bool = False,
-) -> dict[str, str] | None:
+) -> dict[str, CardAttributes] | None:
     """
-    Look up the color identity (WUBRG letters) of each card on Scryfall.
+    Look up the attributes (color identity, type line, mana value) of each card on Scryfall.
 
-    Returns None when no color data could be fetched, so callers can leave colors out.
+    Returns None when no card data could be fetched, so callers can leave the rules and
+    statistics that need it out.
     """
     async with ScryfallFetcher() as fetcher:
-        color_fetcher = CardColorFetcher(
+        attribute_fetcher = CardAttributeFetcher(
             fetcher, enable_read=read_cache, enable_write=enable_cache_write
         )
-        identities = await color_fetcher.fetch_color_identities(card_names)
-    return identities or None
+        attributes = await attribute_fetcher.fetch_attributes(card_names)
+    return attributes or None
 
 
 async def build_cube_ilp(
@@ -524,7 +586,8 @@ async def build_cube_ilp(
     min_pair_combos: int = 250,
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
-) -> tuple[list[str], int, OptimizationResult, dict[str, str] | None]:
+    card_mix: CardMixRules = DEFAULT_CARD_MIX,
+) -> tuple[list[str], int, OptimizationResult, dict[str, CardAttributes] | None]:
     """
     Build cube using ILP optimization with optional API caching.
 
@@ -532,7 +595,7 @@ async def build_cube_ilp(
         - List of card names in cube
         - Number of completable combos
         - Full optimization result with stats
-        - Color identity of every candidate card (None when no color data could be fetched)
+        - Scryfall attributes of every candidate card (None when none could be fetched)
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
@@ -551,8 +614,8 @@ async def build_cube_ilp(
         )
         cube_size = len(candidate_cards)
 
-    # Colors feed the Phase 2 color balance constraint and the color statistics
-    card_colors = await fetch_color_identities(
+    # Card attributes feed the Phase 2 color balance and card mix rules and the statistics
+    card_attributes = await fetch_card_attributes(
         sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
     )
 
@@ -570,12 +633,13 @@ async def build_cube_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
-        card_colors=card_colors,
+        card_attributes=card_attributes,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
         min_pair_combos=min_pair_combos,
         min_mono_combos=min_mono_combos,
         max_wide_combo_share=max_wide_combo_share,
+        card_mix=card_mix,
     )
 
     # Run optimization (two-phase by default)
@@ -604,7 +668,7 @@ async def build_cube_ilp(
         f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.get_selected_card_names(), result.combo_count, result, card_colors
+    return result.get_selected_card_names(), result.combo_count, result, card_attributes
 
 
 async def run_ilp(
@@ -630,9 +694,10 @@ async def run_ilp(
     min_pair_combos: int = 250,
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
+    card_mix: CardMixRules = DEFAULT_CARD_MIX,
 ):
     """Entry point for ILP-based cube building with caching support."""
-    cards, combo_count, result, color_identities = await build_cube_ilp(
+    cards, combo_count, result, card_attributes = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
@@ -654,6 +719,7 @@ async def run_ilp(
         min_pair_combos=min_pair_combos,
         min_mono_combos=min_mono_combos,
         max_wide_combo_share=max_wide_combo_share,
+        card_mix=card_mix,
     )
 
     logger.info(
@@ -665,7 +731,7 @@ async def run_ilp(
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))
 
-    log_phase_summary(result, color_identities)
+    log_phase_summary(result, card_attributes)
 
     # Write utilization stats
-    write_stats(result, output_file, cube_size, color_identities)
+    write_stats(result, output_file, cube_size, card_attributes)

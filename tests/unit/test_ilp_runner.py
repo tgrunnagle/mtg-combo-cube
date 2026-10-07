@@ -12,16 +12,19 @@ from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CandidateCard,
+    CardMixRules,
     ComboGroupStats,
     OptimizationResult,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
     format_archetype_stats,
+    format_card_mix_stats,
     format_combo_count,
     log_phase_summary,
     write_stats,
 )
+from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributes
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -561,7 +564,7 @@ class TestWriteStatsCombosAndColors:
             phase1_utilization_stats=UtilizationStats(1, 1, 1.0, 0.0, 0, 1.0),
         )
 
-        stats = self._write(result, tmp_path, color_identities={"Card A": "G"})
+        stats = self._write(result, tmp_path, attributes={"Card A": CardAttributes("G")})
 
         assert stats["phase1"]["combo_count"] == 1
         assert stats["phase1"]["colors"]["mono_colored"]["G"] == 1
@@ -639,9 +642,14 @@ class TestWriteStatsCombosAndColors:
         assert format_combo_count(4, None) == "4 variants"
 
     def test_colors_per_phase(self, tmp_path: Path):
-        identities = {"Card A": "W", "Card B": "WU", "Card C": "", "Card D": "U"}
+        attributes = {
+            "Card A": CardAttributes("W"),
+            "Card B": CardAttributes("WU"),
+            "Card C": CardAttributes(""),
+            "Card D": CardAttributes("U"),
+        }
 
-        stats = self._write(self._two_phase_result(), tmp_path, color_identities=identities)
+        stats = self._write(self._two_phase_result(), tmp_path, attributes=attributes)
 
         # Phase 1 cube: Card A, Card B, Card C
         assert stats["phase1"]["colors"] == {
@@ -668,6 +676,106 @@ class TestWriteStatsCombosAndColors:
 
         assert "colors" not in stats["phase1"]
         assert "colors" not in stats["phase2"]
+        assert "card_mix" not in stats["phase1"]
+        assert "card_mix" not in stats["phase2"]
+        assert "card_mix_rules" not in stats["phase2"]
+
+
+CARD_MIX_ATTRIBUTES = {
+    "Card A": CardAttributes("W", "Creature \u2014 Human", 2),
+    "Card B": CardAttributes("WU", "Instant", 1),
+    "Card C": CardAttributes("", "Artifact Creature \u2014 Golem", 7),
+    "Card D": CardAttributes("U", "Land", 0),
+}
+
+
+class TestWriteStatsCardMix:
+    """Per-phase card mix and the card mix rules in the stats file, and the log line."""
+
+    _write = staticmethod(TestWriteStatsCombosAndColors._write)
+    _two_phase_result = staticmethod(TestWriteStatsCombosAndColors._two_phase_result)
+
+    def test_card_mix_per_phase(self, tmp_path: Path):
+        stats = self._write(self._two_phase_result(), tmp_path, attributes=CARD_MIX_ATTRIBUTES)
+
+        # Phase 1 cube: Card A, Card B, Card C
+        phase1 = stats["phase1"]["card_mix"]
+        assert phase1["card_count"] == 3
+        assert phase1["type_counts"] == {
+            "Creature": 2,
+            "Instant": 1,
+            "Sorcery": 0,
+            "Artifact": 1,
+            "Enchantment": 0,
+            "Planeswalker": 0,
+            "Battle": 0,
+            "Land": 0,
+        }
+        assert phase1["multicolor"] == 1
+        assert phase1["colorless"] == 1
+        assert phase1["mana_value_counts"] == {
+            "0": 0,
+            "1": 1,
+            "2": 1,
+            "3": 0,
+            "4": 0,
+            "5": 0,
+            "6": 0,
+            "7": 1,
+        }
+        assert phase1["mean_mana_value"] == pytest.approx(10 / 3)
+        assert phase1["mean_mana_value_per_color"]["W"] == pytest.approx(1.5)
+        assert phase1["mean_mana_value_per_color"]["G"] == 0.0
+        assert phase1["unknown"] == 0
+        # Phase 2 cube: Card A, Card B, Card D (a land: left out of the mana values)
+        phase2 = stats["phase2"]["card_mix"]
+        assert phase2["type_counts"]["Land"] == 1
+        assert phase2["mean_mana_value"] == pytest.approx(1.5)
+
+    def test_card_mix_rules_applied(self, tmp_path: Path):
+        result = replace(
+            self._two_phase_result(),
+            phase2_card_mix=CardMixRules(max_creature_share=0.5, mono_color_ratio=1.5),
+        )
+
+        stats = self._write(result, tmp_path, attributes=CARD_MIX_ATTRIBUTES)
+
+        assert stats["phase2"]["card_mix_rules"] == {
+            "max_multicolor_share": 0.15,
+            "max_colorless_share": 0.25,
+            "max_expensive_share": 0.2,
+            "expensive_mana_value": 5,
+            "max_creature_share": 0.5,
+            "min_spell_share": 0.05,
+            "mono_color_ratio": 1.5,
+        }
+
+    def test_rules_all_off_are_left_out(self, tmp_path: Path):
+        off = CardMixRules(0, 0, 0, 5, 0, 0, 0)
+        result = replace(self._two_phase_result(), phase2_card_mix=off)
+
+        stats = self._write(result, tmp_path, attributes=CARD_MIX_ATTRIBUTES)
+
+        assert "card_mix_rules" not in stats["phase2"]
+
+    def test_log_line(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._two_phase_result(), CARD_MIX_ATTRIBUTES)
+
+        assert (
+            "Card mix, Phase 1: types Creature=2 (67%), Instant=1, Sorcery=0, Artifact=1, "
+            "Enchantment=0, Planeswalker=0, Battle=0, Land=0; multicolor 1 (33%), "
+            "colorless 1 (33%); mana value (nonland) mean 3.33, 0:0 1:1 2:1 3:0 4:0 5:0 6:0 "
+            "7+:1, per color W=1.5, U=1.0, B=0.0, R=0.0, G=0.0"
+        ) in caplog.text
+        assert "Card mix, Phase 2: types Creature=1 (33%)" in caplog.text
+
+    def test_format_reports_unknown_cards(self):
+        from mtg_combo_cube.ilp.cube_evaluation import compute_card_mix_stats
+
+        stats = compute_card_mix_stats(["Card A", "Mystery"], CARD_MIX_ATTRIBUTES)
+
+        assert format_card_mix_stats(stats).endswith("; unknown=1")
 
 
 def archetype_stats(**counts: int) -> ArchetypeStats:

@@ -9,11 +9,13 @@ from itertools import combinations
 
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
+    CardMixStats,
     ColorStats,
     ComboData,
     ComboGroupStats,
     UtilizationStats,
 )
+from mtg_combo_cube.scryfall.card_attribute_fetcher import UNKNOWN_CARD, CardAttributes
 
 COLORS = "WUBRG"
 # The ten two-color pairs, in WUBRG order
@@ -22,6 +24,19 @@ MONO_COLORS: tuple[str, ...] = tuple(COLORS)
 COLORLESS = "C"
 # The draft archetypes a cube is measured for: pairs, mono colors and colorless
 ARCHETYPES: tuple[str, ...] = COLOR_PAIRS + MONO_COLORS + (COLORLESS,)
+# The card types the card mix is reported for, in the order of the report
+CARD_TYPES: tuple[str, ...] = (
+    "Creature",
+    "Instant",
+    "Sorcery",
+    "Artifact",
+    "Enchantment",
+    "Planeswalker",
+    "Battle",
+    "Land",
+)
+SPELL_TYPES = frozenset({"Instant", "Sorcery"})  # "spells" in the card mix: interaction
+MANA_VALUE_CAP = 7  # the last mana value bucket of the card mix: 7 or more
 
 
 def archetype_colors(archetype: str) -> str:
@@ -260,22 +275,25 @@ def compute_utilization_stats(utilization: dict[str, int]) -> UtilizationStats:
     )
 
 
-def compute_color_stats(cards: Collection[str], color_identities: Mapping[str, str]) -> ColorStats:
+def compute_color_stats(
+    cards: Collection[str], attributes: Mapping[str, CardAttributes]
+) -> ColorStats:
     """
-    Compute how the cards are distributed over the five colors.
+    Compute how the cards are distributed over the five colors, by color identity.
 
-    color_identities maps a card name to its color identity as a string of WUBRG letters
-    (empty for colorless). Cards missing from it are counted as unknown.
+    attributes maps a card name to its Scryfall attributes. Cards missing from it are
+    counted as unknown.
     """
     cards_per_color = dict.fromkeys(COLORS, 0)
     mono_colored = dict.fromkeys(COLORS, 0)
     multicolor = colorless = unknown = 0
 
     for card in cards:
-        identity = color_identities.get(card)
-        if identity is None:
+        card_attributes = attributes.get(card)
+        if card_attributes is None:
             unknown += 1
             continue
+        identity = card_attributes.color_identity
         for color in identity:
             cards_per_color[color] += 1
         if not identity:
@@ -295,4 +313,66 @@ def compute_color_stats(cards: Collection[str], color_identities: Mapping[str, s
         unknown=unknown,
         variance=variance,
         std_deviation=variance**0.5,
+    )
+
+
+def is_spell(attributes: CardAttributes) -> bool:
+    """Whether the card is an instant or sorcery."""
+    return not attributes.types.isdisjoint(SPELL_TYPES)
+
+
+def is_expensive(attributes: CardAttributes, mana_value: float) -> bool:
+    """Whether the card's mana value is at least the threshold."""
+    return attributes.mana_value >= mana_value
+
+
+def compute_card_mix_stats(
+    cards: Collection[str], attributes: Mapping[str, CardAttributes]
+) -> CardMixStats:
+    """
+    Compute the make-up of the cards by type, color count and mana value.
+
+    Cards missing from attributes are counted as unknown and, as in the card mix rules,
+    as colorless, typeless and mana value 0. Mana values are over nonland cards.
+    """
+    type_counts = dict.fromkeys(CARD_TYPES, 0)
+    mana_value_counts = dict.fromkeys(range(MANA_VALUE_CAP + 1), 0)
+    mana_values: list[float] = []
+    mana_values_per_color: dict[str, list[float]] = {color: [] for color in COLORS}
+    multicolor = colorless = unknown = 0
+
+    for card in cards:
+        card_attributes = attributes.get(card)
+        if card_attributes is None:
+            unknown += 1
+            card_attributes = UNKNOWN_CARD
+        types = card_attributes.types
+        for card_type in types & set(CARD_TYPES):
+            type_counts[card_type] += 1
+        if card_attributes.is_multicolor:
+            multicolor += 1
+        elif card_attributes.is_colorless:
+            colorless += 1
+        if "Land" in types:
+            continue
+        mana_value = card_attributes.mana_value
+        mana_value_counts[min(int(mana_value), MANA_VALUE_CAP)] += 1
+        mana_values.append(mana_value)
+        for color in card_attributes.color_identity:
+            mana_values_per_color[color].append(mana_value)
+
+    def mean(values: list[float]) -> float:
+        return sum(values) / len(values) if values else 0.0
+
+    return CardMixStats(
+        card_count=len(cards),
+        type_counts=type_counts,
+        multicolor=multicolor,
+        colorless=colorless,
+        mana_value_counts=mana_value_counts,
+        mean_mana_value=mean(mana_values),
+        mean_mana_value_per_color={
+            color: mean(values) for color, values in mana_values_per_color.items()
+        },
+        unknown=unknown,
     )
