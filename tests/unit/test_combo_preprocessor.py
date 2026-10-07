@@ -25,6 +25,7 @@ def make_mock_variant(
     identity: str = "C",
     features: list[str] | None = None,
     bracket_tag: str = "E",
+    includes: list[int] | None = None,
 ):
     """Helper to create a mock Variant for testing.
 
@@ -37,6 +38,7 @@ def make_mock_variant(
         identity: Spellbook color identity (default: "C", colorless)
         features: Names of the features the variant produces (default: none)
         bracket_tag: Spellbook bracket tag (default: "E")
+        includes: Spellbook ids of the combos the variant includes (default: `of`)
     """
     variant = MagicMock()
     variant.id = variant_id
@@ -49,6 +51,9 @@ def make_mock_variant(
         produced.feature.name = name
         variant.produces.append(produced)
     variant.bracket_tag = bracket_tag
+    variant.includes = [
+        MagicMock(id=combo_id) for combo_id in (includes if includes is not None else (of or []))
+    ]
 
     # Create mock CardUse objects
     uses = []

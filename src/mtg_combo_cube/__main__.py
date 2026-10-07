@@ -12,6 +12,11 @@ from mtg_combo_cube.ilp.outcomes import (
     outcome_rules_requested,
     resolve_outcome_categories,
 )
+from mtg_combo_cube.ilp.payoffs import (
+    DEFAULT_INFERENCE_THRESHOLD,
+    PayoffTableError,
+    resolve_payoff_definitions,
+)
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
@@ -256,6 +261,31 @@ if __name__ == "__main__":
         "on a log scale relative to the most popular combo, so with 1 the most popular combo "
         "is worth two obscure ones (default: 0, popularity is a tiebreak only). 0 or more.",
     )
+    argparser.add_argument(
+        "--min-payoffs",
+        type=int,
+        default=ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+        help="Payoff support for phase 2: the cube must hold at least this many payoff cards "
+        "(outlets: storm spells, X spells, aristocrats, ...) of every category in the payoff "
+        "table whose engines the pool has (default: "
+        f"{ILPOptimizer.DEFAULT_MIN_PAYOFFS}). Payoff cards the pool lacks are added to the "
+        "candidate cards; they complete no combo. Set to 0 to disable.",
+    )
+    argparser.add_argument(
+        "--payoffs",
+        type=str,
+        default=None,
+        help="Path to the payoff table, a JSON object of outcome category name to the Scryfall "
+        "queries, cards and exclusions that find its outlets (default: data/payoffs.json)",
+    )
+    argparser.add_argument(
+        "--payoff-inference-min",
+        type=int,
+        default=DEFAULT_INFERENCE_THRESHOLD,
+        help="Bundled Spellbook variants (an engine plus an outlet) a card must be the outlet "
+        "of before it counts as an inferred payoff of the engine's category (default: "
+        f"{DEFAULT_INFERENCE_THRESHOLD}). At least 1.",
+    )
     args = argparser.parse_args()
     if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
@@ -271,6 +301,10 @@ if __name__ == "__main__":
         argparser.error("--max-outcome-share must be between 0 and 1")
     if not math.isfinite(args.popularity_weight) or args.popularity_weight < 0:
         argparser.error("--popularity-weight must be 0 or more")
+    if args.min_payoffs < 0:
+        argparser.error("--min-payoffs must be 0 or more")
+    if args.payoff_inference_min < 1:
+        argparser.error("--payoff-inference-min must be at least 1")
     # The card mix settings are validated once, by CardMixRules; the error names the field
     try:
         card_mix = CardMixRules(
@@ -285,13 +319,17 @@ if __name__ == "__main__":
     except CardMixRuleError as e:
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
     if args.method == "ilp":
-        # A missing or invalid outcome table is a usage error, not a traceback
+        # A missing or invalid outcome or payoff table is a usage error, not a traceback
         try:
-            resolve_outcome_categories(
+            outcome_categories = resolve_outcome_categories(
                 args.outcome_categories,
-                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share),
+                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share)
+                or args.min_payoffs > 0,
             )
-        except (FileNotFoundError, OutcomeCategoryError) as e:
+            resolve_payoff_definitions(
+                args.payoffs, outcome_categories, required=args.min_payoffs > 0, warn=False
+            )
+        except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
             argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -325,5 +363,8 @@ if __name__ == "__main__":
             min_outcome_combos=args.min_outcome_combos,
             max_outcome_share=args.max_outcome_share,
             popularity_weight=args.popularity_weight,
+            payoffs_path=args.payoffs,
+            min_payoffs=args.min_payoffs,
+            payoff_inference_min=args.payoff_inference_min,
         )
     )

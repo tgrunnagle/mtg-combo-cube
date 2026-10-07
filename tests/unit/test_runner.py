@@ -19,6 +19,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD
 from mtg_combo_cube.models import CardAttributes
 
 
@@ -33,6 +34,24 @@ def run_cli(monkeypatch: pytest.MonkeyPatch, *args: str) -> dict[str, Any]:
     monkeypatch.setattr(sys, "argv", ["mtg_combo_cube", *args])
     runpy.run_module("mtg_combo_cube", run_name="__main__")
     return received
+
+
+def fake_payoff_queries(
+    monkeypatch: pytest.MonkeyPatch, results: dict[str, list[str]] | None = None
+) -> list[list[str]]:
+    """
+    Replace the Scryfall lookup of the payoff queries (the default payoff table is in the
+    working directory, so run_ilp would resolve its queries live). Returns the queries asked
+    for, one list per call.
+    """
+    calls: list[list[str]] = []
+
+    async def fake_fetch(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+        calls.append(list(queries))
+        return results or {}
+
+    monkeypatch.setattr(ilp_runner, "fetch_payoff_queries", fake_fetch)
+    return calls
 
 
 class TestCliPlumbing:
@@ -207,6 +226,67 @@ class TestCliPlumbing:
         assert received["outcome_categories_path"] is None
         assert received["popularity_weight"] == 0
 
+    def test_payoff_defaults_and_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        received = run_cli(monkeypatch)
+
+        assert received["min_payoffs"] == 2
+        assert received["payoffs_path"] is None
+        assert received["payoff_inference_min"] == DEFAULT_INFERENCE_THRESHOLD == 2
+
+        # The table is validated up front, so it must exist and name outcome categories
+        table = tmp_path / "payoffs.json"
+        table.write_text(json.dumps({"mana": {"cards": ["Walking Ballista"]}}), encoding="utf-8")
+        received = run_cli(
+            monkeypatch,
+            "--min-payoffs",
+            "2",
+            "--payoffs",
+            str(table),
+            "--payoff-inference-min",
+            "3",
+        )
+
+        assert received["min_payoffs"] == 2
+        assert received["payoffs_path"] == str(table)
+        assert received["payoff_inference_min"] == 3
+
+    @pytest.mark.parametrize("args", [("--min-payoffs", "-1"), ("--payoff-inference-min", "0")])
+    def test_invalid_payoff_options_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *args)
+
+    def test_payoff_table_errors_are_usage_errors(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--payoffs", "missing.json")
+        assert "Payoff table not found: missing.json" in capsys.readouterr().err
+
+        table = tmp_path / "payoffs.json"
+        table.write_text(json.dumps({"storm": {"cards": ["Grapeshot"]}, "x": {"cards": ["Y"]}}))
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--payoffs", str(table))
+        assert "payoff categories ['x'] are not in the outcome category table" in (
+            capsys.readouterr().err
+        )
+
+    def test_missing_default_payoff_table_is_a_usage_error_only_with_the_floor_on(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        outcomes = tmp_path / "outcomes.json"
+        outcomes.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
+        monkeypatch.chdir(tmp_path)
+        common = ("--method", "ilp", "--outcome-categories", str(outcomes))
+
+        assert run_cli(monkeypatch, *common, "--min-payoffs", "0")
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *common)
+        # The floor needs the outcome table as well
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--method", "ilp", "--min-outcome-combos", "0")
+
     def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         # The table is validated up front, so it must exist
         table = tmp_path / "outcomes.json"
@@ -221,6 +301,8 @@ class TestCliPlumbing:
             str(table),
             "--popularity-weight",
             "0.5",
+            "--min-payoffs",
+            "0",  # the default payoff table does not fit this outcome table
         )
 
         assert received["min_outcome_combos"] == 7
@@ -258,9 +340,23 @@ class TestCliPlumbing:
     ):
         monkeypatch.chdir(tmp_path)
 
-        assert run_cli(monkeypatch, "--method", "ilp", "--min-outcome-combos", "0")
+        assert run_cli(
+            monkeypatch, "--method", "ilp", "--min-outcome-combos", "0", "--min-payoffs", "0"
+        )
         with pytest.raises(SystemExit):
-            run_cli(monkeypatch, "--method", "ilp")
+            run_cli(monkeypatch, "--method", "ilp", "--min-payoffs", "0")
+
+    def test_default_payoff_table_must_fit_the_outcome_table_only_with_the_floor_on(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ):
+        # The default payoff table names storm, tokens, ...: not categories of this table
+        outcomes = tmp_path / "outcomes.json"
+        outcomes.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
+
+        assert run_cli(monkeypatch, "--outcome-categories", str(outcomes), "--min-payoffs", "0")
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--outcome-categories", str(outcomes))
+        assert "are not in the outcome category table" in capsys.readouterr().err
 
     def test_card_mix_error_names_the_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -312,6 +408,21 @@ class TestRunnerPlumbing:
         assert received["max_outcome_share"] == 0
         assert received["outcome_categories_path"] is None
         assert received["popularity_weight"] == 0
+        assert received["min_payoffs"] == 2
+        assert received["payoffs_path"] is None
+        assert received["payoff_inference_min"] == 2
+
+        await runner.run(
+            method="ilp",
+            cube_size=10,
+            output_file="unused.txt",
+            payoffs_path="my/payoffs.json",
+            min_payoffs=2,
+            payoff_inference_min=3,
+        )
+        assert received["payoffs_path"] == "my/payoffs.json"
+        assert received["min_payoffs"] == 2
+        assert received["payoff_inference_min"] == 3
 
         await runner.run(
             method="ilp",
@@ -370,6 +481,7 @@ class TestRunnerPlumbing:
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
         monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        fake_payoff_queries(monkeypatch)
         # A three-card cube: at most two creatures, at least one instant or sorcery
         card_mix = CardMixRules(
             max_multicolor_share=0,
@@ -393,6 +505,7 @@ class TestRunnerPlumbing:
             max_wide_combo_share=0.3,
             card_mix=card_mix,
             min_outcome_combos=0,
+            min_payoffs=0,
         )
 
         assert len(created) == 1
@@ -449,6 +562,13 @@ class TestRunnerPlumbing:
         assert "outcome_minimums" not in stats["phase2"]
         assert stats["metadata"]["popularity_weight"] == 0
         assert "combo_score" not in stats["metadata"]
+        # The default payoff table was loaded (its queries faked away): the cube holds none
+        # of its cards, and no floor was asked for
+        assert created[0].payoffs is not None
+        assert created[0].min_payoffs == 0
+        assert "payoff_floors" not in stats["phase2"]
+        assert stats["phase2"]["payoffs"]["cards_per_category"]["mana"] == 0
+        assert stats["payoffs"]["inference_threshold"] == 2
 
     async def test_run_ilp_without_the_default_table_skips_the_outcome_statistics(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -479,6 +599,7 @@ class TestRunnerPlumbing:
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
         monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        queries = fake_payoff_queries(monkeypatch)
 
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_runner"):
             await ilp_runner.run_ilp(
@@ -498,12 +619,18 @@ class TestRunnerPlumbing:
                     min_spell_share=0,
                 ),
                 min_outcome_combos=0,
+                min_payoffs=0,
             )
 
         assert created[0].outcome_categories is None
         assert "No outcome category table at data/outcome_categories.json" in caplog.text
         stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
         assert "outcomes" not in stats["phase2"]
+        # Nor a payoff table: nothing was looked up and no payoff block is written
+        assert created[0].payoffs is None
+        assert queries == []
+        assert "payoffs" not in stats
+        assert "payoffs" not in stats["phase2"]
 
     async def test_run_ilp_fails_on_a_missing_outcome_table_before_loading_the_instance(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -562,6 +689,7 @@ class TestRunnerPlumbing:
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
         monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        fake_payoff_queries(monkeypatch)
 
         # Five cards hold the triangle and the damage combo; the minimum asks for one of each
         await ilp_runner.run_ilp(
@@ -585,6 +713,7 @@ class TestRunnerPlumbing:
             min_outcome_combos=1,
             max_outcome_share=0.9,
             popularity_weight=0.5,
+            min_payoffs=0,
         )
 
         assert len(created) == 1
@@ -606,3 +735,125 @@ class TestRunnerPlumbing:
             stats["phase2"]["reference_combo_score"]
             > stats["phase2"]["reference_weighted_combo_count"]
         )
+
+    async def test_run_ilp_adds_payoff_only_cards_and_writes_the_payoff_blocks(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        mana = frozenset(["Infinite colored mana"])
+        # A mana triangle on A, B, C bundled with the outlet X (variant ab+x includes ab) in
+        # two variants: the inference finds X; the table names Ballista and the query
+        # returns Comet. X is a combo piece too, so the Phase 1 cube holds an outlet already
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 100, features=mana, includes=frozenset([1])),
+            ComboData("bc", frozenset(["B", "C"]), [], 100, features=mana, includes=frozenset([2])),
+            ComboData("ca", frozenset(["C", "A"]), [], 100, features=mana, includes=frozenset([3])),
+            *(
+                ComboData(
+                    f"abx{i}",
+                    frozenset(["A", "B", "X"]),
+                    [],
+                    50,
+                    features=frozenset(["Infinite damage"]),
+                    includes=frozenset([10 + i, 1]),
+                )
+                for i in range(2)
+            ),
+        ]
+        cards = {name: CandidateCard(name, frozenset(), frozenset()) for name in "ABCX"}
+        outcomes = tmp_path / "outcomes.json"
+        outcomes.write_text(
+            json.dumps({"mana": ["infinite colored mana"], "damage": ["infinite damage"]}),
+            encoding="utf-8",
+        )
+        payoffs = tmp_path / "payoffs.json"
+        payoffs.write_text(
+            json.dumps({"mana": {"cards": ["Ballista"], "queries": ["o:storm"]}}), encoding="utf-8"
+        )
+        calls: list[str] = []
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            calls.append("load_instance")
+            return combos, dict(cards)
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> dict:
+            calls.append("attributes")
+            # Every candidate, the payoff-only cards included, is looked up
+            assert set(card_names) == {"A", "B", "C", "X", "Ballista", "Comet"}
+            return {name: CardAttributes("R", "Instant", 1) for name in card_names}
+
+        async def fake_fetch_payoff_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+            calls.append("payoff_queries")
+            assert list(queries) == ["o:storm"]
+            assert kwargs == {"enable_cache_write": True, "read_cache": True}
+            return {"o:storm": ["Comet", "Ballista"]}
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        monkeypatch.setattr(ilp_runner, "fetch_payoff_queries", fake_fetch_payoff_queries)
+
+        # Four cards hold the triangle and one outlet; the floor asks for one
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            await ilp_runner.run_ilp(
+                cube_size=4,
+                output_file=str(tmp_path / "cube.txt"),
+                time_limit_seconds=10,
+                num_workers=1,
+                min_utilization_floor=1,
+                max_color_ratio=0,
+                min_pair_combos=0,
+                min_mono_combos=0,
+                max_wide_combo_share=0,
+                card_mix=CardMixRules(0, 0, 0, 5, 0, 0, 0),
+                read_cache=True,
+                outcome_categories_path=str(outcomes),
+                min_outcome_combos=0,
+                payoffs_path=str(payoffs),
+                min_payoffs=1,
+            )
+
+        # The queries are resolved before the instance is loaded, so a bad table fails fast
+        assert calls == ["payoff_queries", "load_instance", "attributes"]
+        assert len(created) == 1
+        optimizer = created[0]
+        assert optimizer.payoffs is not None
+        assert optimizer.payoffs.sources["mana"] == {
+            "Ballista": {"card", "query"},
+            "Comet": {"query"},
+            "X": {"inferred"},
+        }
+        assert optimizer.payoff_only_cards == {"Ballista", "Comet"}
+        assert optimizer.min_payoffs == 1
+        assert "Added 2 payoff-only cards to the candidate pool; 1 payoff cards were combo" in (
+            caplog.text
+        )
+        assert "Payoff cards: mana 3 (inferred 1, cards 1, queries 2)" in caplog.text
+        assert "Payoffs, Phase 2: mana=1" in caplog.text
+
+        cube = (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n")
+        assert cube == ["A", "B", "C", "X"]
+
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["phase2"]["min_payoffs"] == 1
+        assert stats["phase2"]["payoff_floors"] == {"mana": 1}
+        for phase in ("phase1", "phase2"):
+            assert stats[phase]["payoffs"] == {
+                "cards_per_category": {"mana": 1},
+                "cards": {"mana": {"X": ["inferred"]}},
+            }
+        assert stats["payoffs"] == {
+            "inference_threshold": 2,
+            "cards_per_category": {"mana": 3},
+            "source_counts": {"mana": {"inferred": 1, "card": 1, "query": 2}},
+            "cards": {
+                "mana": {"Ballista": ["card", "query"], "Comet": ["query"], "X": ["inferred"]}
+            },
+            "inferred": {"mana": {"X": 2}},
+        }

@@ -13,9 +13,9 @@ Given a target cube size (e.g., 360 cards), this tool selects cards that maximiz
 
 **Two-phase approach (default):**
 1. **Phase 1** - Maximize the combo score: distinct combos, with further variants of a combo the cube already completes worth `--variant-weight` each (popularity as tiebreaker)
-2. **Phase 2** - Balance card utilization while holding the combo score within a tolerance, under the *cube rules*: template coverage, color balance, archetype support (combos for every color pair and mono color, a cap on three-plus-color combos), the card mix (caps on multicolor, colorless, expensive and creature cards, a floor on instants and sorceries) and outcome support (combos of every outcome category: mana, damage, tokens, draw, ...)
+2. **Phase 2** - Balance card utilization while holding the combo score within a tolerance, under the *cube rules*: template coverage, color balance, archetype support (combos for every color pair and mono color, a cap on three-plus-color combos), the card mix (caps on multicolor, colorless, expensive and creature cards, a floor on instants and sorceries), outcome support (combos of every outcome category: mana, damage, tokens, draw, ...) and payoff support (outlets for the engines: storm spells, X spells, aristocrats, ...)
 
-This produces cubes where every card pulls its weight: in a two-phase result every card takes part in at least `--min-util-floor` completable combos (default 2), over-used "hub" cards are pushed down, and every draft archetype has combos to build around.
+This produces cubes where every card pulls its weight: in a two-phase result every combo card takes part in at least `--min-util-floor` completable combos (default 2), over-used "hub" cards are pushed down, every draft archetype has combos to build around, and the engines have outlets. The outlets are the one exception to the floor: a payoff card that is in no combo (Grapeshot, Comet Storm) completes nothing and is in the cube to be drafted beside an engine, so the `payoffs` statistics say which cards those are.
 
 ## Setup
 
@@ -80,6 +80,9 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --max-outcome-share    Phase 2 cap on the share of completed combos in any one outcome category (default: 0, disabled; 0 or 1 disables)
 --outcome-categories   Path to the outcome category table (default: data/outcome_categories.json)
 --popularity-weight    How much a combo's Spellbook popularity adds to its value in both phases (default: 0, popularity is a tiebreak only)
+--min-payoffs          Phase 2 payoff support: payoff cards (outlets) the cube must hold of every category in the payoff table (default: 2, 0 disables)
+--payoffs              Path to the payoff table (default: data/payoffs.json)
+--payoff-inference-min Bundled Spellbook variants a card must be the outlet of to count as an inferred payoff (default: 2)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization
@@ -91,7 +94,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 
 `-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
 
-The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Any other flag goes after `--`, e.g. `task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0` (the archetype and outcome minimums are sized for the default build; see "Phase 2 Options"). Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
+The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS` and `WORKERS` variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Any other flag goes after `--`, e.g. `task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0` (the archetype and outcome minimums and the payoff floor are sized for the default build; see "Phase 2 Options"). Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
 
 ### Examples
 
@@ -114,8 +117,9 @@ uv run python -m src.mtg_combo_cube -c 300 --method ilp --phase2-objective maxut
 uv run python -m src.mtg_combo_cube -c 300 --method ilp --util-cap 40
 
 # Small, fast configuration for trying things out (about 1 minute with a warm cache);
-# the archetype and outcome minimums are sized for a full build, so they are switched off here
-uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0
+# the archetype and outcome minimums and the payoff floor are sized for a full build, so
+# they are switched off here
+uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0
 
 # Greedy with custom ratio
 uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
@@ -132,9 +136,10 @@ uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
 The stats file contains:
 
 - `metadata`: cube size, `combo_count` (completed variants), `distinct_combo_count` (completed combos, see "Combos and variants" below), the `variant_weight` and `popularity_weight` used, total solve time, Phase 1 status and `optimization_method`, which is `two_phase`, `single_phase`, or `two_phase_fallback_to_phase1` when Phase 2 ran but found no solution and the cube is the Phase 1 result.
-- `phase1` / `phase2`: `combo_count`, `distinct_combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation), `colors`, the color distribution of that phase's cube, `archetypes`, the distinct combos each draft archetype can assemble, `card_mix`, its make-up by type, color count and mana value, `outcomes`, the distinct combos per outcome category, and `popularity`, how popular its distinct combos are (all five described below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the archetype settings applied (`min_pair_combos`, `min_mono_combos`, `max_wide_combo_share`, each left out when disabled), `card_mix_rules` (the card mix settings in force, left out when all are disabled), `card_mix_limits` (the card counts those rules applied at this cube size) and `unknown_candidate_cards` (candidate cards without Scryfall data), the outcome settings applied (`outcome_minimums` per category and `max_outcome_share`, left out when disabled), the reference cube the tolerance was measured from (`reference_combo_count` variants, `reference_distinct_combo_count` combos and `reference_weighted_combo_count`, the weighted count the window holds) and, for `softcap` / `tiered`, the `util_cap` used. With a `--popularity-weight` above 0, `metadata` and both phase blocks also carry `combo_score`, the popularity-weighted count the window then holds (the reference as `reference_combo_score`). After a fallback it holds only the status, time, objective, cap, archetype, card mix and outcome settings, reference and `fell_back_to_phase1: true`.
+- `phase1` / `phase2`: `combo_count`, `distinct_combo_count`, solve time, utilization statistics (min, max, mean, median, standard deviation), `colors`, the color distribution of that phase's cube, `archetypes`, the distinct combos each draft archetype can assemble, `card_mix`, its make-up by type, color count and mana value, `outcomes`, the distinct combos per outcome category, `popularity`, how popular its distinct combos are, and `payoffs`, the payoff cards (outlets) of each category it holds (all six described below). `phase2` also records `status`, the `objective` that ran, the `max_color_ratio` applied, the archetype settings applied (`min_pair_combos`, `min_mono_combos`, `max_wide_combo_share`, each left out when disabled), `card_mix_rules` (the card mix settings in force, left out when all are disabled), `card_mix_limits` (the card counts those rules applied at this cube size) and `unknown_candidate_cards` (candidate cards without Scryfall data), the outcome settings applied (`outcome_minimums` per category and `max_outcome_share`, left out when disabled), the payoff floor applied (`min_payoffs` and `payoff_floors` per category, left out when disabled), the reference cube the tolerance was measured from (`reference_combo_count` variants, `reference_distinct_combo_count` combos and `reference_weighted_combo_count`, the weighted count the window holds) and, for `softcap` / `tiered`, the `util_cap` used. With a `--popularity-weight` above 0, `metadata` and both phase blocks also carry `combo_score`, the popularity-weighted count the window then holds (the reference as `reference_combo_score`). After a fallback it holds only the status, time, objective, cap, archetype, card mix and outcome settings, reference and `fell_back_to_phase1: true`.
 - `improvement`: Phase 1 to Phase 2 changes, including the variant and distinct combo counts before and after and the cards swapped.
 - `largest_combo_groups`: the ten combos with the most completed variants in the final cube, each with its Spellbook combo id, variant count and the cube cards that take part.
+- `payoffs`: the resolved payoff table of the run (see below): every payoff card per category with its sources, how many cards each source named, and everything the inference found with its counts, so the table can be tuned from a run.
 - `top_utilized_cards` / `bottom_utilized_cards`, `requirement_types`, `cross_template_overlap`.
 - `profiling` (with `--profile`): per-phase timings, variable and constraint counts and solver statistics.
 
@@ -165,35 +170,43 @@ Every combo count and utilization number is computed from the selected cards, no
 
 `popularity` describes the distinct combos by Spellbook usage, a combo's popularity being its most popular variant's: `median_popularity` and `mean_log_popularity` (the mean of `log(1 + popularity)`), `below_pool_median_share`, the share of the completed combos less popular than the median combo of the whole pool (`pool_median_popularity`), and `combo_count`.
 
-The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ..."), color distribution, archetype counts ("Archetypes, Phase 2: pairs WU=358, WB=335, ...; mono W=219, ...; colorless 128; 3+ colors 304 of 1380 (22%)"), card mix ("Card mix, Phase 2: types Creature=180 (60%), Instant=10, Sorcery=7, Artifact=81, Enchantment=51, Planeswalker=2, Battle=0, Land=2; multicolor 35 (12%), colorless 73 (24%); mana value (nonland) mean 3.29, 0:9 1:31 2:58 3:74 4:66 5:32 6:16 7+:12, per color W=3.4, U=3.4, B=3.3, R=3.3, G=3.5"), outcomes ("Outcomes, Phase 2: mana=615, damage=174, ...; no category 97 of 1060 (9%)") and popularity ("Popularity, Phase 2: median 462.5 (pool median 327.5), mean log 6.32, 42% of 1060 combos below the pool median") at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` and `card_mix` are left out.
+`payoffs` counts the outlets in the cube: the cards that turn an engine into a win (a storm spell for an infinite storm count, an X spell for infinite mana, an aristocrat for infinite tokens). The outcome categories that are their own payoff (damage, draw, mill, turns, lock, win) need none; for the others the payoff table in [data/payoffs.json](data/payoffs.json) says how to find them:
 
-[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,352 variants in 1,007 distinct combos; every two-color pair can assemble at least 252 of them and every mono color at least 156; at least 40 combos of every outcome category, 49% of them making mana; 59% creatures, 25% colorless nonland cards, 19 instants and sorceries).
+- The table maps an outcome category to `queries` (Scryfall searches, run in EDHREC order over paper cards, the first 25 unblocked cards of each), `cards` (names) and `exclude` (names dropped whatever their source). Every category must be a category of the outcome table; the default table covers mana, storm, tokens, lifegain and counters. Pass another table with `--payoffs`. The default table is read from the working directory; when it is missing there, or does not fit a custom outcome table, and the payoff floor is off, the build goes on without payoffs.
+- A third source is inferred from the pool: Spellbook bundles an engine with an outlet as a variant that `includes` more than one combo (infinite mana plus Walking Ballista is "Infinite damage"), so the cards such a variant adds to the engine it includes are outlets of the engine's categories. A card counts once it is the outlet of `--payoff-inference-min` bundled variants (default 2). The inference finds the outlets Spellbook knows about (Blood Artist, Suture Priest, Gravitic Punch) but not the storm spells, which are no combo; the table covers those.
+- `cards_per_category` is the number of payoff cards of each category in the cube and `cards` lists them with their sources (`inferred`, `card`, `query`); a card can be an outlet for several categories. Every payoff card the pool lacks is added to the candidate cards as a card that completes no combo, so it can be chosen only for the payoff floor.
+
+The log prints the same combo counts ("Combos: Phase 1 4145 variants in 604 combos, ..."), color distribution, archetype counts ("Archetypes, Phase 2: pairs WU=358, WB=335, ...; mono W=219, ...; colorless 128; 3+ colors 304 of 1380 (22%)"), card mix ("Card mix, Phase 2: types Creature=180 (60%), Instant=10, Sorcery=7, Artifact=81, Enchantment=51, Planeswalker=2, Battle=0, Land=2; multicolor 35 (12%), colorless 73 (24%); mana value (nonland) mean 3.29, 0:9 1:31 2:58 3:74 4:66 5:32 6:16 7+:12, per color W=3.4, U=3.4, B=3.3, R=3.3, G=3.5"), outcomes ("Outcomes, Phase 2: mana=615, damage=174, ...; no category 97 of 1060 (9%)") popularity ("Popularity, Phase 2: median 462.5 (pool median 327.5), mean log 6.32, 42% of 1060 combos below the pool median") and payoffs ("Payoffs, Phase 2: mana=12, storm=4, tokens=9, lifegain=3, counters=6") at the end of a run. If Scryfall cannot be reached, the run still completes and `colors` and `card_mix` are left out.
+
+[data/current_best_cube.txt](data/current_best_cube.txt) and its stats file are a tracked example: a 300-card cube from 20,000 variants with the default settings (1,323 variants in 993 distinct combos; every two-color pair can assemble at least 268 of them and every mono color at least 178; at least 40 combos of every outcome category, 53% of them making mana; at least two outlets of every payoff category, Brain Freeze, Walking Ballista and Aetherflux Reservoir among them; 58% creatures, 25% colorless nonland cards, 18 instants and sorceries).
 
 ### Evaluating a Cube
 
-To score an existing cube list (true variant and distinct combo counts, the largest combo groups, utilization statistics, combos per draft archetype, combos per outcome category, popularity, color distribution and card mix) against the cached data:
+To score an existing cube list (true variant and distinct combo counts, the largest combo groups, utilization statistics, combos per draft archetype, combos per outcome category, popularity, payoff cards, color distribution and card mix) against the cached data:
 
 ```bash
 uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
 ```
 
-Use the same `-n` (and `--blocklist`, `--outcome-categories`) as the build you want to compare with. Cached data is read when present and fetched otherwise (only card attributes are written to the cache); cards that are not part of the instance are reported and count with utilization 0.
+Use the same `-n` (and `--blocklist`, `--outcome-categories`, `--payoffs`, `--payoff-inference-min`) as the build you want to compare with. Cached data is read when present and fetched otherwise (only card attributes are written to the cache); cards that are not part of the instance are reported and count with utilization 0.
 
 ### API Caching
 
-Three kinds of API responses are cached in `data/cache/`:
+Four kinds of API responses are cached in `data/cache/`:
 
 | Data | File | Used by |
 |------|------|---------|
 | Commander Spellbook combo variants | `variants_cards{max}_max{variants}.json` | ILP |
 | Scryfall template searches (the cards that satisfy a requirement such as "Persist Creature") | `scryfall_templates.json` | ILP and greedy |
 | Scryfall card attributes of the candidate cards (color identity, type line, mana value) | `scryfall_card_attributes.json` | ILP (color balance, card mix, statistics) |
+| Scryfall searches of the payoff table (the outlets of each outcome category), with the time each was fetched | `scryfall_payoffs.json` | ILP (payoff floor, statistics) |
 
 **Cache behavior:**
 - By default, API responses are written to `data/cache/` after fetching
 - Use `--read-api-cache` to read from cache when available (falls back to live API on cache miss)
 - Use `--skip-api-caching` to disable writing to cache
-- Both flags cover all three caches. `scryfall_card_colors.json`, written by earlier versions, is no longer read and can be deleted. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
+- Both flags cover all four caches. `scryfall_card_colors.json`, written by earlier versions, is no longer read and can be deleted. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
+- A payoff query is cached under its search URL, so editing a query in the table fetches the edited query and leaves the rest cached, and the resolved table is the same between the runs being compared. A query that matches no card is a table error, reported and not cached.
 - Scryfall requests are rate-limited (about 10 per second) and retried on HTTP 429 / 5xx and network errors. Failed requests are not cached, so a later run retries them.
 - The greedy method always queries Commander Spellbook live; only its Scryfall lookups are cached.
 
@@ -231,9 +244,9 @@ task precache -- --keep-existing                # only fetch what is missing
 uv run python -m mtg_combo_cube.precache -n 20000 --max-cards-in-combo 4 --blocklist data/blocklist.txt
 ```
 
-It fills the variants file, the Scryfall template searches and the card attributes. Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`) and `--blocklist` (`BLOCKLIST`) as the build: the first two name the variants file, and the blocklist decides which templates and cards the build asks for. `task precache` and the `task build:ilp*` targets both default to 20,000 variants.
+It fills the variants file, the Scryfall template searches, the payoff table's searches and the card attributes (of the candidate cards and the payoff cards). Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`), `--blocklist` (`BLOCKLIST`) and `--payoffs` as the build: the first two name the variants file, and the blocklist and the payoff table decide which templates, queries and cards the build asks for. `task precache` and the `task build:ilp*` targets both default to 20,000 variants.
 
-- **Existing data is overwritten.** The variants file is replaced, and so is every template and card attribute entry of the configuration. Entries that only other configurations use are left alone. A failed download leaves the existing variants file in place.
+- **Existing data is overwritten.** The variants file is replaced, and so is every template, payoff query and card attribute entry of the configuration. Entries that only other configurations use are left alone. A failed download leaves the existing variants file in place.
 - `--keep-existing` keeps the entries already in the cache and fetches only what is missing, which finishes an incomplete run without starting over.
 - **Retries:** each client retries single requests with backoff (see above). On top of that, a stage whose requests still failed is run again, up to `--max-passes` times (default 3), waiting `--retry-wait` seconds (default 30) before the second pass and twice as long before each further one.
 - The script prints a summary and exits with status 1 when the cache is incomplete. Cards that Scryfall does not know are reported but do not count as a failure.
@@ -267,7 +280,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 |--------|---------|-------------|
 | `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
-| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix and the outcome rules), which scores lower than the Phase 1 cube |
+| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix, the outcome rules and the payoff floor), which scores lower than the Phase 1 cube |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
 | `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
@@ -286,6 +299,9 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 | `--max-outcome-share` | `0` | Outcome support: at most this share of the completed combos may be in any one outcome category (0 or 1 disables). Costly: every combo in a category is linked exactly in the warm-start repair models too, so a tight cap may find no cube within the time limit |
 | `--outcome-categories` | `data/outcome_categories.json` | The outcome category table: category name to feature-name patterns, see "Output Files" |
 | `--popularity-weight` | `0` | Value added to a combo for its popularity in both phases (see "Combos and variants"); 0 keeps popularity a tiebreak |
+| `--min-payoffs` | `2` | Payoff support: the cube must hold at least this many payoff cards (outlets) of every category in the payoff table whose engines the pool has (0 disables). Payoff cards the pool lacks are added to the candidate cards |
+| `--payoffs` | `data/payoffs.json` | The payoff table: outcome category to the Scryfall queries, cards and exclusions that find its outlets, see "Output Files" |
+| `--payoff-inference-min` | `2` | Bundled Spellbook variants (an engine plus an outlet) a card must be the outlet of before it counts as an inferred payoff of the engine's category |
 
 **Phase 2 Objectives:**
 
@@ -311,12 +327,13 @@ The objectives fall into two families: `tiered`, `softcap` and `mad` give a lowe
 
 Notes:
 
-- The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`), the color balance (`--max-color-ratio`), the archetype rules (`--min-pair-combos`, `--min-mono-combos`, `--max-wide-combo-share`), the card mix rules (`--max-multicolor-share` and the other share options) and the outcome rules (`--min-outcome-combos`, `--max-outcome-share`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
+- The floor (`--min-util-floor`), the coverage rule (`--min-coverage-ratio`), the color balance (`--max-color-ratio`), the archetype rules (`--min-pair-combos`, `--min-mono-combos`, `--max-wide-combo-share`), the card mix rules (`--max-multicolor-share` and the other share options), the outcome rules (`--min-outcome-combos`, `--max-outcome-share`) and the payoff floor (`--min-payoffs`) are constraints of Phase 2 only and apply to every objective. Phase 1 and `--single-phase` do not enforce them.
 - Color balance counts a card once for each color of its color identity, so a white-blue card counts as white and as blue. Colorless cards are not limited by it (see `--max-colorless-share`). The rule needs every color to be present; if it cannot be met within the combo tolerance, Phase 2 fails and the Phase 1 cube is returned. If card data cannot be fetched from Scryfall, a warning is logged and the run continues without the color balance and the card mix rules.
 - The card mix rules are shares of the cube size, rounded to hundredths (a nonzero share that rounds to 0 is rejected): a cap allows `floor(share x cube size)` cards and the spell floor requires `ceil(share x cube size)`; the counts applied are recorded as `card_mix_limits`. Card types are those of the front face of a multi-faced card. Lands are left out of every card mix rule and of the `card_mix` multicolor and colorless counts: they are combo pieces, and colorless lands would otherwise fill the colorless cap and colored lands the multicolor cap. A card without Scryfall data counts as colorless, typeless and mana value 0 (a warning gives their number); if more than 5% of the candidate cards have no data, the rules are skipped with a warning, as when no data could be fetched at all. Before solving, a warning names any rule the whole pool cannot meet. The defaults were chosen from the measurements in [docs/plans/card-mix-plan.md](docs/plans/card-mix-plan.md): each costs at most about 4% of the weighted combo count alone (the whole set 5.6%), with the colorless cap, the expensive cap and the spell floor the most binding.
 - Archetype support counts distinct combos (not variants) by their Spellbook color identity, as in the `archetypes` statistics. The minimums are absolute counts chosen for the default configuration (300 cards, 20,000 variants, see [docs/plans/archetype-support-plan.md](docs/plans/archetype-support-plan.md)); a much smaller cube or pool cannot reach them, so lower them or pass 0 there. Before solving, a warning names any archetype the whole pool has too few combos for; if the minimums cannot be met, Phase 2 fails, the Phase 1 cube is returned and the log says which archetypes that cube falls short on.
 - Outcome support counts distinct combos by the features their variants produce on Spellbook, as in the `outcomes` statistics; a combo in two categories counts for both. The minimums are absolute counts like the archetype minimums, so a smaller cube or pool needs lower ones or 0. Before solving, a warning names any category the whole pool has too few combos for, and that category's minimum is lowered to what the pool has (so a mistyped pattern cannot make Phase 2 infeasible by itself); if the rules still cannot be met within the cube, Phase 2 fails, the Phase 1 cube is returned and the log says which categories fall short. The default of 40 was chosen from the measurements in [docs/plans/combo-variety-plan.md](docs/plans/combo-variety-plan.md): it is within the run-to-run noise of a build without the rule, while 60 costs about 9% of the weighted combos, 80 about 23% and a 0.5 share cap a third, which is why the cap is off by default.
-- The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix and the outcome rules), so the same value allows fewer combos than it did then.
+- Payoff support counts the cards of the payoff table in the cube per category, as in the `payoffs` statistics. Every payoff card the pool lacks becomes a candidate card that completes no combo: it is exempt from the utilization floor (its utilization is 0 by definition) and takes a cube slot that scores nothing, which is why the floor is small. A category whose outcome has no combo in the pool gets no floor; a category with fewer payoff cards than the floor has it lowered to what it has, with a warning. The payoff floor needs the outcome table (to tell which categories have engines in the pool), and the table's categories must be outcome categories; with a custom `--outcome-categories` pass a fitting `--payoffs` or `--min-payoffs 0`. The default of 2 was chosen from the measurements in [docs/plans/payoff-support-plan.md](docs/plans/payoff-support-plan.md): it costs about 2% of the weighted combos, within the run-to-run noise, where 3 costs about 8% and 5 about 12%.
+- The tolerance measurements in this section were taken when `--combo-tolerance` was measured from the Phase 1 count. It is now measured from the best cube under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix, the outcome rules and the payoff floor), so the same value allows fewer combos than it did then.
 - For `softcap` and `tiered` the gap limit is measured against the Phase 1 cube: the solve stops once the total overage is proven within `gap-limit` x (overage of the Phase 1 cube) of optimal.
 - If Phase 2 finds no solution (infeasible or out of time), the Phase 1 cube is written, a warning is logged and the stats file says `two_phase_fallback_to_phase1`.
 
@@ -339,6 +356,7 @@ Key concepts:
 - **Card Mix**: In a Phase 2 cube at most `--max-multicolor-share`, `--max-colorless-share`, `--max-expensive-share` and `--max-creature-share` of the cards are multicolor, colorless, at or above `--expensive-mana-value`, or creatures, and at least `--min-spell-share` are instants or sorceries
 - **Outcome Support**: A Phase 2 cube completes at least `--min-outcome-combos` distinct combos of every outcome category (what a combo does, from its Spellbook features and the table in `data/outcome_categories.json`) and no category holds more than `--max-outcome-share` of its combos
 - **Popularity**: Spellbook's usage count per combo; a tiebreak in the Phase 1 objective, or with `--popularity-weight` a multiplier on a combo's value in both phases
+- **Payoff Support**: A Phase 2 cube holds at least `--min-payoffs` payoff cards (outlets: the cards that turn an engine's infinite mana, storm count, tokens, life or counters into a win) of every category in `data/payoffs.json`, found by Scryfall queries, named cards and inference from Spellbook's bundled variants; payoff cards in no combo are added to the candidate pool
 - **Fallback Strategy**: Phase 2 failures automatically return Phase 1 results, marked as a fallback in the log and the stats file
 
 ## Development
@@ -406,8 +424,9 @@ Tests focus on:
 - The Phase 2 cube rules on small hand-built instances: coverage, color balance, archetype minimums and the wide combo cap, the card mix caps and floor, the outcome minimums and share cap, and the fallback when a rule cannot be met
 - The popularity weight: a weight that flips the Phase 1 choice, and the Phase 2 window in score units
 - The outcome category table: parsing, substring and regex patterns, per-category minimums, and the shipped default
-- Stats file generation and formatting, including the `colors`, `archetypes`, `card_mix`, `outcomes` and `popularity` blocks
-- Scryfall fetching (template searches and card attributes: cache, cache versioning, retries, rate limiting) against a fake HTTP session, and the precache script
+- The payoff table: parsing, the outlet inference on bundled variants, the union of sources with exclusions and the blocklist, the shipped default; the payoff floor on small instances, payoff-only cards under the utilization floor, the card mix and every Phase 2 objective
+- Stats file generation and formatting, including the `colors`, `archetypes`, `card_mix`, `outcomes`, `popularity` and `payoffs` blocks
+- Scryfall fetching (template searches, card attributes and payoff queries: cache, cache versioning, retries, rate limiting) against a fake HTTP session, and the precache script
 - CLI and runner plumbing, including a check that every layer declares the same defaults
 
 The unit tests make no network requests.
@@ -430,7 +449,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix and the outcome rules), from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the cube rules and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix, the outcome rules and the payoff floor), from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor (payoff-only cards exempt), the cube rules and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity
@@ -443,7 +462,7 @@ The ILP model scales as follows (where **Q** = cube size, **N** = number of comb
 | Integer variables | 0 | C (utilization) + objective variables |
 | Constraints | O(N × R + N) | O(N × R + N + C + P × K) |
 
-Where **R** is the average number of optional requirements per combo, **G** the number of combo groups with two or more variants (about 1,200 at 20,000 variants; they exist when `--variant-weight` is below 1 or an archetype or outcome rule is on), **P** the number of distinct requirement card pools (about 80 at 20,000 variants) and **K** the cards per pool (at most 10). **H** are the per-archetype indicators of the groups whose variants differ in color identity (about 2,200), used by the archetype minimums and the wide combo cap. The archetype rules add 15 constraints plus the wide combo cap, the card mix caps and floor one each (plus 20 for `--mono-color-ratio`), and the color balance 20. Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
+Where **R** is the average number of optional requirements per combo, **G** the number of combo groups with two or more variants (about 1,200 at 20,000 variants; they exist when `--variant-weight` is below 1 or an archetype or outcome rule is on), **P** the number of distinct requirement card pools (about 80 at 20,000 variants) and **K** the cards per pool (at most 10). **H** are the per-archetype indicators of the groups whose variants differ in color identity (about 2,200), used by the archetype minimums and the wide combo cap. The archetype rules add 15 constraints plus the wide combo cap, the card mix caps and floor one each (plus 20 for `--mono-color-ratio`), the color balance 20, the outcome minimums one per category and the payoff floor one per category of the payoff table. **C** includes the payoff cards the pool lacks (about 100 with the default table). Objective variables: 1 for `maxutil`, 2 for `minmax`, up to C for `softcap`, up to 3C for `tiered`, 2C for `mad`.
 
 **Measured solve times** (8 workers, warm cache; see the [ILP Improvement Plan](docs/plans/ilp-improvement-plan.md)). The first three rows are from before combo grouping and the Phase 2 cube rules (`--variant-weight 1`, only coverage in Phase 2); the last is the tracked `data/current_best_cube.txt`, built with the current defaults by `task build:ilp` (360 s per phase):
 

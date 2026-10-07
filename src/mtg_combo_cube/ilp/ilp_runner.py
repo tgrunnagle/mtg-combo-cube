@@ -2,7 +2,7 @@
 
 import json
 import logging
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -26,16 +26,29 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboData,
     OptimizationResult,
     OutcomeStats,
+    PayoffStats,
     PopularityStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.outcomes import (
     DEFAULT_OUTCOME_CATEGORIES_PATH,
+    OutcomeCategories,
     outcome_rules_requested,
     resolve_outcome_categories,
 )
+from mtg_combo_cube.ilp.payoffs import (
+    DEFAULT_INFERENCE_THRESHOLD,
+    DEFAULT_PAYOFFS_PATH,
+    PayoffDefinitions,
+    PayoffTable,
+    check_query_results,
+    infer_payoffs,
+    resolve_payoffs,
+)
+from mtg_combo_cube.ilp.payoffs import resolve_payoff_definitions as _resolve_payoff_definitions
 from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
+from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
@@ -106,6 +119,10 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["outcome_minimums"] = result.phase2_outcome_minimums
     if result.phase2_max_outcome_share is not None:
         info["max_outcome_share"] = result.phase2_max_outcome_share
+    if result.phase2_min_payoffs is not None:
+        info["min_payoffs"] = result.phase2_min_payoffs
+    if result.phase2_payoff_floors is not None:
+        info["payoff_floors"] = result.phase2_payoff_floors
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
@@ -284,6 +301,50 @@ def _popularity_block(stats: PopularityStats | None) -> dict:
     return {"popularity": asdict(stats)} if stats is not None else {}
 
 
+def _payoffs_block(stats: PayoffStats | None) -> dict:
+    """The "payoffs" entry of a phase block, empty when the result has no payoff data."""
+    return {"payoffs": asdict(stats)} if stats is not None else {}
+
+
+def _payoff_table_block(payoffs: PayoffTable | None) -> dict:
+    """
+    The top-level "payoffs" entry of the stats file: the resolved payoff table (every card
+    per category with its sources, and how many each source named) and everything the
+    inference found with its counts, so the table can be tuned from a run.
+    """
+    if payoffs is None:
+        return {}
+    return {
+        "payoffs": {
+            "inference_threshold": payoffs.inference_threshold,
+            "cards_per_category": {name: len(payoffs.cards(name)) for name in payoffs.names},
+            "source_counts": {name: payoffs.source_counts(name) for name in payoffs.names},
+            "cards": {
+                name: {card: sorted(sources) for card, sources in by_card.items()}
+                for name, by_card in payoffs.sources.items()
+            },
+            "inferred": payoffs.inferred,
+        }
+    }
+
+
+def format_payoff_stats(stats: PayoffStats) -> str:
+    """One-line summary of the payoff cards per category."""
+    return ", ".join(f"{name}={count}" for name, count in stats.cards_per_category.items())
+
+
+def format_payoff_table(payoffs: PayoffTable) -> str:
+    """'mana 31 (inferred 5, cards 0, queries 26); storm 15 (...)' for the resolved table."""
+    parts = []
+    for name in payoffs.names:
+        counts = payoffs.source_counts(name)
+        parts.append(
+            f"{name} {len(payoffs.cards(name))} (inferred {counts['inferred']}, cards "
+            f"{counts['card']}, queries {counts['query']})"
+        )
+    return "; ".join(parts)
+
+
 def format_popularity_stats(stats: PopularityStats) -> str:
     """One-line summary of how popular a cube's distinct combos are."""
     return (
@@ -367,6 +428,11 @@ def log_phase_summary(
             f"Popularity, Phase 2: {format_popularity_stats(result.phase2_popularity_stats)}"
         )
 
+    if result.phase1_payoff_stats is not None:
+        logger.info(f"Payoffs, Phase 1: {format_payoff_stats(result.phase1_payoff_stats)}")
+    if result.is_multi_objective and result.phase2_payoff_stats is not None:
+        logger.info(f"Payoffs, Phase 2: {format_payoff_stats(result.phase2_payoff_stats)}")
+
     phase1_mix = _card_mix_stats(_phase1_cards(result), attributes)
     if phase1_mix is not None:
         logger.info(f"Card mix, Phase 1: {format_card_mix_stats(phase1_mix)}")
@@ -381,12 +447,14 @@ def write_stats(
     output_file: str,
     cube_size: int,
     attributes: Mapping[str, CardAttributes] | None = None,
+    payoffs: PayoffTable | None = None,
 ) -> None:
     """
     Write utilization statistics to JSON file.
 
     attributes (card name -> Scryfall attributes) adds the color distribution and card mix
-    of each phase's cube when given.
+    of each phase's cube when given; payoffs (the resolved payoff table) adds a top-level
+    "payoffs" block with the table and what the inference found.
     """
     # Derive stats filename: data/cube.txt -> data/cube_stats.json
     output_path = Path(output_file)
@@ -438,6 +506,7 @@ def write_stats(
             **_card_mix_block(_phase1_cards(result), attributes),
             **_outcomes_block(result.phase1_outcome_stats),
             **_popularity_block(result.phase1_popularity_stats),
+            **_payoffs_block(result.phase1_payoff_stats),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -461,6 +530,7 @@ def write_stats(
             **_card_mix_block(result.selected_cards, attributes),
             **_outcomes_block(result.phase2_outcome_stats),
             **_popularity_block(result.phase2_popularity_stats),
+            **_payoffs_block(result.phase2_payoff_stats),
         }
 
         # Calculate improvement metrics
@@ -586,6 +656,8 @@ def write_stats(
             ],
         }
 
+    stats.update(_payoff_table_block(payoffs))
+
     # Profiling data (when --profile was used)
     if result.profile_data:
         stats["profiling"] = result.profile_data
@@ -646,6 +718,84 @@ async def fetch_card_attributes(
     return attributes or None
 
 
+async def fetch_payoff_queries(
+    queries: Sequence[str],
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
+) -> dict[str, list[str]]:
+    """
+    Resolve the payoff table's Scryfall queries to card names (query -> ordered names).
+
+    A query that matches no card is a table error (PayoffTableError); a query whose request
+    failed is left out with a warning, so its cards are missing from the payoff set.
+    """
+    if not queries:
+        return {}
+    async with ScryfallFetcher() as fetcher:
+        payoff_fetcher = PayoffFetcher(
+            fetcher, enable_read=read_cache, enable_write=enable_cache_write
+        )
+        results = await payoff_fetcher.fetch_queries(queries)
+    check_query_results(results)
+    return results
+
+
+def resolve_payoff_definitions(
+    payoffs_path: str | None,
+    outcome_categories: OutcomeCategories | None,
+    min_payoffs: int,
+) -> PayoffDefinitions | None:
+    """
+    The payoff table a run uses (payoffs.resolve_payoff_definitions, required when the
+    payoff floor is on), logged; None when there is none to use.
+    """
+    definitions = _resolve_payoff_definitions(
+        payoffs_path, outcome_categories, required=min_payoffs > 0
+    )
+    if definitions is None:
+        logger.info(
+            f"No payoff table to use (the default is {DEFAULT_PAYOFFS_PATH} in the working "
+            "directory; pass --payoffs for another); payoffs are skipped"
+        )
+        return None
+    logger.info(
+        f"Loaded payoff table with {len(definitions)} categories: {', '.join(definitions.names)}"
+    )
+    return definitions
+
+
+def build_payoff_table(
+    definitions: PayoffDefinitions,
+    combos: list[ComboData],
+    outcome_categories: OutcomeCategories,
+    query_results: Mapping[str, Sequence[str]],
+    blocklist: frozenset[str] = frozenset(),
+    inference_threshold: int = DEFAULT_INFERENCE_THRESHOLD,
+) -> PayoffTable:
+    """The resolved payoff table of an instance: inferred outlets, table cards and queries."""
+    inferred = infer_payoffs(combos, outcome_categories, definitions.names)
+    payoffs = resolve_payoffs(
+        definitions, inferred, query_results, blocklist, inference_threshold=inference_threshold
+    )
+    logger.info(f"Payoff cards: {format_payoff_table(payoffs)}")
+    return payoffs
+
+
+def add_payoff_cards(candidate_cards: dict[str, CandidateCard], payoffs: PayoffTable) -> list[str]:
+    """
+    Add every payoff card the pool lacks to the candidate cards, as a card that completes no
+    combo (a payoff-only card, selectable for the payoff floor). Returns the names added.
+    """
+    added = sorted(payoffs.all_cards - set(candidate_cards))
+    for name in added:
+        candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
+    logger.info(
+        f"Added {len(added)} payoff-only cards to the candidate pool; "
+        f"{len(payoffs.all_cards) - len(added)} payoff cards were combo pieces already"
+    )
+    return added
+
+
 async def build_cube_ilp(
     cube_size: int,
     max_cards_in_combo: int = 4,
@@ -674,27 +824,37 @@ async def build_cube_ilp(
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
-) -> tuple[list[str], int, OptimizationResult, dict[str, CardAttributes] | None]:
+    payoffs_path: str | None = None,
+    min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
+) -> tuple[
+    list[str], int, OptimizationResult, dict[str, CardAttributes] | None, PayoffTable | None
+]:
     """
     Build cube using ILP optimization with optional API caching.
 
     outcome_categories_path is the outcome category table (data/outcome_categories.json by
     default), behind the outcome statistics and the Phase 2 outcome rules. The default
     table is read from the working directory; when it is missing there and no rule is
-    on, the build goes on without the outcome statistics.
+    on, the build goes on without the outcome statistics. payoffs_path is the payoff table
+    (data/payoffs.json by default), behind the payoff statistics and the Phase 2 payoff
+    floor (min_payoffs); its Scryfall queries are resolved through the payoff cache, and the
+    payoff cards the pool lacks are added to the candidate cards. Both tables are read
+    before the instance is loaded, so a bad table fails fast.
 
     Returns:
         - List of card names in cube
         - Number of completable combos
         - Full optimization result with stats
         - Scryfall attributes of every candidate card (None when none could be fetched)
+        - The resolved payoff table (None without one)
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
-    # Read the table first: a bad path or table should fail before the instance is loaded
+    # Read the tables first: a bad path or table should fail before the instance is loaded
     outcome_categories = resolve_outcome_categories(
         outcome_categories_path,
-        required=outcome_rules_requested(min_outcome_combos, max_outcome_share),
+        required=outcome_rules_requested(min_outcome_combos, max_outcome_share) or min_payoffs > 0,
     )
     if outcome_categories is None:
         logger.warning(
@@ -706,6 +866,12 @@ async def build_cube_ilp(
             f"Loaded {len(outcome_categories)} outcome categories: "
             f"{', '.join(outcome_categories.names)}"
         )
+    payoff_definitions = resolve_payoff_definitions(payoffs_path, outcome_categories, min_payoffs)
+    query_results: dict[str, list[str]] = {}
+    if payoff_definitions is not None:
+        query_results = await fetch_payoff_queries(
+            payoff_definitions.queries, enable_cache_write=enable_cache_write, read_cache=read_cache
+        )
 
     combo_data, candidate_cards = await load_instance(
         max_cards_in_combo=max_cards_in_combo,
@@ -714,6 +880,19 @@ async def build_cube_ilp(
         read_cache=read_cache,
         blocklist=blocklist,
     )
+
+    # The payoff cards the pool lacks join the candidates, as cards that complete no combo
+    payoffs: PayoffTable | None = None
+    if payoff_definitions is not None and outcome_categories is not None:
+        payoffs = build_payoff_table(
+            payoff_definitions,
+            combo_data,
+            outcome_categories,
+            query_results,
+            blocklist,
+            inference_threshold=payoff_inference_min,
+        )
+        add_payoff_cards(candidate_cards, payoffs)
 
     if len(candidate_cards) < cube_size:
         logger.warning(
@@ -752,6 +931,8 @@ async def build_cube_ilp(
         min_outcome_combos=min_outcome_combos,
         max_outcome_share=max_outcome_share,
         popularity_weight=popularity_weight,
+        payoffs=payoffs,
+        min_payoffs=min_payoffs,
     )
 
     # Run optimization (two-phase by default)
@@ -780,7 +961,7 @@ async def build_cube_ilp(
         f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.get_selected_card_names(), result.combo_count, result, card_attributes
+    return result.get_selected_card_names(), result.combo_count, result, card_attributes, payoffs
 
 
 async def run_ilp(
@@ -811,9 +992,12 @@ async def run_ilp(
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
+    payoffs_path: str | None = None,
+    min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ):
     """Entry point for ILP-based cube building with caching support."""
-    cards, combo_count, result, card_attributes = await build_cube_ilp(
+    cards, combo_count, result, card_attributes, payoffs = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
@@ -840,6 +1024,9 @@ async def run_ilp(
         min_outcome_combos=min_outcome_combos,
         max_outcome_share=max_outcome_share,
         popularity_weight=popularity_weight,
+        payoffs_path=payoffs_path,
+        min_payoffs=min_payoffs,
+        payoff_inference_min=payoff_inference_min,
     )
 
     logger.info(
@@ -854,4 +1041,4 @@ async def run_ilp(
     log_phase_summary(result, card_attributes)
 
     # Write utilization stats
-    write_stats(result, output_file, cube_size, card_attributes)
+    write_stats(result, output_file, cube_size, card_attributes, payoffs)

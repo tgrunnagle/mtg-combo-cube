@@ -16,6 +16,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboGroupStats,
     OptimizationResult,
     OutcomeStats,
+    PayoffStats,
     PopularityStats,
     UtilizationStats,
 )
@@ -24,9 +25,12 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_card_mix_stats,
     format_combo_count,
     format_outcome_stats,
+    format_payoff_stats,
+    format_payoff_table,
     log_phase_summary,
     write_stats,
 )
+from mtg_combo_cube.ilp.payoffs import PayoffTable
 from mtg_combo_cube.models import CardAttributes
 
 
@@ -899,6 +903,104 @@ class TestWriteStatsOutcomesAndPopularity:
     def test_format_without_combos(self):
         assert format_outcome_stats(OutcomeStats({"mana": 0}, 0, 0)) == (
             "mana=0; no category 0 of 0"
+        )
+
+
+class TestWriteStatsPayoffs:
+    """Per-phase payoff counts, the payoff floor settings and the resolved table."""
+
+    TABLE = PayoffTable(
+        sources={
+            "mana": {
+                "Comet Storm": frozenset(["query"]),
+                "Walking Ballista": frozenset(["inferred", "query"]),
+            },
+            "storm": {"Grapeshot": frozenset(["card", "query"])},
+        },
+        inferred={"mana": {"Walking Ballista": 3, "Chromatic Orrery": 1}, "storm": {}},
+        inference_threshold=2,
+    )
+
+    def _result(self) -> OptimizationResult:
+        return replace(
+            TestWriteStatsCombosAndColors._two_phase_result(),
+            phase1_payoff_stats=PayoffStats({"mana": 0, "storm": 0}, {"mana": {}, "storm": {}}),
+            phase2_payoff_stats=PayoffStats(
+                {"mana": 2, "storm": 1},
+                {
+                    "mana": {"Comet Storm": ["query"], "Walking Ballista": ["inferred", "query"]},
+                    "storm": {"Grapeshot": ["card", "query"]},
+                },
+            ),
+            phase2_min_payoffs=3,
+            phase2_payoff_floors={"mana": 3, "storm": 1},
+        )
+
+    def test_payoffs_per_phase_and_the_settings(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path)
+
+        assert stats["phase1"]["payoffs"] == {
+            "cards_per_category": {"mana": 0, "storm": 0},
+            "cards": {"mana": {}, "storm": {}},
+        }
+        assert stats["phase2"]["payoffs"]["cards_per_category"] == {"mana": 2, "storm": 1}
+        assert stats["phase2"]["payoffs"]["cards"]["mana"]["Walking Ballista"] == [
+            "inferred",
+            "query",
+        ]
+        assert stats["phase2"]["min_payoffs"] == 3
+        assert stats["phase2"]["payoff_floors"] == {"mana": 3, "storm": 1}
+        assert "payoffs" not in stats
+
+    def test_resolved_table_is_a_top_level_block(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path, payoffs=self.TABLE)
+
+        assert stats["payoffs"] == {
+            "inference_threshold": 2,
+            "cards_per_category": {"mana": 2, "storm": 1},
+            "source_counts": {
+                "mana": {"inferred": 1, "card": 0, "query": 2},
+                "storm": {"inferred": 0, "card": 1, "query": 1},
+            },
+            "cards": {
+                "mana": {"Comet Storm": ["query"], "Walking Ballista": ["inferred", "query"]},
+                "storm": {"Grapeshot": ["card", "query"]},
+            },
+            "inferred": {"mana": {"Walking Ballista": 3, "Chromatic Orrery": 1}, "storm": {}},
+        }
+
+    def test_left_out_without_data(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(
+            TestWriteStatsCombosAndColors._two_phase_result(), tmp_path
+        )
+
+        for phase in ("phase1", "phase2"):
+            assert "payoffs" not in stats[phase]
+        assert "min_payoffs" not in stats["phase2"]
+        assert "payoff_floors" not in stats["phase2"]
+        assert "payoffs" not in stats
+
+    def test_fallback_records_the_settings(self, tmp_path: Path):
+        result = replace(
+            self._result(), is_multi_objective=False, phase2_fell_back=True, phase2_status="TIMEOUT"
+        )
+
+        stats = TestWriteStatsCombosAndColors._write(result, tmp_path)
+
+        assert stats["phase2"]["fell_back_to_phase1"]
+        assert stats["phase2"]["payoff_floors"] == {"mana": 3, "storm": 1}
+
+    def test_log_lines(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._result(), None)
+
+        assert "Payoffs, Phase 1: mana=0, storm=0" in caplog.text
+        assert "Payoffs, Phase 2: mana=2, storm=1" in caplog.text
+
+    def test_formats(self):
+        assert format_payoff_stats(PayoffStats({"mana": 2}, {"mana": {}})) == "mana=2"
+        assert format_payoff_table(self.TABLE) == (
+            "mana 2 (inferred 1, cards 0, queries 2); storm 1 (inferred 0, cards 1, queries 1)"
         )
 
 

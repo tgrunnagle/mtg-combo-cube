@@ -9,10 +9,12 @@ from unittest.mock import MagicMock
 import aiohttp
 import pytest
 
+from mtg_combo_cube.ilp.payoffs import parse_payoff_table
 from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
 from mtg_combo_cube.precache import PrecacheResult, precache
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
+from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
 from tests.unit.scryfall_fakes import FakeResponse, FakeSession, SleepRecorder, read_cache_file
@@ -20,6 +22,9 @@ from tests.unit.scryfall_fakes import FakeResponse, FakeSession, SleepRecorder, 
 CREATURE_API = "https://api.scryfall.com/cards/search?q=type%3Acreature"
 CREATURE_URL = prepare_scryfall_url(CREATURE_API)
 COLLECTION_URL = CardAttributeFetcher.COLLECTION_URL
+STORM_QUERY = "keyword:storm f:commander"
+STORM_URL = PayoffFetcher.search_url(STORM_QUERY)
+PAYOFFS = parse_payoff_table({"storm": {"queries": [STORM_QUERY], "cards": ["Aetherflux"]}})
 SCRYFALL_MAX_ATTEMPTS = 5  # ScryfallFetcher default: attempts before a request counts as failed
 
 CARD_STATES = {
@@ -414,6 +419,104 @@ class TestPrecache:
         assert not result.complete
         assert result.failed_attribute_requests == 1
         assert result.cards_without_attributes == 3
+
+    @pytest.mark.asyncio
+    async def test_payoff_queries_are_resolved_and_their_cards_looked_up(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                STORM_URL: [FakeResponse(200, card_names=["Grapeshot", "Card B"])],
+                COLLECTION_URL: [
+                    colors_response(
+                        {
+                            "Card A": ["W"],
+                            "Card B": ["U"],
+                            "Creature X": ["G"],
+                            "Grapeshot": ["R"],
+                            "Aetherflux": [],
+                        }
+                    )
+                ],
+            }
+        )
+
+        result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, payoffs=PAYOFFS)
+
+        assert result.complete
+        assert result.payoff_queries == 1
+        assert result.failed_payoff_queries == 0
+        assert result.empty_payoff_queries == []
+        # The payoff cards (query results and table cards) join the candidates
+        assert result.cards == 5
+        assert session.bodies == [
+            {
+                "identifiers": [
+                    {"name": name}
+                    for name in ["Aetherflux", "Card A", "Card B", "Creature X", "Grapeshot"]
+                ]
+            }
+        ]
+        with open(tmp_path / PayoffFetcher.CACHE_FILENAME, encoding="utf-8") as f:
+            cache = json.load(f)
+        assert cache["queries"][STORM_URL]["cards"] == ["Grapeshot", "Card B"]
+        assert read_colors(tmp_path)["Grapeshot"] == "R"
+
+    @pytest.mark.asyncio
+    async def test_failed_payoff_query_is_fetched_in_a_later_pass(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                STORM_URL: [
+                    *[FakeResponse(503)] * SCRYFALL_MAX_ATTEMPTS,
+                    FakeResponse(200, card_names=["Grapeshot"]),
+                ],
+                COLLECTION_URL: [ALL_COLORS],
+            }
+        )
+        sleep = SleepRecorder()
+
+        result = await run_precache(
+            tmp_path, FakeSpellbook(VARIANTS), session, sleep=sleep, payoffs=PAYOFFS
+        )
+
+        assert result.complete
+        assert session.requests.count(STORM_URL) == SCRYFALL_MAX_ATTEMPTS + 1
+        assert 30.0 in sleep.delays
+
+    @pytest.mark.asyncio
+    async def test_payoff_query_failing_on_every_pass_is_reported(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                STORM_URL: [FakeResponse(503)],
+                COLLECTION_URL: [ALL_COLORS],
+            }
+        )
+
+        result = await run_precache(
+            tmp_path, FakeSpellbook(VARIANTS), session, max_passes=2, payoffs=PAYOFFS
+        )
+
+        assert not result.complete
+        assert result.failed_payoff_queries == 1
+        assert not (tmp_path / PayoffFetcher.CACHE_FILENAME).exists()
+
+    @pytest.mark.asyncio
+    async def test_payoff_query_matching_no_card_is_reported(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                STORM_URL: [FakeResponse(404)],
+                COLLECTION_URL: [ALL_COLORS],
+            }
+        )
+
+        result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, payoffs=PAYOFFS)
+
+        # The cache is complete, but a build with this table would fail
+        assert result.complete
+        assert result.empty_payoff_queries == [STORM_QUERY]
+        assert session.requests.count(STORM_URL) == 1
 
     @pytest.mark.asyncio
     async def test_card_unknown_to_scryfall_is_not_a_failure(self, tmp_path):

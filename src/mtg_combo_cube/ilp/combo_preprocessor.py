@@ -158,6 +158,7 @@ class ComboPreprocessor:
             color_identity=self._color_identity(variant),
             features=frozenset(produced.feature.name for produced in variant.produces),
             bracket_tag=variant.bracket_tag,
+            includes=frozenset(ref.id for ref in variant.includes),
         )
 
     @staticmethod

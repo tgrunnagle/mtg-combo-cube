@@ -31,16 +31,22 @@ from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     ComboGroupStats,
     OutcomeStats,
+    PayoffStats,
     PopularityStats,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
+    add_payoff_cards,
+    build_payoff_table,
     fetch_card_attributes,
+    fetch_payoff_queries,
     format_archetype_stats,
     format_card_mix_stats,
     format_color_stats,
     format_combo_count,
     format_outcome_stats,
+    format_payoff_stats,
+    format_payoff_table,
     format_popularity_stats,
     load_instance,
 )
@@ -48,6 +54,13 @@ from mtg_combo_cube.ilp.outcomes import (
     OutcomeCategories,
     OutcomeCategoryError,
     resolve_outcome_categories,
+)
+from mtg_combo_cube.ilp.payoffs import (
+    DEFAULT_INFERENCE_THRESHOLD,
+    PayoffDefinitions,
+    PayoffTable,
+    PayoffTableError,
+    resolve_payoff_definitions,
 )
 
 logger = logging.getLogger(__name__)
@@ -72,6 +85,8 @@ class CubeEvaluation:
     archetype_stats: ArchetypeStats | None  # distinct combos per draft archetype, if known
     popularity_stats: PopularityStats  # how popular the distinct combos are
     outcome_stats: OutcomeStats | None  # distinct combos per outcome category, with a table
+    payoff_stats: PayoffStats | None = None  # payoff cards per category, with a payoff table
+    payoffs: PayoffTable | None = None  # the resolved payoff table, with one
 
 
 async def evaluate_cube(
@@ -80,6 +95,8 @@ async def evaluate_cube(
     blocklist: frozenset[str] = frozenset(),
     variant_weight: float = 0.1,
     outcome_categories: OutcomeCategories | None = None,
+    payoff_definitions: PayoffDefinitions | None = None,
+    payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ) -> CubeEvaluation:
     """
     Evaluate a cube list against the instance built from the cached API data.
@@ -87,14 +104,34 @@ async def evaluate_cube(
     variant_weight is the value of each further completed variant of a combo, as in a
     build's --variant-weight; it only affects weighted_combo_count. outcome_categories is
     the table the combos are categorized by; without one no outcome counts are reported.
+    payoff_definitions is the payoff table, resolved as a build resolves it (its queries
+    from the cache); it needs the outcome table, and without one no payoff counts are
+    reported.
     """
     cards = read_cube_file(cube_file)
+    query_results: dict[str, list[str]] = {}
+    if payoff_definitions is not None and outcome_categories is not None:
+        payoff_definitions.check_categories(outcome_categories)
+        query_results = await fetch_payoff_queries(
+            payoff_definitions.queries, enable_cache_write=False, read_cache=True
+        )
     combos, candidate_cards = await load_instance(
         max_variants=max_variants,
         enable_cache_write=False,
         read_cache=True,
         blocklist=blocklist,
     )
+    payoffs: PayoffTable | None = None
+    if payoff_definitions is not None and outcome_categories is not None:
+        payoffs = build_payoff_table(
+            payoff_definitions,
+            combos,
+            outcome_categories,
+            query_results,
+            blocklist,
+            inference_threshold=payoff_inference_min,
+        )
+        add_payoff_cards(candidate_cards, payoffs)
 
     unknown = [card for card in cards if card not in candidate_cards]
     if unknown:
@@ -119,6 +156,8 @@ async def evaluate_cube(
             if outcome_categories is not None
             else None
         ),
+        payoff_stats=payoffs.stats(cards) if payoffs is not None else None,
+        payoffs=payoffs,
     )
 
 
@@ -153,12 +192,30 @@ if __name__ == "__main__":
         default=None,
         help="Path to the outcome category table (default: data/outcome_categories.json)",
     )
+    argparser.add_argument(
+        "--payoffs",
+        type=str,
+        default=None,
+        help="Path to the payoff table (default: data/payoffs.json)",
+    )
+    argparser.add_argument(
+        "--payoff-inference-min",
+        type=int,
+        default=DEFAULT_INFERENCE_THRESHOLD,
+        help="Bundled variants a card must be the outlet of to count as an inferred payoff, as "
+        f"used for the build (default: {DEFAULT_INFERENCE_THRESHOLD})",
+    )
     args = argparser.parse_args()
-    # A missing or invalid outcome table is a usage error; without the default table the
-    # outcome counts are left out
+    if args.payoff_inference_min < 1:
+        argparser.error("--payoff-inference-min must be at least 1")
+    # A missing or invalid table is a usage error; without the default tables the outcome
+    # and payoff counts are left out
     try:
         outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
-    except (FileNotFoundError, OutcomeCategoryError) as e:
+        payoff_definitions = resolve_payoff_definitions(
+            args.payoffs, outcome_categories, required=False
+        )
+    except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
         argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
@@ -169,6 +226,8 @@ if __name__ == "__main__":
             blocklist=load_blocklist(args.blocklist),
             variant_weight=args.variant_weight,
             outcome_categories=outcome_categories,
+            payoff_definitions=payoff_definitions,
+            payoff_inference_min=args.payoff_inference_min,
         )
     )
     stats = evaluation.utilization_stats
@@ -196,6 +255,11 @@ if __name__ == "__main__":
     if evaluation.outcome_stats is not None:
         print("Outcomes (distinct combos): " + format_outcome_stats(evaluation.outcome_stats))
     print("Popularity (distinct combos): " + format_popularity_stats(evaluation.popularity_stats))
+    if evaluation.payoff_stats is not None and evaluation.payoffs is not None:
+        print("Payoff cards in the cube: " + format_payoff_stats(evaluation.payoff_stats))
+        print("Payoff table: " + format_payoff_table(evaluation.payoffs))
+        for name, found in evaluation.payoff_stats.cards.items():
+            print(f"  {name}: {', '.join(found) if found else '(none)'}")
 
     cube_cards = read_cube_file(args.cube_file)
     attributes = asyncio.run(fetch_card_attributes(cube_cards, read_cache=True))

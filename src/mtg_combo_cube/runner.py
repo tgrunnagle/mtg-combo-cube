@@ -7,6 +7,7 @@ from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.ilp_runner import run_ilp
+from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +41,9 @@ async def run(
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
+    payoffs_path: str | None = None,
+    min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ):
     """
     Run the cube building algorithm.
@@ -84,6 +88,12 @@ async def run(
             category (0 or 1 disables)
         popularity_weight: How much a combo's popularity adds to its value in the Phase 1
             objective and the Phase 2 combo window (0: a tiebreak only)
+        payoffs_path: The payoff table (default: data/payoffs.json): per outcome category,
+            the Scryfall queries, cards and exclusions that find its outlets
+        min_payoffs: Phase 2 minimum number of payoff cards of every category in the payoff
+            table (0 disables)
+        payoff_inference_min: Bundled Spellbook variants a card must be the outlet of before
+            the inference counts it as a payoff
     """
     blocklist = load_blocklist(blocklist_path)
 
@@ -115,6 +125,9 @@ async def run(
             min_outcome_combos=min_outcome_combos,
             max_outcome_share=max_outcome_share,
             popularity_weight=popularity_weight,
+            payoffs_path=payoffs_path,
+            min_payoffs=min_payoffs,
+            payoff_inference_min=payoff_inference_min,
         )
     elif method == "greedy":
         await run_greedy(

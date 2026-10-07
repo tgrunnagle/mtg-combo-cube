@@ -1,0 +1,149 @@
+"""Resolves the payoff table's Scryfall queries to card names, with a cache."""
+
+import json
+import logging
+import os
+from collections.abc import Iterable
+from datetime import UTC, datetime
+from pathlib import Path
+from urllib.parse import urlencode
+
+from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
+
+logger = logging.getLogger(__name__)
+
+
+class PayoffFetcher:
+    """
+    Fetches the cards matching the payoff table's Scryfall queries.
+
+    Requests go through a ScryfallFetcher, which provides rate limiting and retries. Every
+    query runs in EDHREC order over paper cards; the raw ordered names of the first result
+    page are returned and cached, so the caller applies the blocklist and the card limit
+    (as for the template searches) and the cache stays valid when those change. A query is
+    cached under its search URL, so editing a query in the table fetches the edited query
+    and leaves the rest cached.
+    """
+
+    CACHE_FILENAME = "scryfall_payoffs.json"
+    CACHE_VERSION = 1
+    SEARCH_URL = "https://api.scryfall.com/cards/search"
+    QUERY_SUFFIX = "game:paper"  # added to every query: no digital-only cards
+
+    def __init__(
+        self,
+        fetcher: ScryfallFetcher,
+        cache_dir: Path = Path("data/cache"),
+        enable_read: bool = False,
+        enable_write: bool = False,
+    ):
+        """
+        Initialize the payoff fetcher.
+
+        Args:
+            fetcher: Fetcher used for the HTTP requests
+            cache_dir: Directory for the cache file (default: data/cache)
+            enable_read: Serve query results from the cache file when present
+            enable_write: Write fetched results to the cache file
+        """
+        self._fetcher = fetcher
+        self.cache_path = cache_dir / self.CACHE_FILENAME
+        self.enable_read = enable_read
+        self.enable_write = enable_write
+
+    @classmethod
+    def search_url(cls, query: str) -> str:
+        """The Scryfall search URL of a payoff query: EDHREC order, one entry per card."""
+        params = {"q": f"{query} {cls.QUERY_SUFFIX}", "order": "edhrec", "unique": "cards"}
+        return f"{cls.SEARCH_URL}?{urlencode(params)}"
+
+    async def fetch_queries(self, queries: Iterable[str]) -> dict[str, list[str]]:
+        """
+        Get the raw, ordered card names matching each query.
+
+        Returns:
+            Query -> card names (empty when no card matches). A query whose request failed
+            is left out, with a warning. Empty results are not cached: a query that matches
+            nothing is a table error for the caller to report, and may be fixed on Scryfall.
+        """
+        wanted = list(dict.fromkeys(queries))
+        urls = {query: self.search_url(query) for query in wanted}
+        cached: dict[str, list[str]] = {}
+        if self.enable_read:
+            try:
+                cached = self._load_cache()
+            except OSError as e:
+                logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
+        results = {query: cached[urls[query]] for query in wanted if urls[query] in cached}
+
+        fetched: dict[str, list[str]] = {}
+        for query in wanted:
+            if query in results:
+                continue
+            names = await self._fetcher.fetch_card_names(urls[query])
+            if names is None:
+                logger.warning(f"Payoff query could not be fetched: {query!r}")
+                continue
+            fetched[query] = names
+
+        if self.enable_write and (to_cache := {urls[q]: n for q, n in fetched.items() if n}):
+            self._write_cache(to_cache)
+
+        results.update(fetched)
+        return results
+
+    def _load_cache(self) -> dict[str, list[str]]:
+        """
+        Load the cache file: search URL -> card names. A missing, outdated or malformed
+        file counts as empty (it will be rewritten). A file that cannot be read at all raises
+        OSError, so a transient lock does not look like an empty cache.
+        """
+        if not self.cache_path.exists():
+            return {}
+        with open(self.cache_path, encoding="utf-8") as f:
+            text = f.read()
+        try:
+            data = json.loads(text)
+            if data.get("version") != self.CACHE_VERSION:
+                raise ValueError(f"unsupported cache version {data.get('version')}")
+            return {url: self._parse_entry(entry) for url, entry in data["queries"].items()}
+        except (ValueError, KeyError, TypeError, AttributeError) as e:
+            logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
+            return {}
+
+    @staticmethod
+    def _parse_entry(entry: dict) -> list[str]:
+        """A cache entry's card names; a wrong type is a ValueError (the cache is unusable)."""
+        cards = entry["cards"]
+        if not isinstance(cards, list) or not all(isinstance(card, str) for card in cards):
+            raise ValueError(f"malformed cache entry {entry!r}")
+        return list(cards)
+
+    def _write_cache(self, fetched: dict[str, list[str]]) -> None:
+        """
+        Add fetched results to the cache file, keeping entries already in the file, each with
+        the time it was fetched. The file is left alone when it cannot be read, so a transient
+        error does not erase it.
+        """
+        try:
+            with open(self.cache_path, encoding="utf-8") as f:
+                data = json.load(f)
+            entries = dict(data["queries"]) if data.get("version") == self.CACHE_VERSION else {}
+        except FileNotFoundError:
+            entries = {}
+        except OSError as e:
+            logger.warning(f"Cache not updated: {self.cache_path.name} could not be read ({e})")
+            return
+        except (ValueError, KeyError, TypeError, AttributeError):
+            entries = {}  # outdated or malformed: rewritten in the current format
+        fetched_at = datetime.now(UTC).isoformat(timespec="seconds")
+        for url, cards in fetched.items():
+            entries[url] = {"cards": cards, "fetched_at": fetched_at}
+        temp_path = self.cache_path.with_name(f"{self.cache_path.name}.tmp")
+        try:
+            self.cache_path.parent.mkdir(parents=True, exist_ok=True)
+            with open(temp_path, "w", encoding="utf-8") as f:
+                json.dump({"version": self.CACHE_VERSION, "queries": entries}, f)
+            os.replace(temp_path, self.cache_path)
+        except OSError as e:
+            logger.warning(f"Cache write error for {self.cache_path.name}: {e}")

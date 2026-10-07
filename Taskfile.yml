@@ -2,8 +2,8 @@ version: '3'
 
 # Defaults shared by the build and precache tasks; override on the command line,
 # e.g. task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000
-# Further flags go after "--". The archetype and outcome minimums are sized for the default build, so
-# a smaller one needs: task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0
+# Further flags go after "--". The archetype and outcome minimums and the payoff floor are sized for the
+# default build, so a smaller one needs: task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0
 vars:
   CUBE_SIZE: 300
   MAX_VARIANTS: 20000
@@ -100,7 +100,7 @@ tasks:
   precache:
     desc: Download the Commander Spellbook and Scryfall data for a build into data/cache
     cmds:
-      - uv run python -m src.mtg_combo_cube.precache -n {{.MAX_VARIANTS}} --max-cards-in-combo {{.MAX_CARDS_IN_COMBO}} {{if .BLOCKLIST}}--blocklist "{{.BLOCKLIST}}"{{end}} {{.CLI_ARGS}}
+      - uv run python -m src.mtg_combo_cube.precache -n {{.MAX_VARIANTS}} --max-cards-in-combo {{.MAX_CARDS_IN_COMBO}} {{if .BLOCKLIST}}--blocklist "{{.BLOCKLIST}}"{{end}} {{if .PAYOFFS}}--payoffs "{{.PAYOFFS}}"{{end}} {{.CLI_ARGS}}
     deps:
       - install
 

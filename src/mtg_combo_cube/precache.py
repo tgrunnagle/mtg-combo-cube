@@ -4,13 +4,14 @@ Usage:
     uv run python -m mtg_combo_cube.precache -n 20000
 
 Downloads what an ILP build with the same settings reads: the Commander Spellbook variants,
-the Scryfall template searches and the Scryfall card attributes (color identity, type line,
-mana value).
+the Scryfall template searches, the payoff table's Scryfall queries and the Scryfall card
+attributes (color identity, type line, mana value) of the candidate and payoff cards.
 
 Everything is fetched again and written over what the cache holds: the variants file is
-replaced, and so is every template and card attribute entry of this configuration. Entries that
-only other configurations use are left alone. With --keep-existing, entries already in the
-cache are kept instead, so an incomplete run can be finished without starting over.
+replaced, and so is every template, payoff query and card attribute entry of this
+configuration. Entries that only other configurations use are left alone. With
+--keep-existing, entries already in the cache are kept instead, so an incomplete run can be
+finished without starting over.
 """
 
 import argparse
@@ -18,15 +19,22 @@ import asyncio
 import logging
 import sys
 from collections.abc import Awaitable, Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import aiohttp
 
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
+from mtg_combo_cube.ilp.payoffs import (
+    PayoffDefinitions,
+    PayoffTableError,
+    resolve_payoff_table,
+    resolve_payoffs,
+)
 from mtg_combo_cube.models import Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
+from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
 from mtg_combo_cube.spellbook.api_cache import SpellbookCache
 from mtg_combo_cube.spellbook.commander_spellbook import CommanderSpellbook
@@ -45,6 +53,9 @@ class PrecacheResult:
     variants: int = 0
     variants_cached: bool = False
     failed_templates: int = 0
+    payoff_queries: int = 0
+    failed_payoff_queries: int = 0
+    empty_payoff_queries: list[str] = field(default_factory=list)  # a table error for a build
     cards: int = 0
     cards_without_attributes: int = 0
     failed_attribute_requests: int = 0
@@ -55,6 +66,7 @@ class PrecacheResult:
         return (
             self.variants_cached
             and self.failed_templates == 0
+            and self.failed_payoff_queries == 0
             and self.failed_attribute_requests == 0
         )
 
@@ -173,6 +185,39 @@ async def _precache_templates(
     return card_names, failures
 
 
+async def _precache_payoffs(
+    definitions: PayoffDefinitions,
+    blocklist: frozenset[str],
+    payoff_fetcher: PayoffFetcher,
+    fetcher: ScryfallFetcher,
+    max_passes: int,
+    retry_wait_seconds: float,
+    sleep: Sleep,
+) -> tuple[list[str], int, list[str]]:
+    """
+    Resolve the payoff table's queries the way a build does, which fills the payoff cache.
+
+    Returns:
+        - Names of the payoff cards a build adds to the candidates (the table's cards and the
+          query results, after the blocklist and the per-query limit)
+        - Number of queries whose fetch still failed in the last pass
+        - Queries that match no card (a table error for a build)
+    """
+    results: dict[str, list[str]] = {}
+
+    async def run_pass() -> int:
+        fetcher.clear_failures()
+        results.update(await payoff_fetcher.fetch_queries(definitions.queries))
+        return fetcher.failed_url_count
+
+    failures = await _run_passes(
+        "Scryfall payoff queries", run_pass, max_passes, retry_wait_seconds, sleep
+    )
+    empty = [query for query, cards in results.items() if not cards]
+    payoffs = resolve_payoffs(definitions, {}, results, blocklist)
+    return sorted(payoffs.all_cards), failures, empty
+
+
 async def _precache_attributes(
     card_names: list[str],
     attribute_fetcher: CardAttributeFetcher,
@@ -213,10 +258,11 @@ async def precache(
     spellbook: CommanderSpellbook | None = None,
     session: aiohttp.ClientSession | None = None,
     sleep: Sleep = asyncio.sleep,
+    payoffs: PayoffDefinitions | None = None,
 ) -> PrecacheResult:
     """
-    Fill the variants, Scryfall template and card attribute caches for one build
-    configuration.
+    Fill the variants, Scryfall template, payoff query and card attribute caches for one
+    build configuration.
 
     Args:
         max_cards_in_combo: Largest combo size to fetch (part of the variants cache key)
@@ -230,6 +276,8 @@ async def precache(
         spellbook: Commander Spellbook client to use; one is created when omitted
         session: HTTP session for the Scryfall requests; the fetchers create one when omitted
         sleep: Awaitable sleep function (replaceable in tests)
+        payoffs: The payoff table whose queries to resolve, and whose cards to look up the
+            attributes of beside the candidate cards (None: no payoff stage)
     """
     result = PrecacheResult()
 
@@ -258,9 +306,24 @@ async def precache(
     card_names, result.failed_templates = await _precache_templates(
         variants, blocklist, template_fetcher, max_passes, retry_wait_seconds, sleep
     )
-    result.cards = len(card_names)
 
     async with ScryfallFetcher(session=session, sleep=sleep) as fetcher:
+        if payoffs is not None:
+            payoff_fetcher = PayoffFetcher(
+                fetcher, cache_dir=cache_dir, enable_read=keep_existing, enable_write=True
+            )
+            (
+                payoff_cards,
+                result.failed_payoff_queries,
+                result.empty_payoff_queries,
+            ) = await _precache_payoffs(
+                payoffs, blocklist, payoff_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
+            )
+            result.payoff_queries = len(payoffs.queries)
+            # A build adds the payoff cards to the candidates and looks them up too
+            card_names = sorted(set(card_names) | set(payoff_cards))
+        result.cards = len(card_names)
+
         attribute_fetcher = CardAttributeFetcher(
             fetcher, cache_dir=cache_dir, enable_read=keep_existing, enable_write=True
         )
@@ -299,6 +362,13 @@ if __name__ == "__main__":
         help="Path to blocklist file (default: data/blocklist.txt)",
     )
     argparser.add_argument(
+        "--payoffs",
+        type=str,
+        default=None,
+        help="Path to the payoff table whose Scryfall queries to resolve (default: "
+        "data/payoffs.json; skipped when that is missing)",
+    )
+    argparser.add_argument(
         "--cache-dir",
         type=Path,
         default=Path("data/cache"),
@@ -327,6 +397,10 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     if args.max_variants < 1 or args.max_cards_in_combo < 1 or args.max_passes < 1:
         argparser.error("--max-variants, --max-cards-in-combo and --max-passes must be at least 1")
+    try:
+        payoffs = resolve_payoff_table(args.payoffs, required=False)
+    except (FileNotFoundError, PayoffTableError) as e:
+        argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     result = asyncio.run(
@@ -338,12 +412,19 @@ if __name__ == "__main__":
             keep_existing=args.keep_existing,
             max_passes=args.max_passes,
             retry_wait_seconds=args.retry_wait,
+            payoffs=payoffs,
         )
     )
 
     print(f"Cache directory: {args.cache_dir}")
     print(f"Variants: {result.variants}" + ("" if result.variants_cached else " (NOT cached)"))
     print(f"Scryfall templates still failing: {result.failed_templates}")
+    if payoffs is not None:
+        print(
+            f"Payoff queries: {result.payoff_queries}, {result.failed_payoff_queries} still failing"
+        )
+        for query in result.empty_payoff_queries:
+            print(f"Payoff query matches no card (fix the table): {query!r}")
     print(
         f"Card attributes: {result.cards - result.cards_without_attributes} of {result.cards} "
         f"cards, {result.failed_attribute_requests} requests still failing"
