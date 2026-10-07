@@ -11,8 +11,14 @@ import pytest
 
 from mtg_combo_cube import runner
 from mtg_combo_cube.ilp import ilp_runner
-from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData, OptimizationResult
+from mtg_combo_cube.ilp.ilp_models import (
+    CandidateCard,
+    CardMixRules,
+    ComboData,
+    OptimizationResult,
+)
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.models import CardAttributes
 
 
 def run_cli(monkeypatch: pytest.MonkeyPatch, *args: str) -> dict[str, Any]:
@@ -132,6 +138,74 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *args)
 
+    def test_card_mix_defaults(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(monkeypatch)
+
+        assert received["card_mix"] == CardMixRules()
+        assert received["card_mix"].max_multicolor_share == 0.15
+        assert received["card_mix"].mono_color_ratio == 0
+
+    def test_card_mix_options(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(
+            monkeypatch,
+            "--max-multicolor-share",
+            "0.2",
+            "--max-colorless-share",
+            "0",
+            "--max-expensive-share",
+            "0.12",
+            "--expensive-mana-value",
+            "6",
+            "--max-creature-share",
+            "0.55",
+            "--min-spell-share",
+            "0.08",
+            "--mono-color-ratio",
+            "1.5",
+        )
+
+        assert received["card_mix"] == CardMixRules(
+            max_multicolor_share=0.2,
+            max_colorless_share=0,
+            max_expensive_share=0.12,
+            expensive_mana_value=6,
+            max_creature_share=0.55,
+            min_spell_share=0.08,
+            mono_color_ratio=1.5,
+        )
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--max-multicolor-share", "1.5"),
+            ("--max-colorless-share", "-0.1"),
+            ("--max-colorless-share", "x"),
+            ("--max-expensive-share", "2"),
+            ("--expensive-mana-value", "-1"),
+            ("--expensive-mana-value", "0"),
+            ("--max-creature-share", "-0.5"),
+            ("--max-creature-share", "nan"),
+            ("--min-spell-share", "1.1"),
+            ("--min-spell-share", "0.001"),
+            ("--mono-color-ratio", "0.5"),
+            ("--mono-color-ratio", "inf"),
+            ("--max-color-ratio", "nan"),
+        ],
+    )
+    def test_invalid_card_mix_options_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *args)
+
+    def test_card_mix_error_names_the_flag(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--max-creature-share", "1.5")
+
+        assert "--max-creature-share must be between 0 and 1, got 1.5" in capsys.readouterr().err
+
 
 class TestRunnerPlumbing:
     """runner.run and ilp_runner pass util_cap down to the optimizer."""
@@ -165,6 +239,11 @@ class TestRunnerPlumbing:
         assert received["min_pair_combos"] == 25
         assert received["min_mono_combos"] == 8
         assert received["max_wide_combo_share"] == 0.3
+        assert received["card_mix"] == CardMixRules()
+
+        card_mix = CardMixRules(max_creature_share=0.5)
+        await runner.run(method="ilp", cube_size=10, output_file="unused.txt", card_mix=card_mix)
+        assert received["card_mix"] == card_mix
 
     @pytest.mark.parametrize("util_cap", [None, 3])
     async def test_run_ilp_passes_util_cap_to_optimizer(
@@ -194,12 +273,29 @@ class TestRunnerPlumbing:
                 results.append(super().solve_two_phase(profile=profile))
                 return results[-1]
 
-        async def fake_fetch_color_identities(card_names: Any, **kwargs: Any) -> dict[str, str]:
-            return {"A": "W", "B": "WU", "C": ""}
+        attributes = {
+            "A": CardAttributes("W", "Creature \u2014 Human", 2),
+            "B": CardAttributes("WU", "Instant", 1),
+            "C": CardAttributes("", "Artifact", 0),
+            "D": CardAttributes("G", "Creature \u2014 Elf", 3),
+        }
+
+        async def fake_fetch_card_attributes(
+            card_names: Any, **kwargs: Any
+        ) -> dict[str, CardAttributes]:
+            return attributes
 
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
         monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
-        monkeypatch.setattr(ilp_runner, "fetch_color_identities", fake_fetch_color_identities)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        # A three-card cube: at most two creatures, at least one instant or sorcery
+        card_mix = CardMixRules(
+            max_multicolor_share=0,
+            max_colorless_share=0,
+            max_expensive_share=0,
+            max_creature_share=0.7,
+            min_spell_share=0.3,
+        )
 
         await ilp_runner.run_ilp(
             cube_size=3,
@@ -213,6 +309,7 @@ class TestRunnerPlumbing:
             min_pair_combos=25,
             min_mono_combos=8,
             max_wide_combo_share=0.3,
+            card_mix=card_mix,
         )
 
         assert len(created) == 1
@@ -222,9 +319,10 @@ class TestRunnerPlumbing:
         assert created[0].max_wide_combo_share == 0.3
         assert created[0].phase2_objective == "softcap"
         assert created[0].variant_weight == 0.5
-        # The colors of every candidate card reach the optimizer, with the ratio
-        assert created[0].card_colors == {"A": "W", "B": "WU", "C": ""}
+        # The attributes of every candidate card reach the optimizer, with the rules
+        assert created[0].card_attributes == attributes
         assert created[0].max_color_ratio == 0
+        assert created[0].card_mix == card_mix
         # Every card of the triangle has utilization 2 in Phase 1: derived cap = 2 x 2
         assert results[0].phase2_util_cap == (4 if util_cap is None else util_cap)
         assert (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]
@@ -246,5 +344,14 @@ class TestRunnerPlumbing:
             }
             # The combos carry no color identity: no archetype counts are reported ...
             assert "archetypes" not in stats[phase]
-        # ... and the archetype rules were not applied
+            assert stats[phase]["card_mix"]["type_counts"]["Creature"] == 1
+            assert stats[phase]["card_mix"]["type_counts"]["Instant"] == 1
+            assert stats[phase]["card_mix"]["multicolor"] == 1
+        # ... and the archetype rules were not applied; the card mix rules were
         assert "min_pair_combos" not in stats["phase2"]
+        assert stats["phase2"]["card_mix_rules"] == {
+            "max_creature_share": 0.7,
+            "min_spell_share": 0.3,
+        }
+        assert stats["phase2"]["card_mix_limits"] == {"creature_cap": 2, "spell_floor": 1}
+        assert stats["phase2"]["unknown_candidate_cards"] == 0

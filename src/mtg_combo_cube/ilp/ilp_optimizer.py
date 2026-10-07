@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
+from functools import partial
 from typing import Any
 
 from ortools.sat.python import cp_model
@@ -23,13 +24,18 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_archetype_stats,
     compute_utilization_stats,
     fits_archetype,
+    is_expensive,
+    is_land,
+    is_spell,
     known_color_identity,
     largest_combo_groups,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
+    DEFAULT_CARD_MIX,
     ArchetypeStats,
     CandidateCard,
+    CardMixRules,
     ComboData,
     ComboGroupStats,
     CrossTemplateStats,
@@ -39,12 +45,14 @@ from mtg_combo_cube.ilp.ilp_models import (
     RequirementTypeStats,
     TemplateOverlapPairStats,
     UtilizationStats,
+    hundredths,
 )
 from mtg_combo_cube.ilp.profiling import (
     ProfileResult,
     extract_solver_stats,
     log_profile_comparison,
 )
+from mtg_combo_cube.models import UNKNOWN_CARD, CardAttributes
 
 logger = logging.getLogger(__name__)
 
@@ -169,6 +177,9 @@ class ILPOptimizer:
     # Shares of the Phase 2 time limit for the two warm-start repair stages
     WARM_START_MAXIMIZE_FRACTION = 0.2
     WARM_START_FLOOR_FRACTION = 0.2
+    # Share of the candidate cards that may lack Scryfall data before the card mix rules are
+    # skipped: with more, the cards' colors, types and mana values are too uncertain
+    MAX_UNKNOWN_CARD_SHARE = 0.05
     TIER_MULTIPLES = (1, 2, 4)  # "tiered" objective: overage is counted above each multiple of T
     WEIGHT_SCALE = 10000  # Scale for integer conversion
 
@@ -187,12 +198,13 @@ class ILPOptimizer:
         min_utilization_floor: int = 2,
         num_workers: int = 8,
         util_cap: int | None = None,
-        card_colors: Mapping[str, str] | None = None,
+        card_attributes: Mapping[str, CardAttributes] | None = None,
         max_color_ratio: float = 2.0,
         variant_weight: float = 0.1,
         min_pair_combos: int = 250,
         min_mono_combos: int = 150,
         max_wide_combo_share: float = 0.25,
+        card_mix: CardMixRules = DEFAULT_CARD_MIX,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -214,12 +226,15 @@ class ILPOptimizer:
         if util_cap is not None and util_cap < 0:
             raise ValueError(f"util_cap must be >= 0, got {util_cap}")
         self.util_cap = util_cap  # "softcap" and "tiered"; None = derive from Phase 1
-        if 0 < max_color_ratio < 1:
+        if not math.isfinite(max_color_ratio) or 0 < max_color_ratio < 1:
             raise ValueError(f"max_color_ratio must be 0 or >= 1, got {max_color_ratio}")
-        # Phase 2 color balance: card name -> WUBRG letters of its color identity. Without
-        # color data, or with a ratio of 0, there is no color constraint.
-        self.card_colors = card_colors
+        # Card name -> Scryfall attributes (color identity, types, mana value), behind the
+        # Phase 2 color balance and card mix rules. Without the data (None, a failed lookup)
+        # those rules are skipped; a card missing from it counts as colorless, typeless and
+        # mana value 0 (UNKNOWN_CARD).
+        self.card_attributes = card_attributes
         self.max_color_ratio = max_color_ratio
+        self.card_mix = card_mix
         if not 0 <= variant_weight <= 1:
             raise ValueError(f"variant_weight must be between 0 and 1, got {variant_weight}")
         self.variant_weight = variant_weight
@@ -244,6 +259,27 @@ class ILPOptimizer:
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
+        # The candidate cards each card mix rule counts. Lands are left out of every rule:
+        # they are combo pieces rather than the mix being shaped, and colorless lands would
+        # otherwise fill the colorless cap and colored lands the multicolor cap.
+        self.multicolor_cards = self._nonland_cards_where(lambda a: a.is_multicolor)
+        self.colorless_cards = self._nonland_cards_where(lambda a: a.is_colorless)
+        self.expensive_cards = self._nonland_cards_where(
+            lambda a: is_expensive(a, card_mix.expensive_mana_value)
+        )
+        self.creature_cards = self._nonland_cards_where(lambda a: "Creature" in a.types)
+        self.spell_cards = self._nonland_cards_where(is_spell)
+        # Candidate cards without Scryfall data (None without any). They count as colorless,
+        # typeless and mana value 0; past MAX_UNKNOWN_CARD_SHARE the card mix rules are off.
+        self.unknown_candidate_cards: int | None = (
+            sum(1 for card in self.all_cards if card not in card_attributes)
+            if card_attributes is not None
+            else None
+        )
+        self.card_mix_active: bool = (
+            self.unknown_candidate_cards is not None
+            and self.unknown_candidate_cards <= self.MAX_UNKNOWN_CARD_SHARE * len(self.all_cards)
+        )
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
@@ -1127,16 +1163,75 @@ class ILPOptimizer:
             utilization=card_utilization(cards, self.combos),
         )
 
+    def _attributes_of(self, card: str) -> CardAttributes:
+        """The card's Scryfall attributes; UNKNOWN_CARD when there are none."""
+        return (self.card_attributes or {}).get(card, UNKNOWN_CARD)
+
+    def _cards_where(self, predicate: Callable[[CardAttributes], bool]) -> frozenset[str]:
+        """The candidate cards whose attributes satisfy the predicate."""
+        return frozenset(card for card in self.all_cards if predicate(self._attributes_of(card)))
+
+    def _nonland_cards_where(self, predicate: Callable[[CardAttributes], bool]) -> frozenset[str]:
+        """The candidate nonland cards whose attributes satisfy the predicate."""
+        return self._cards_where(lambda a: not is_land(a) and predicate(a))
+
+    def _balance_ratio(self, ratio: float) -> Fraction | None:
+        """A balance ratio as an integer fraction, or None when there is no constraint."""
+        if self.card_attributes is None or ratio <= 0:
+            return None
+        return hundredths(ratio)
+
     def _color_balance_ratio(self) -> Fraction | None:
         """The color balance ratio as an integer fraction, or None when there is no constraint."""
-        if self.card_colors is None or self.max_color_ratio <= 0:
-            return None
-        return Fraction(self.max_color_ratio).limit_denominator(100)
+        return self._balance_ratio(self.max_color_ratio)
 
     def _cards_of_color(self, color: str, cards: Collection[str]) -> list[str]:
         """The given cards whose color identity includes the color."""
-        colors = self.card_colors or {}
-        return [card for card in cards if color in colors.get(card, "")]
+        return [card for card in cards if color in self._attributes_of(card).color_identity]
+
+    def _mono_cards_of_color(self, color: str, cards: Collection[str]) -> list[str]:
+        """The given nonland cards whose color identity is exactly the color."""
+        return [
+            card
+            for card in cards
+            if (attributes := self._attributes_of(card)).color_identity == color
+            and not is_land(attributes)
+        ]
+
+    def _add_balance(
+        self,
+        base: _BaseModel,
+        name: str,
+        ratio: Fraction,
+        cards_of_color: Callable[[str, Collection[str]], list[str]],
+    ) -> None:
+        """
+        Add the balance constraints: no color has more than `ratio` times the cards of
+        another color, where cards_of_color(color, cards) says which cards count for a
+        color. Written as `den * count[a] <= num * count[b]` for every ordered pair.
+        """
+        counts = {
+            color: sum(base.x[card] for card in cards_of_color(color, self.all_cards))
+            for color in COLORS
+        }
+        constraints = 0
+        for larger, smaller in itertools.permutations(COLORS, 2):
+            base.model.add(ratio.denominator * counts[larger] <= ratio.numerator * counts[smaller])
+            constraints += 1
+        logger.info(
+            f"Phase 2: Added {constraints} {name.replace('_', ' ')} constraints "
+            f"(max ratio {float(ratio):g})"
+        )
+        base.counts[name] = constraints
+
+    @staticmethod
+    def _balance_violations(counts: Mapping[str, int], ratio: Fraction) -> int:
+        """Number of balance constraints (_add_balance) the per-color counts break."""
+        return sum(
+            1
+            for larger, smaller in itertools.permutations(COLORS, 2)
+            if ratio.denominator * counts[larger] > ratio.numerator * counts[smaller]
+        )
 
     def _add_color_balance(self, base: _BaseModel) -> None:
         """
@@ -1147,21 +1242,8 @@ class ILPOptimizer:
         without color data, are not constrained.
         """
         ratio = self._color_balance_ratio()
-        if ratio is None:
-            return
-        counts = {
-            color: sum(base.x[card] for card in self._cards_of_color(color, self.all_cards))
-            for color in COLORS
-        }
-        constraints = 0
-        for larger, smaller in itertools.permutations(COLORS, 2):
-            base.model.add(ratio.denominator * counts[larger] <= ratio.numerator * counts[smaller])
-            constraints += 1
-        logger.info(
-            f"Phase 2: Added {constraints} color balance constraints "
-            f"(max ratio {self.max_color_ratio:g})"
-        )
-        base.counts["color_balance"] = constraints
+        if ratio is not None:
+            self._add_balance(base, "color_balance", ratio, self._cards_of_color)
 
     def _color_violations(self, cards: Collection[str]) -> int:
         """Number of color balance constraints (_add_color_balance) a cube breaks."""
@@ -1169,11 +1251,208 @@ class ILPOptimizer:
         if ratio is None:
             return 0
         counts = {color: len(self._cards_of_color(color, cards)) for color in COLORS}
-        return sum(
-            1
-            for larger, smaller in itertools.permutations(COLORS, 2)
-            if ratio.denominator * counts[larger] > ratio.numerator * counts[smaller]
+        return self._balance_violations(counts, ratio)
+
+    # --- Card mix: shares of the cube by color count, mana value and type ---
+
+    def _cap_count(self, max_share: float) -> int | None:
+        """
+        The most cards a share cap allows, or None when there is no cap: a share that
+        rounds (to hundredths) to 0 or to 1, or too little card data to apply it to.
+        """
+        share = hundredths(max_share)
+        if not self.card_mix_active or not 0 < share < 1:
+            return None
+        return math.floor(share * self.cube_size)
+
+    def _floor_count(self, min_share: float) -> int | None:
+        """The fewest cards a share floor requires, or None when there is no floor."""
+        share = hundredths(min_share)
+        if not self.card_mix_active or share <= 0:
+            return None
+        return math.ceil(share * self.cube_size)
+
+    def _add_share_cap(
+        self, base: _BaseModel, label: str, cards: frozenset[str], max_share: float
+    ) -> None:
+        """At most floor(max_share x cube size) of the given candidate cards in the cube."""
+        limit = self._cap_count(max_share)
+        if limit is None or not cards:
+            return
+        base.model.add(sum(base.x[card] for card in sorted(cards)) <= limit)
+        base.counts[label.replace(" ", "_")] = 1
+        logger.info(
+            f"Phase 2: Added {label} constraint (at most {limit} of {self.cube_size} cards, "
+            f"share {max_share:g}; {len(cards)} candidates)"
         )
+
+    def _share_cap_violations(
+        self, cube: Collection[str], cards: frozenset[str], max_share: float
+    ) -> int:
+        """Whether a cube breaks a share cap (_add_share_cap): 1 or 0."""
+        limit = self._cap_count(max_share)
+        if limit is None:
+            return 0
+        return int(sum(1 for card in cube if card in cards) > limit)
+
+    def _add_share_floor(
+        self, base: _BaseModel, label: str, cards: frozenset[str], min_share: float
+    ) -> None:
+        """At least ceil(min_share x cube size) of the given candidate cards in the cube."""
+        required = self._floor_count(min_share)
+        if required is None:
+            return
+        if not cards:
+            base.model.add_bool_or([])  # no card can count: the floor is unsatisfiable
+        else:
+            base.model.add(sum(base.x[card] for card in sorted(cards)) >= required)
+        base.counts[label.replace(" ", "_")] = 1
+        logger.info(
+            f"Phase 2: Added {label} constraint (at least {required} of {self.cube_size} "
+            f"cards, share {min_share:g}; {len(cards)} candidates)"
+        )
+
+    def _share_floor_violations(
+        self, cube: Collection[str], cards: frozenset[str], min_share: float
+    ) -> int:
+        """Whether a cube breaks a share floor (_add_share_floor): 1 or 0."""
+        required = self._floor_count(min_share)
+        if required is None:
+            return 0
+        return int(sum(1 for card in cube if card in cards) < required)
+
+    def _check_card_mix_pool(self) -> None:
+        """
+        Warn about card mix rules the whole pool cannot meet, before solving: a floor with
+        fewer candidate cards than it requires, and a cap that leaves too few other cards to
+        fill the cube.
+        """
+        for label, cards, share in self._share_caps():
+            limit = self._cap_count(share)
+            if limit is not None and len(self.all_cards) - len(cards) < self.cube_size - limit:
+                logger.warning(
+                    f"Phase 2: the pool has only {len(self.all_cards) - len(cards)} cards "
+                    f"outside the {label}, fewer than the {self.cube_size - limit} the cube "
+                    f"needs beside the {limit} it allows; Phase 2 cannot meet it"
+                )
+        required = self._floor_count(self.card_mix.min_spell_share)
+        if required is not None and len(self.spell_cards) < required:
+            logger.warning(
+                f"Phase 2: the pool has only {len(self.spell_cards)} instants and sorceries, "
+                f"below the spell floor of {required}; Phase 2 cannot meet it"
+            )
+
+    def _mono_color_ratio(self) -> Fraction | None:
+        """The mono-colored balance ratio, or None when there is no constraint."""
+        if not self.card_mix_active:
+            return None
+        return self._balance_ratio(self.card_mix.mono_color_ratio)
+
+    def _add_mono_color_balance(self, base: _BaseModel) -> None:
+        """
+        Add the mono-colored balance: no color has more than mono_color_ratio times the
+        mono-colored cards of another color (the color balance form on the cards whose
+        identity is exactly one color).
+        """
+        ratio = self._mono_color_ratio()
+        if ratio is not None:
+            self._add_balance(base, "mono_color_balance", ratio, self._mono_cards_of_color)
+
+    def _mono_color_violations(self, cards: Collection[str]) -> int:
+        """Number of mono-colored balance constraints a cube breaks."""
+        ratio = self._mono_color_ratio()
+        if ratio is None:
+            return 0
+        counts = {color: len(self._mono_cards_of_color(color, cards)) for color in COLORS}
+        return self._balance_violations(counts, ratio)
+
+    def _share_caps(self) -> list[tuple[str, frozenset[str], float]]:
+        """The share caps: label, the candidate cards that count, the share."""
+        rules = self.card_mix
+        return [
+            ("multicolor cap", self.multicolor_cards, rules.max_multicolor_share),
+            ("colorless cap", self.colorless_cards, rules.max_colorless_share),
+            ("expensive cap", self.expensive_cards, rules.max_expensive_share),
+            ("creature cap", self.creature_cards, rules.max_creature_share),
+        ]
+
+    def _card_mix_rules(self) -> list[_CubeRule]:
+        """The card mix rules (card_mix) as cube rules; a disabled rule adds nothing."""
+        rules = self.card_mix
+        return [
+            *(
+                _CubeRule(
+                    label,
+                    partial(self._add_share_cap, label=label, cards=cards, max_share=share),
+                    partial(self._share_cap_violations, cards=cards, max_share=share),
+                )
+                for label, cards, share in self._share_caps()
+            ),
+            _CubeRule(
+                "spell floor",
+                partial(
+                    self._add_share_floor,
+                    label="spell floor",
+                    cards=self.spell_cards,
+                    min_share=rules.min_spell_share,
+                ),
+                partial(
+                    self._share_floor_violations,
+                    cards=self.spell_cards,
+                    min_share=rules.min_spell_share,
+                ),
+            ),
+            _CubeRule(
+                "mono color balance", self._add_mono_color_balance, self._mono_color_violations
+            ),
+        ]
+
+    def _card_mix_limits(self) -> dict[str, int]:
+        """The card counts each enabled card mix cap and floor applies, by rule name."""
+        limits: dict[str, int] = {}
+        for label, _, share in self._share_caps():
+            limit = self._cap_count(share)
+            if limit is not None:
+                limits[label.replace(" ", "_")] = limit
+        required = self._floor_count(self.card_mix.min_spell_share)
+        if required is not None:
+            limits["spell_floor"] = required
+        return limits
+
+    def _card_mix_info(self) -> dict[str, Any]:
+        """
+        The card mix rules Phase 2 applies and their limits, for the result (None without
+        enough card data), with a warning when the data is missing or incomplete.
+        """
+        enabled = self.card_mix.enabled()
+        unknown = self.unknown_candidate_cards
+        info: dict[str, Any] = {
+            "phase2_card_mix": None,
+            "phase2_card_mix_limits": None,
+            "phase2_unknown_candidate_cards": unknown,
+        }
+        if unknown is None:
+            if enabled:
+                logger.warning(
+                    "Phase 2: no card data from Scryfall; the card mix rules are not enforced"
+                )
+            return info
+        if not self.card_mix_active:
+            if enabled:
+                logger.warning(
+                    f"Phase 2: {unknown} of {len(self.all_cards)} candidate cards "
+                    f"({unknown / len(self.all_cards):.0%}) have no Scryfall data, more than "
+                    f"{self.MAX_UNKNOWN_CARD_SHARE:.0%}; the card mix rules are not enforced"
+                )
+            return info
+        if enabled and unknown:
+            logger.warning(
+                f"Phase 2: {unknown} of {len(self.all_cards)} candidate cards have no Scryfall "
+                f"data; they count as colorless, typeless and mana value 0"
+            )
+        info["phase2_card_mix"] = self.card_mix
+        info["phase2_card_mix_limits"] = self._card_mix_limits() or None
+        return info
 
     def _coverage_violations(self, cards: Collection[str]) -> int:
         """Number of Phase 2 coverage constraints (_add_coverage_constraints) a cube breaks."""
@@ -1216,7 +1495,7 @@ class ILPOptimizer:
         """
         if not self.has_color_identities:
             return None
-        share = Fraction(self.max_wide_combo_share).limit_denominator(100)
+        share = hundredths(self.max_wide_combo_share)
         return share if 0 < share < 1 else None
 
     @staticmethod
@@ -1390,6 +1669,7 @@ class ILPOptimizer:
                 self._archetype_minimum_violations,
             ),
             _CubeRule("wide combo cap", self._add_wide_combo_cap, self._wide_cap_violations),
+            *self._card_mix_rules(),
         ]
 
     def _add_cube_rules(self, base: _BaseModel) -> None:
@@ -1545,7 +1825,7 @@ class ILPOptimizer:
         from. Returns (warm start, reference).
 
         The reference is the cube with the highest combo score found under the Phase 2 cube
-        rules (coverage, color balance, archetype support). Phase 1 ignores those rules, so
+        rules (coverage, color balance, archetype support, card mix). Phase 1 ignores them, so
         measuring the combo tolerance from the Phase 1 score can leave no feasible cube at
         all.
 
@@ -1936,7 +2216,7 @@ class ILPOptimizer:
             if (
                 self.min_pair_combos
                 or self.min_mono_combos
-                or 0 < Fraction(self.max_wide_combo_share).limit_denominator(100) < 1
+                or 0 < hundredths(self.max_wide_combo_share) < 1
             ):
                 logger.warning(
                     "Phase 2: the combos have no color identities; archetype support is not "
@@ -1962,8 +2242,9 @@ class ILPOptimizer:
         The model is the base model plus:
         - Combo score held at the reference score (within combo_tolerance): the best cube
           found under the Phase 2 cube rules (_build_warm_start)
-        - The Phase 2 cube rules (_cube_rules): coverage, color balance when color data and a
-          ratio are configured, and the archetype minimums and wide combo cap when set
+        - The Phase 2 cube rules (_cube_rules): coverage, color balance when card data and a
+          ratio are configured, the archetype minimums and wide combo cap when set, and the
+          card mix rules (card_mix) when set and card data is available
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j
         - Utilization variables: u[c] = completed combos card c participates in
         - The utilization floor for selected cards
@@ -1984,13 +2265,15 @@ class ILPOptimizer:
         profile_result = ProfileResult(phase=objective.label) if profile else None
         util_cap = self._resolve_util_cap(p1) if objective.uses_util_cap else None
         color_ratio = self.max_color_ratio if self._color_balance_ratio() is not None else None
-        if self.card_colors is None and self.max_color_ratio > 0:
-            logger.warning("Phase 2: no card color data; color balance is not enforced")
+        if self.card_attributes is None and self.max_color_ratio > 0:
+            logger.warning("Phase 2: no card data from Scryfall; color balance is not enforced")
         if util_cap is not None:
             source = "--util-cap" if self.util_cap is not None else "2 x Phase 1 median"
             logger.info(f"Phase 2: utilization cap T = {util_cap} ({source})")
         archetype_info = self._archetype_info()
         self._check_archetype_pool()
+        card_mix_info = self._card_mix_info()
+        self._check_card_mix_pool()
 
         warm_start, reference = self._build_warm_start(phase1_result, profile_result)
         reference_score = self._combo_score(reference.combo_ids)
@@ -2045,6 +2328,7 @@ class ILPOptimizer:
                 phase2_util_cap=util_cap,
                 phase2_max_color_ratio=color_ratio,
                 **archetype_info,
+                **card_mix_info,
                 **reference_info,
                 profile_data=profile_data,
             )
@@ -2082,6 +2366,7 @@ class ILPOptimizer:
             phase2_util_cap=util_cap,
             phase2_max_color_ratio=color_ratio,
             **archetype_info,
+            **card_mix_info,
             **reference_info,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,

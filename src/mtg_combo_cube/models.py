@@ -1,4 +1,45 @@
+"""Models of the card data: Commander Spellbook responses and Scryfall card attributes."""
+
+from dataclasses import dataclass
+
 from pydantic import BaseModel, Field
+
+EM_DASH = "—"  # separates the card types from the subtypes in a Scryfall type line
+
+
+@dataclass(frozen=True)
+class CardAttributes:
+    """
+    What a build knows about a card, from Scryfall: the data behind the color balance, the
+    card mix rules and the color and card mix statistics.
+    """
+
+    color_identity: str  # WUBRG letters in that order, "" for colorless
+    # The Scryfall type line; a multi-faced card has one per face, joined with " // "
+    type_line: str = ""
+    # Scryfall's cmc: the front face's for a double-faced card, both halves for a split card
+    mana_value: float = 0.0
+
+    @property
+    def types(self) -> frozenset[str]:
+        """
+        The types of the card's front face: the words of its type line before the em dash,
+        so "Legendary Artifact Creature" gives Legendary, Artifact and Creature.
+        """
+        front = self.type_line.split(" // ")[0]
+        return frozenset(front.split(EM_DASH)[0].split())
+
+    @property
+    def is_multicolor(self) -> bool:
+        return len(self.color_identity) >= 2
+
+    @property
+    def is_colorless(self) -> bool:
+        return not self.color_identity
+
+
+# What a card without Scryfall data counts as: colorless, typeless, mana value 0
+UNKNOWN_CARD = CardAttributes(color_identity="")
 
 
 class Card(BaseModel):

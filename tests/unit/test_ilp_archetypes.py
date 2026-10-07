@@ -391,12 +391,16 @@ class TestViolations:
     def test_every_cube_rule_is_checked(self):
         optimizer = make_optimizer(PAIRS, cube_size=15, min_pair_combos=1, max_wide_combo_share=0.5)
 
-        assert optimizer._cube_rule_violations(["W1", "W2", "W3"]) == {
-            "coverage": 0,
-            "color balance": 0,
-            "archetype minimum": 6,
-            "wide combo cap": 0,
-        }
+        violations = optimizer._cube_rule_violations(["W1", "W2", "W3"])
+
+        assert violations["archetype minimum"] == 6
+        assert {label for label, count in violations.items() if count} == {"archetype minimum"}
+        assert list(violations)[:4] == [
+            "coverage",
+            "color balance",
+            "archetype minimum",
+            "wide combo cap",
+        ]
 
 
 class TestMixedIdentityGroups:

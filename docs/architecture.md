@@ -32,9 +32,12 @@ flowchart TD
     LOAD --> PRE["ilp/combo_preprocessor.py<br/>Variant -> ComboData"]
     PRE --> SF["scryfall/scryfall_fetcher.py<br/>ScryfallFetcher"]
 
+    ILPR --> CAF["scryfall/card_attribute_fetcher.py<br/>CardAttributeFetcher"]
+    CAF --> SF
+
     ILPR --> OPT["ilp/ilp_optimizer.py<br/>ILPOptimizer"]
-    OPT --> P1["Phase 1<br/>maximize combo count"]
-    P1 --> P2["Phase 2<br/>balance utilization"]
+    OPT --> P1["Phase 1<br/>maximize combo score"]
+    P1 --> P2["Phase 2<br/>balance utilization<br/>under the cube rules"]
     OPT --> EVAL["ilp/cube_evaluation.py<br/>ground-truth scoring"]
 
     ILPR --> OUT["cube .txt + _stats.json"]
@@ -58,18 +61,18 @@ All code lives under `src/mtg_combo_cube/`.
 |--------|----------------|
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
 | `runner.py` | Loads the blocklist and dispatches to the ILP or greedy runner. |
-| `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...). |
+| `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
 | `blocklist.py` | Reads `data/blocklist.txt`: one card name per line, `#` comments allowed. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
-| `scryfall/card_color_fetcher.py` | `CardColorFetcher`: color identities of named cards, with its own disk cache. Used by the color balance constraint and the color statistics. |
+| `scryfall/card_attribute_fetcher.py` | `CardAttributeFetcher`: the `CardAttributes` of named cards, with its own disk cache. Used by the color balance and card mix rules and the color and card mix statistics. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
-| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed combos, utilization, statistics, color distribution. |
+| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, color distribution, card mix. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -134,11 +137,15 @@ blocklist and limit afterwards, so the cache stays valid when those change.
 - **Outcomes:** a 404 means "no cards match" and is cached as an empty result. A failure is
   never cached.
 
-`CardColorFetcher` looks up the color identity of every candidate card before the solve, in batches
-of 75 names through the Scryfall collection endpoint. It sends its requests through a
-`ScryfallFetcher`, so the same politeness and retry rules apply, and caches results in
-`data/cache/scryfall_card_colors.json`. The colors feed the Phase 2 color balance constraint
-and the color statistics. After a failed lookup the run continues without either.
+`CardAttributeFetcher` looks up every candidate card before the solve, in batches of 75 names
+through the Scryfall collection endpoint, and keeps three things per card as a
+`CardAttributes`: the color identity (WUBRG letters), the type line and the mana value
+(Scryfall's `cmc`: the front face's for a double-faced card, the sum for a split card). A
+card's types are the words of its front face's type line before the em dash. It sends its
+requests through a `ScryfallFetcher`, so the same politeness and retry rules apply, and caches
+results in `data/cache/scryfall_card_attributes.json` (version 1; an older or malformed file
+is treated as empty). The attributes feed the Phase 2 color balance and card mix rules and the
+color and card mix statistics. After a failed lookup the run continues without them.
 
 ### Cache flags
 
@@ -150,7 +157,7 @@ The greedy builder uses the Scryfall cache but always calls the Spellbook API li
 
 `precache.py` (`task precache`) fills all three caches for one configuration without solving
 anything. It runs the same steps as a build: fetch the variants, preprocess them with the
-blocklist, look up the colors of the candidate cards. Its arguments are the values that decide
+blocklist, look up the attributes of the candidate cards. Its arguments are the values that decide
 what a build reads: `--max-variants` and `--max-cards-in-combo` name the variants file, and
 `--blocklist` decides which templates and cards are looked up.
 
@@ -183,7 +190,8 @@ g[k] <= sum_{j in k} y[j],  g[k] >= y[j]        for each group k of two or more 
 
 The `y` constraints only stop `y[j]` from being 1 when the cube is missing something. That is
 sufficient whenever `y` is being maximized. `g` is exact in both directions; the group
-variables exist only when `--variant-weight` is below 1 (otherwise they are not needed).
+variables exist when `--variant-weight` is below 1 (the score needs them) or an archetype rule
+is on (the rules count groups), and are left out otherwise.
 
 ### Combo score
 
@@ -237,8 +245,8 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
 6. **Color balance.** For every ordered pair of colors, `count[a] <= ratio * count[b]`, with
    `--max-color-ratio` (default 2) written as an integer fraction. `count` is the number of
    selected cards whose color identity includes the color, so a multicolor card counts once
-   per color. Colorless cards are unconstrained. The rule is skipped when the ratio is 0 or
-   no color data could be fetched.
+   per color. Colorless cards are unconstrained here (the colorless cap below limits them).
+   The rule is skipped when the ratio is 0 or no card data could be fetched.
 7. **Archetype minimums.** For each of the ten two-color pairs, the number of completed
    combos (groups) whose color identity fits within the pair is at least
    `--min-pair-combos` (default 250); for each mono color, at least `--min-mono-combos`
@@ -254,14 +262,30 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    cannot meet the cap by leaving `y` at 0 for a wide combo the cube completes. Both
    archetype rules are skipped at 0 (the cap also at 1), and when the combos carry no color
    identities.
-9. **The objective**, chosen with `--phase2-objective`.
-10. **Warm start.** The model is hinted with a starting cube.
+9. **Card mix caps and floor.** For each of multicolor, colorless, expensive
+   (`--expensive-mana-value` or more, default 5) and creature cards, the selected cards with
+   that attribute number at most `floor(share x cube size)`, with `--max-multicolor-share`
+   (default 0.15), `--max-colorless-share` (0.25), `--max-expensive-share` (0.2) and
+   `--max-creature-share` (0.6); and at least `ceil(--min-spell-share x cube size)` (0.05)
+   selected cards are instants or sorceries. Each is one linear constraint over the
+   candidate cards that count for it, decided from the Scryfall attributes before the solve.
+   Lands are left out of every card mix rule, and a card without attributes counts as
+   colorless, typeless and mana value 0. Shares are rounded to hundredths; a share of 0
+   skips a rule (a cap of 1 too), and so does missing card data: none at all, or more than
+   5% of the candidates without it. Before the solve, a warning names any rule the pool
+   cannot meet (too few candidates for the floor, or too few cards outside a cap to fill
+   the cube).
+10. **Mono-colored balance.** `--mono-color-ratio` (default 0, off) applies the color balance
+    form to the cards whose identity is exactly one color.
+11. **The objective**, chosen with `--phase2-objective`.
+12. **Warm start.** The model is hinted with a starting cube.
 
-Coverage, color balance, the archetype minimums and the wide combo cap are the *cube rules*
-(`_cube_rules`): each is a pair of `add(base)` and `violations(cards)`, and the list is
-applied by the Phase 2 model, by the warm-start repair models and by the check that decides
-whether the Phase 1 cube needs repairing. A new hard constraint on the cube is one entry in
-that list.
+Coverage, color balance, the archetype minimums, the wide combo cap and the card mix rules are
+the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and `violations(cards)`, and
+the list is applied by the Phase 2 model, by the warm-start repair models and by the check
+that decides whether the Phase 1 cube needs repairing. A new hard constraint on the cube is
+one entry in that list; the card mix rules are built from one share-cap helper and one
+share-floor helper (`_card_mix_rules`).
 
 #### Objectives
 
@@ -292,10 +316,12 @@ Phase 1 cube's overage instead.
 
 #### Reference cube and warm start
 
-Phase 1 ignores the cube rules, and at larger pool sizes coverage and color balance cost
-close to 10% of the combos by themselves. Measuring the combo window from the Phase 1 count then
-leaves no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2
-model is built, both in the small Phase 1 model with the cube rules added:
+Phase 1 ignores the cube rules, and at full size they are expensive: coverage and color
+balance alone cost close to 10% of the combos, and with the archetype rules and the card mix
+the reference cube scores about a quarter below the Phase 1 cube (1,220 against 1,599 weighted
+combos in the tracked run). Measuring the combo window from the Phase 1 count would then leave
+no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
+is built, both in the small Phase 1 model with the cube rules added:
 
 1. **Reference cube** (`_best_constrained_cube`). If the Phase 1 cube breaks a cube rule, the
    combo score is maximized under all of them, hinted with the Phase 1 cube, for at most 20%
@@ -315,9 +341,12 @@ model is hinted with the repaired cube, or with the reference cube if the repair
 
 If Phase 2 finds no solution, the Phase 1 result is returned with `phase2_fell_back` set, along
 with the Phase 2 status, time and profile. The stats file then reports
-`two_phase_fallback_to_phase1`. With archetype minimums set, a warning before the solve names
-any archetype the whole pool has too few combos for, and the fallback warning names the
-archetypes the Phase 1 cube falls short on.
+`two_phase_fallback_to_phase1`. Two warnings help place the cause. Before the solve, a pool
+check names any archetype the whole pool has too few combos for and any card mix rule the pool
+cannot meet (too few instants and sorceries for the floor, too few cards outside a cap). After
+a failure, the fallback warning says whether a cube satisfying the rules was found at all: if
+not, it lists the rules the Phase 1 cube still breaks (with the archetypes below their
+minimum); if so, the cause lies in the combo window, the utilization floor or the time limit.
 
 ### Ground-truth reporting
 
@@ -326,9 +355,11 @@ No reported number is read from the solver's `y` or `g` variables. After each so
 variants are complete, how many distinct combos they belong to (`completable_group_keys`), the
 groups with the most completed variants (`largest_combo_groups`), the distinct combos each
 draft archetype can assemble (`compute_archetype_stats`) and each card's utilization.
-If the solver's view disagrees, a warning is logged. The same functions back the
-`evaluate_cube` command, so a cube file scored later gives the same numbers as the run that
-produced it.
+If the solver's view disagrees, a warning is logged. The color distribution and the card mix
+(`compute_color_stats`, `compute_card_mix_stats`) are computed by the runner from the selected
+cards and their Scryfall attributes when it writes the log and the stats file. The same
+functions back the `evaluate_cube` command, so a cube file scored later gives the same numbers
+as the run that produced it.
 
 ### Solver configuration
 
@@ -356,7 +387,7 @@ It ignores the ILP-only flags, including `--max-variants`.
 | File | Written by | Contents |
 |------|------------|----------|
 | `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution and combos per draft archetype, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype and card mix, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and
@@ -369,11 +400,16 @@ Each phase block has a `colors` entry computed from card color identities: cards
 colorless cards, and the variance and standard deviation of the five per-color counts. It
 also has an `archetypes` entry: `combos_per_archetype`, the distinct combos whose color
 identity fits each of the ten color pairs, the five mono colors and `C` (colorless), and
-`combos_by_color_count`, the distinct combos by the number of colors they need. The `phase2`
-block records the archetype settings that were applied.
+`combos_by_color_count`, the distinct combos by the number of colors they need. A `card_mix`
+entry gives the cards per type, the multicolor and colorless counts (nonland cards, as the
+two caps count them), and the mana value histogram and means (overall and per color) of the
+nonland cards. The `phase2` block records the archetype settings that were applied, the card
+mix settings in force as `card_mix_rules` with the card counts they applied as
+`card_mix_limits`, and the number of candidate cards without Scryfall data.
 
-`data/current_best_cube.txt` and its stats file are the tracked reference result (the default
-settings, including `--variant-weight 0.1` and the archetype minimums). Everything else under `data/` is ignored by git,
+`data/current_best_cube.txt` and its stats file are the tracked reference result: the default
+settings (`--variant-weight 0.1`, the archetype minimums and the card mix rules) at 300 cards
+and 20,000 variants with 360 s per phase. Everything else under `data/` is ignored by git,
 including `data/cache/`.
 
 ## Testing
@@ -383,10 +419,15 @@ type checking.
 
 - **Optimizer:** behavior tests, characterization tests on a fixed small instance solved to
   optimality with one worker, and brute-force checks of each Phase 2 objective's optimum.
-- **Evaluation:** the completion and utilization functions.
-- **Data layer:** the Scryfall fetcher against a fake HTTP session (cache hit and miss, retries,
-  failures, 404), the preprocessor, the requirement normalizer, the blocklist.
-- **Wiring:** a test that defaults agree across the CLI, both runners and the optimizer.
+- **Cube rules:** one module each for combo grouping, color balance, archetype support and the
+  card mix, on hand-built instances where Phase 1 breaks the rule and Phase 2 must repair it;
+  they also cover the violation counters, the pool checks and the fallback messages.
+- **Evaluation:** the completion, grouping, utilization, archetype, color and card mix functions.
+- **Data layer:** the Scryfall fetchers against a fake HTTP session (cache hit and miss, cache
+  versions, retries, failures, 404), the preprocessor, the requirement normalizer, the blocklist
+  and the precache script.
+- **Wiring:** a test that defaults agree across the CLI, both runners and the optimizer, and
+  that every option reaches the optimizer and the stats file.
 
 No test touches the network.
 
@@ -402,8 +443,12 @@ These are open design questions rather than defects. Details are in
   variants of one combo looks like a hub (see
   [plans/combo-grouping-plan.md](plans/combo-grouping-plan.md), Step 2).
 - **Color balance is all or nothing.** The rule requires every color to be present and is a
-  hard constraint. Mono-colored counts are not balanced separately, and colorless cards have
-  no limit. See [plans/color-balance-plan.md](plans/color-balance-plan.md).
+  hard constraint, and so is the optional mono-colored balance (`--mono-color-ratio`). See
+  [plans/color-balance-plan.md](plans/color-balance-plan.md).
+- **The card mix is coarse.** The caps and the spell floor are hard shares of the whole cube:
+  there is no per-color mana curve, the instants and sorceries the floor brings in are combo
+  pieces rather than chosen interaction, and a multi-faced card is typed by its front face.
+  See [plans/card-mix-plan.md](plans/card-mix-plan.md).
 - **Archetype minimums are absolute counts.** `--min-pair-combos` and `--min-mono-combos`
   do not scale with the cube size or the pool, so the defaults fit the default
   configuration only and a smaller run must lower them or pass 0. A share of the completed
@@ -412,8 +457,9 @@ These are open design questions rather than defects. Details are in
 - **The reference count is not a proven maximum.** It comes from a time-limited solve, so it
   varies a little between runs, and with it the combo window. A combo tolerance of 0 can
   still be infeasible because of the utilization floor.
-- **Phase 2 does not finish early at full size.** At 300 cards and 10,000 variants it runs to
-  its time limit and returns the best cube found.
+- **Phase 2 does not finish early at full size.** At the default configuration (300 cards,
+  20,000 variants) it runs to its time limit and returns the best cube found, and the
+  reference solve and warm-start repair take about a quarter of that time.
 - **Phase 1 is not proven optimal with grouping.** With `--variant-weight` below 1 the group
   variables make Phase 1 run to its time limit at 300 cards and 20,000 variants (an 8% gap at
   the default 0.1 after 300 s). There is no separate Phase 1 gap or time setting.
