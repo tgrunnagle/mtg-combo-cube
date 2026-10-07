@@ -78,6 +78,8 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["reference_distinct_combo_count"] = result.phase2_reference_distinct_combo_count
     if result.phase2_reference_weighted_combo_count is not None:
         info["reference_weighted_combo_count"] = result.phase2_reference_weighted_combo_count
+    if result.phase2_combo_tolerance is not None:
+        info["combo_tolerance"] = result.phase2_combo_tolerance
     return info
 
 
@@ -102,11 +104,35 @@ def _phase1_distinct_combo_count(result: OptimizationResult) -> int | None:
     return None if result.is_multi_objective else result.distinct_combo_count
 
 
-def format_combo_count(variants: int, groups: int | None) -> str:
-    """'X variants in G combos', or just the variant count without group data."""
+def _phase1_weighted_combo_count(result: OptimizationResult) -> float | None:
+    """The weighted combo count of the Phase 1 cube, when recorded."""
+    if result.phase1_weighted_combo_count is not None:
+        return result.phase1_weighted_combo_count
+    return None if result.is_multi_objective else result.weighted_combo_count
+
+
+def _grouping_counts(distinct: int | None, weighted: float | None) -> dict:
+    """The grouping entries of a phase block; left out when the result has no grouping data."""
+    counts: dict = {}
+    if distinct is not None:
+        counts["distinct_combo_count"] = distinct
+    if weighted is not None:
+        counts["weighted_combo_count"] = weighted
+    return counts
+
+
+def format_combo_count(variants: int, groups: int | None, weighted: float | None = None) -> str:
+    """
+    'X variants in G combos (weighted W)': the weighted count is shown when it differs from
+    the variant count, i.e. when the variant weight is below 1. Without group data, just
+    the variant count.
+    """
     if groups is None:
         return f"{variants} variants"
-    return f"{variants} variants in {groups} combos"
+    text = f"{variants} variants in {groups} combos"
+    if weighted is not None and weighted != variants:
+        text += f" (weighted {weighted:.1f})"
+    return text
 
 
 def _color_stats(
@@ -140,17 +166,25 @@ def log_phase_summary(
 ) -> None:
     """Log the combo count and color distribution of each phase's cube."""
     phase1_count = _phase1_combo_count(result)
-    phase1_text = format_combo_count(phase1_count or 0, _phase1_distinct_combo_count(result))
+    phase1_text = format_combo_count(
+        phase1_count or 0,
+        _phase1_distinct_combo_count(result),
+        _phase1_weighted_combo_count(result),
+    )
     if result.is_multi_objective and phase1_count:
         change = 100 * (result.combo_count - phase1_count) / phase1_count
         reference = result.phase2_reference_combo_count
         constrained = ""
         if reference:
             reference_text = format_combo_count(
-                reference, result.phase2_reference_distinct_combo_count
+                reference,
+                result.phase2_reference_distinct_combo_count,
+                result.phase2_reference_weighted_combo_count,
             )
             constrained = f", best under coverage and color {reference_text}"
-        phase2_text = format_combo_count(result.combo_count, result.distinct_combo_count)
+        phase2_text = format_combo_count(
+            result.combo_count, result.distinct_combo_count, result.weighted_combo_count
+        )
         logger.info(
             f"Combos: Phase 1 {phase1_text}{constrained}, "
             f"Phase 2 {phase2_text} ({change:+.1f}% variants from Phase 1)"
@@ -199,8 +233,9 @@ def write_stats(
         "top_utilized_cards": [],
         "bottom_utilized_cards": [],
     }
-    if result.distinct_combo_count is not None:
-        stats["metadata"]["distinct_combo_count"] = result.distinct_combo_count
+    stats["metadata"].update(
+        _grouping_counts(result.distinct_combo_count, result.weighted_combo_count)
+    )
     if result.variant_weight is not None:
         stats["metadata"]["variant_weight"] = result.variant_weight
 
@@ -209,7 +244,9 @@ def write_stats(
         p1 = result.phase1_utilization_stats
         stats["phase1"] = {
             "combo_count": _phase1_combo_count(result),
-            "distinct_combo_count": _phase1_distinct_combo_count(result),
+            **_grouping_counts(
+                _phase1_distinct_combo_count(result), _phase1_weighted_combo_count(result)
+            ),
             "solve_time_seconds": result.phase1_solve_time,
             "min_utilization": p1.min_utilization,
             "max_utilization": p1.max_utilization,
@@ -225,7 +262,7 @@ def write_stats(
         p2 = result.phase2_utilization_stats
         stats["phase2"] = {
             "combo_count": result.combo_count,
-            "distinct_combo_count": result.distinct_combo_count,
+            **_grouping_counts(result.distinct_combo_count, result.weighted_combo_count),
             "solve_time_seconds": result.phase2_solve_time,
             "status": result.phase2_status,
             "min_utilization": p2.min_utilization,
@@ -563,7 +600,11 @@ async def run_ilp(
         variant_weight=variant_weight,
     )
 
-    logger.info(f"ILP result: {len(cards)} cards, {combo_count} combos ({result.phase1_status})")
+    logger.info(
+        f"ILP result: {len(cards)} cards, "
+        f"{format_combo_count(combo_count, result.distinct_combo_count)} "
+        f"({result.phase1_status})"
+    )
 
     with open(output_file, "w", encoding="utf-8") as f:
         f.write("\n".join(cards))

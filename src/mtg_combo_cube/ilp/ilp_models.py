@@ -177,9 +177,12 @@ class OptimizationResult:
     solve_time_seconds: float
     phase1_status: str  # "OPTIMAL", "FEASIBLE", "INFEASIBLE", "TIMEOUT"
 
-    # Combo grouping: completed variants belong to this many distinct combos (groups)
+    # Combo grouping: completed variants belong to this many distinct combos (groups), and
+    # count this much with variant_weight (groups + variant_weight x further variants)
     distinct_combo_count: int | None = None
+    weighted_combo_count: float | None = None
     phase1_distinct_combo_count: int | None = None
+    phase1_weighted_combo_count: float | None = None
     largest_combo_groups: list[ComboGroupStats] | None = None  # top groups by variants
     variant_weight: float | None = None  # value of each further variant of a completed group
 
@@ -200,6 +203,7 @@ class OptimizationResult:
     # The quantity the window holds: groups + variant_weight x further variants of the
     # reference cube (equal to phase2_reference_combo_count when variant_weight is 1)
     phase2_reference_weighted_combo_count: float | None = None
+    phase2_combo_tolerance: float | None = None  # the window half-width, as a fraction
     is_multi_objective: bool = False
     # True when Phase 2 ran but found no solution, so this is the Phase 1 cube. phase2_status
     # and phase2_solve_time then describe the failed Phase 2 attempt.

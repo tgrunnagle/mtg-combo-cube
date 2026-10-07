@@ -4,7 +4,7 @@ import itertools
 import logging
 import math
 import time
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Callable, Collection, Mapping
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
@@ -16,9 +16,10 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     COLORS,
     card_utilization,
     completable_combo_ids,
-    completable_group_keys,
+    completed_group_sizes,
     compute_utilization_stats,
     largest_combo_groups,
+    weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     CandidateCard,
@@ -90,6 +91,7 @@ class _Solution:
     selected_cards: list[CandidateCard]
     completable_combo_ids: list[str]
     distinct_combo_count: int
+    weighted_combo_count: float
     largest_combo_groups: list[ComboGroupStats]
     utilization_per_card: dict[str, int]
     utilization_stats: UtilizationStats
@@ -199,8 +201,15 @@ class ILPOptimizer:
         for combo in combos:
             groups[combo.group_key].append(combo)
         self.combo_groups: dict[str, list[ComboData]] = dict(groups)
+        self.combo_group: dict[str, str] = {combo.id: combo.group_key for combo in combos}
         self.variant_scale: int = round(variant_weight * self.WEIGHT_SCALE)
         self.group_scale: int = self.WEIGHT_SCALE - self.variant_scale
+        # Groups that get a g variable: two or more variants, and variant_weight < 1
+        self.grouped_keys: frozenset[str] = (
+            frozenset(key for key, members in self.combo_groups.items() if len(members) > 1)
+            if self.group_scale
+            else frozenset()
+        )
 
         logger.info(
             f"ILP Optimizer initialized: {len(self.combos)} combos in "
@@ -209,34 +218,32 @@ class ILPOptimizer:
         )
 
     def _grouped_keys(self) -> list[str]:
-        """Keys of the groups that get a g variable: two or more variants, variant_weight < 1."""
-        if self.group_scale == 0:
-            return []
-        return [key for key, combos in self.combo_groups.items() if len(combos) > 1]
+        """Keys of the groups that get a g variable, in instance order."""
+        return [key for key in self.combo_groups if key in self.grouped_keys]
 
-    def _group_keys_of(self, combo_ids: Collection[str]) -> set[str]:
-        """The groups the given combos belong to."""
-        ids = combo_ids if isinstance(combo_ids, (set, frozenset)) else set(combo_ids)
-        return {combo.group_key for combo in self.combos if combo.id in ids}
+    def _group_sizes_of(self, combo_ids: Collection[str]) -> Counter[str]:
+        """Completed variants per group for the given completed variant ids."""
+        return Counter(self.combo_group[combo_id] for combo_id in combo_ids)
 
     def _combo_score(self, combo_ids: Collection[str]) -> int:
-        """The combo score of a set of completed combos, in WEIGHT_SCALE units."""
-        ids = combo_ids if isinstance(combo_ids, (set, frozenset)) else set(combo_ids)
-        grouped = set(self._grouped_keys())
+        """
+        The combo score of a set of completed variants, in WEIGHT_SCALE units.
+
+        This is the integer the model uses; it equals WEIGHT_SCALE times
+        cube_evaluation.weighted_combo_count when variant_weight x WEIGHT_SCALE is a whole
+        number, and differs by rounding otherwise.
+        """
         score = 0
-        for key, combos in self.combo_groups.items():
-            completed = sum(1 for combo in combos if combo.id in ids)
-            if completed == 0:
-                continue
-            if key in grouped:
+        for key, completed in self._group_sizes_of(combo_ids).items():
+            if key in self.grouped_keys:
                 score += self.group_scale + self.variant_scale * completed
             else:
                 score += self.WEIGHT_SCALE * completed
         return score
 
     def _weighted_combo_count(self, combo_ids: Collection[str]) -> float:
-        """The combo score in combo units: groups + variant_weight x further variants."""
-        return self._combo_score(combo_ids) / self.WEIGHT_SCALE
+        """The reported weighted count: groups + variant_weight x further variants."""
+        return weighted_combo_count(self._group_sizes_of(combo_ids), self.variant_weight)
 
     def _combo_score_expr(self, base: _BaseModel) -> cp_model.LinearExpr:
         """The combo score as a linear expression over y and g, in WEIGHT_SCALE units."""
@@ -1123,7 +1130,7 @@ class ILPOptimizer:
 
     def _hint_group_vars(self, base: _BaseModel, combo_ids: set[str]) -> int:
         """Hint every g variable with the groups the combos belong to; returns the hint count."""
-        completed_groups = self._group_keys_of(combo_ids)
+        completed_groups = self._group_sizes_of(combo_ids).keys()
         for key, g in base.g.items():
             base.model.add_hint(g, 1 if key in completed_groups else 0)
         return len(base.g)
@@ -1201,7 +1208,7 @@ class ILPOptimizer:
 
     def _describe_combos(self, combo_ids: Collection[str]) -> str:
         """'N combos (G groups)' for log messages, with the weighted count when it differs."""
-        groups = len(self._group_keys_of(combo_ids))
+        groups = len(self._group_sizes_of(combo_ids))
         text = f"{len(combo_ids)} combos ({groups} groups"
         if self.group_scale:
             text += f", weighted {self._weighted_combo_count(combo_ids):.1f}"
@@ -1385,8 +1392,10 @@ class ILPOptimizer:
         # Calculate requirement type stats
         selected_name_set = set(selected_names)
         completed_set = set(completed)
-        distinct_combo_count = len(completable_group_keys(selected_name_set, self.combos))
-        combo_groups = largest_combo_groups(selected_name_set, self.combos)
+        group_sizes = completed_group_sizes(completed_set, self.combos)
+        combo_groups = largest_combo_groups(
+            selected_name_set, self.combos, completed_ids=completed_set
+        )
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 
@@ -1403,7 +1412,8 @@ class ILPOptimizer:
         return _Solution(
             selected_cards=selected,
             completable_combo_ids=completed,
-            distinct_combo_count=distinct_combo_count,
+            distinct_combo_count=len(group_sizes),
+            weighted_combo_count=weighted_combo_count(group_sizes, self.variant_weight),
             largest_combo_groups=combo_groups,
             utilization_per_card=utilization,
             utilization_stats=utilization_stats,
@@ -1510,7 +1520,9 @@ class ILPOptimizer:
             solve_time_seconds=solve_time,
             phase1_status=status_str,
             distinct_combo_count=solution.distinct_combo_count,
+            weighted_combo_count=solution.weighted_combo_count,
             phase1_distinct_combo_count=solution.distinct_combo_count,
+            phase1_weighted_combo_count=solution.weighted_combo_count,
             largest_combo_groups=solution.largest_combo_groups,
             variant_weight=self.variant_weight,
             utilization_per_card=solution.utilization_per_card,
@@ -1623,8 +1635,11 @@ class ILPOptimizer:
         reference_score = self._combo_score(reference.combo_ids)
         reference_info: dict[str, Any] = {
             "phase2_reference_combo_count": len(reference.combo_ids),
-            "phase2_reference_distinct_combo_count": len(self._group_keys_of(reference.combo_ids)),
-            "phase2_reference_weighted_combo_count": reference_score / self.WEIGHT_SCALE,
+            "phase2_reference_distinct_combo_count": len(self._group_sizes_of(reference.combo_ids)),
+            "phase2_reference_weighted_combo_count": self._weighted_combo_count(
+                reference.combo_ids
+            ),
+            "phase2_combo_tolerance": self.combo_tolerance,
         }
 
         build_start = time.perf_counter()
@@ -1688,7 +1703,9 @@ class ILPOptimizer:
             solve_time_seconds=phase1_solve_time + phase2_time,
             phase1_status=phase1_result.phase1_status,
             distinct_combo_count=solution.distinct_combo_count,
+            weighted_combo_count=solution.weighted_combo_count,
             phase1_distinct_combo_count=phase1_result.distinct_combo_count,
+            phase1_weighted_combo_count=phase1_result.weighted_combo_count,
             largest_combo_groups=solution.largest_combo_groups,
             variant_weight=self.variant_weight,
             utilization_per_card=solution.utilization_per_card,

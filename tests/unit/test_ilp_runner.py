@@ -14,7 +14,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     OptimizationResult,
     UtilizationStats,
 )
-from mtg_combo_cube.ilp.ilp_runner import log_phase_summary, write_stats
+from mtg_combo_cube.ilp.ilp_runner import format_combo_count, log_phase_summary, write_stats
 
 
 def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
@@ -558,8 +558,9 @@ class TestWriteStatsCombosAndColors:
 
         assert stats["phase1"]["combo_count"] == 1
         assert stats["phase1"]["colors"]["mono_colored"]["G"] == 1
-        # No grouping data recorded: the keys are present but empty
-        assert stats["phase1"]["distinct_combo_count"] is None
+        # Without grouping data the grouping keys are left out everywhere
+        assert "distinct_combo_count" not in stats["phase1"]
+        assert "weighted_combo_count" not in stats["phase1"]
         assert "distinct_combo_count" not in stats["metadata"]
         assert "variant_weight" not in stats["metadata"]
         assert "largest_combo_groups" not in stats
@@ -568,7 +569,9 @@ class TestWriteStatsCombosAndColors:
         result = replace(
             self._two_phase_result(),
             distinct_combo_count=2,
+            weighted_combo_count=2.1,
             phase1_distinct_combo_count=3,
+            phase1_weighted_combo_count=3.1,
             variant_weight=0.1,
             largest_combo_groups=[
                 ComboGroupStats("6186", 2, ["Card A", "Card B"]),
@@ -577,17 +580,22 @@ class TestWriteStatsCombosAndColors:
             phase2_reference_combo_count=4,
             phase2_reference_distinct_combo_count=3,
             phase2_reference_weighted_combo_count=3.1,
+            phase2_combo_tolerance=0.1,
         )
 
         stats = self._write(result, tmp_path)
 
         assert stats["metadata"]["distinct_combo_count"] == 2
+        assert stats["metadata"]["weighted_combo_count"] == 2.1
         assert stats["metadata"]["variant_weight"] == 0.1
         assert stats["phase1"]["distinct_combo_count"] == 3
+        assert stats["phase1"]["weighted_combo_count"] == 3.1
         assert stats["phase2"]["distinct_combo_count"] == 2
+        assert stats["phase2"]["weighted_combo_count"] == 2.1
         assert stats["phase2"]["reference_combo_count"] == 4
         assert stats["phase2"]["reference_distinct_combo_count"] == 3
         assert stats["phase2"]["reference_weighted_combo_count"] == 3.1
+        assert stats["phase2"]["combo_tolerance"] == 0.1
         assert stats["improvement"]["distinct_combo_count_before"] == 3
         assert stats["improvement"]["distinct_combo_count_after"] == 2
         assert stats["largest_combo_groups"] == [
@@ -599,18 +607,27 @@ class TestWriteStatsCombosAndColors:
         result = replace(
             self._two_phase_result(),
             distinct_combo_count=2,
+            weighted_combo_count=2.1,
             phase1_distinct_combo_count=3,
+            phase1_weighted_combo_count=3.1,
             phase2_reference_combo_count=4,
             phase2_reference_distinct_combo_count=3,
+            phase2_reference_weighted_combo_count=3.1,
         )
 
         with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
             log_phase_summary(result, None)
 
         assert (
-            "Combos: Phase 1 4 variants in 3 combos, best under coverage and color "
-            "4 variants in 3 combos, Phase 2 3 variants in 2 combos (-25.0% variants from Phase 1)"
+            "Combos: Phase 1 4 variants in 3 combos (weighted 3.1), best under coverage and "
+            "color 4 variants in 3 combos (weighted 3.1), Phase 2 3 variants in 2 combos "
+            "(weighted 2.1) (-25.0% variants from Phase 1)"
         ) in caplog.text
+
+    def test_format_combo_count_hides_a_weighted_count_equal_to_the_variants(self):
+        assert format_combo_count(4, 1, 4.0) == "4 variants in 1 combos"
+        assert format_combo_count(4, 1, 1.3) == "4 variants in 1 combos (weighted 1.3)"
+        assert format_combo_count(4, None) == "4 variants"
 
     def test_colors_per_phase(self, tmp_path: Path):
         identities = {"Card A": "W", "Card B": "WU", "Card C": "", "Card D": "U"}

@@ -4,12 +4,13 @@ import pytest
 
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
-    combo_group_sizes,
     completable_combo_ids,
     completable_group_keys,
+    completed_group_sizes,
     compute_color_stats,
     compute_utilization_stats,
     largest_combo_groups,
+    weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -57,12 +58,20 @@ class TestComboGroups:
         assert GROUPED[0].group_key == "big"
 
     def test_group_sizes_count_completed_variants(self):
-        assert combo_group_sizes({"H", "P1", "P2", "S1", "A", "B"}, GROUPED) == {
-            "big": 3,
-            "ab": 1,
-        }
-        assert combo_group_sizes({"H", "P1"}, GROUPED) == {"big": 1}
-        assert combo_group_sizes({"P1", "P2"}, GROUPED) == {}
+        assert completed_group_sizes(["h1", "h2", "h3", "ab"], GROUPED) == {"big": 3, "ab": 1}
+        assert completed_group_sizes({"h1"}, GROUPED) == {"big": 1}
+        assert completed_group_sizes([], GROUPED) == {}
+        # Order of first completed variant, not of the ids given
+        assert list(completed_group_sizes(["cd", "h2"], GROUPED)) == ["big", "cd"]
+
+    def test_weighted_combo_count(self):
+        sizes = {"big": 3, "ab": 1}
+
+        assert weighted_combo_count(sizes, 1) == 4
+        assert weighted_combo_count(sizes, 0) == 2
+        assert weighted_combo_count(sizes, 0.5) == 3
+        assert weighted_combo_count(sizes, 0.1) == pytest.approx(2.2)
+        assert weighted_combo_count({}, 0.1) == 0
 
     def test_largest_groups_rank_by_variants_then_key(self):
         groups = largest_combo_groups(["H", "P1", "P2", "S2", "A", "B", "C", "D"], GROUPED)
@@ -81,6 +90,12 @@ class TestComboGroups:
 
         # All three groups have one variant: ties are ordered by key
         assert [g.group_key for g in groups] == ["ab", "big"]
+
+    def test_largest_groups_accepts_completed_ids(self):
+        cards = ["H", "P1", "P2", "A", "B"]
+        with_ids = largest_combo_groups(cards, GROUPED, completed_ids=["h1", "h2", "ab"])
+
+        assert with_ids == largest_combo_groups(cards, GROUPED)
 
 
 class TestCompletableComboIds:
