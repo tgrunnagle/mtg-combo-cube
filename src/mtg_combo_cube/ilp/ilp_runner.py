@@ -685,6 +685,13 @@ async def build_cube_ilp(
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
+    # Read the table first: a bad path or table should fail before the instance is loaded
+    outcome_categories = load_outcome_categories(outcome_categories_path)
+    logger.info(
+        f"Loaded {len(outcome_categories)} outcome categories: "
+        f"{', '.join(outcome_categories.names)}"
+    )
+
     combo_data, candidate_cards = await load_instance(
         max_cards_in_combo=max_cards_in_combo,
         max_variants=max_variants,
@@ -703,11 +710,6 @@ async def build_cube_ilp(
     # Card attributes feed the Phase 2 color balance and card mix rules and the statistics
     card_attributes = await fetch_card_attributes(
         sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
-    )
-    outcome_categories = load_outcome_categories(outcome_categories_path)
-    logger.info(
-        f"Loaded {len(outcome_categories)} outcome categories: "
-        f"{', '.join(outcome_categories.names)}"
     )
 
     # Run ILP optimization

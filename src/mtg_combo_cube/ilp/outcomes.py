@@ -18,7 +18,7 @@ default minimum (--min-outcome-combos).
 
 import json
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -88,7 +88,7 @@ class OutcomeCategories:
     def __len__(self) -> int:
         return len(self.categories)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[OutcomeCategory]:
         return iter(self.categories)
 
     def categorize(self, features: Iterable[str]) -> frozenset[str]:

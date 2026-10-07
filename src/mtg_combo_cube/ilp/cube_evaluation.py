@@ -257,15 +257,18 @@ def combos_per_outcome(
     combos: list[ComboData],
     categories: OutcomeCategories,
     completed_ids: Collection[str] | None = None,
+    group_categories: Mapping[str, frozenset[str]] | None = None,
 ) -> OutcomeStats:
     """
     The number of completed combos (groups) in each outcome category, in table order, with
     the number in no category and the total. A combo counts for every category it is in.
+    `completed_ids` and `group_categories` (the result of group_outcomes for the same combos
+    and table) save recomputing them when the caller already has them.
     """
     completed = set(
         completable_combo_ids(selected_cards, combos) if completed_ids is None else completed_ids
     )
-    outcomes = group_outcomes(combos, categories)
+    outcomes = group_outcomes(combos, categories) if group_categories is None else group_categories
     completed_groups = {combo.group_key for combo in combos if combo.id in completed}
     counts = dict.fromkeys(categories.names, 0)
     uncategorized = 0

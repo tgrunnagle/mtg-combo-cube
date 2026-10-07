@@ -195,6 +195,8 @@ class ILPOptimizer:
     MAX_UNKNOWN_CARD_SHARE = 0.05
     TIER_MULTIPLES = (1, 2, 4)  # "tiered" objective: overage is counted above each multiple of T
     WEIGHT_SCALE = 10000  # Scale for integer conversion
+    # Default minimum completed combos per outcome category (every layer declares it)
+    DEFAULT_MIN_OUTCOME_COMBOS = 40
 
     def __init__(
         self,
@@ -219,7 +221,7 @@ class ILPOptimizer:
         max_wide_combo_share: float = 0.25,
         card_mix: CardMixRules = DEFAULT_CARD_MIX,
         outcome_categories: OutcomeCategories | None = None,
-        min_outcome_combos: int = 40,
+        min_outcome_combos: int = DEFAULT_MIN_OUTCOME_COMBOS,
         max_outcome_share: float = 0,
         popularity_weight: float = 0,
     ):
@@ -283,12 +285,15 @@ class ILPOptimizer:
         self.outcome_categories = outcome_categories
         self.min_outcome_combos = min_outcome_combos
         self.max_outcome_share = max_outcome_share
-        # Category name -> keys of the groups in it (a group is in every category one of its
-        # variants' features matches); empty without a table
+        # The categories of each group (a group is in every category one of its variants'
+        # features matches) and, the other way round, the keys of the groups in each
+        # category; both empty without a table
+        self.group_categories: dict[str, frozenset[str]] = {}
         self.outcome_groups: dict[str, list[str]] = {}
         if outcome_categories is not None:
+            self.group_categories = group_outcomes(combos, outcome_categories)
             self.outcome_groups = {name: [] for name in outcome_categories.names}
-            for key, names in group_outcomes(combos, outcome_categories).items():
+            for key, names in self.group_categories.items():
                 for name in names:
                     self.outcome_groups[name].append(key)
         if not math.isfinite(popularity_weight) or popularity_weight < 0:
@@ -1731,11 +1736,25 @@ class ILPOptimizer:
         """Whether an outcome rule is configured and a category table was given."""
         return bool(self._outcome_minimums()) or self._outcome_share_fraction() is not None
 
-    def _outcome_minimums(self) -> dict[str, int]:
-        """The minimum completed combos per outcome category, for the categories with one."""
+    def _configured_outcome_minimums(self) -> dict[str, int]:
+        """The minimums as configured: the table's own or min_outcome_combos per category."""
         if self.outcome_categories is None:
             return {}
         return self.outcome_categories.minimums(self.min_outcome_combos)
+
+    def _outcome_minimums(self) -> dict[str, int]:
+        """
+        The minimum completed combos per outcome category that Phase 2 applies, for the
+        categories with one: the configured minimum, lowered to the number of combos the
+        pool has in the category when that is smaller (_check_outcome_pool warns), so a
+        category the pool cannot fill does not make Phase 2 infeasible.
+        """
+        minimums = {}
+        for name, minimum in self._configured_outcome_minimums().items():
+            applied = min(minimum, len(self.outcome_groups[name]))
+            if applied > 0:
+                minimums[name] = applied
+        return minimums
 
     def _outcome_share_fraction(self) -> Fraction | None:
         """
@@ -1803,11 +1822,19 @@ class ILPOptimizer:
         )
         base.counts["outcome_share_cap"] = len(capped)
 
-    def _outcome_stats_of(self, cards: Collection[str]) -> OutcomeStats | None:
+    def _outcome_stats_of(
+        self, cards: Collection[str], completed_ids: Collection[str] | None = None
+    ) -> OutcomeStats | None:
         """The distinct combos per outcome category of a cube; None without a table."""
         if self.outcome_categories is None:
             return None
-        return combos_per_outcome(cards, self.combos, self.outcome_categories)
+        return combos_per_outcome(
+            cards,
+            self.combos,
+            self.outcome_categories,
+            completed_ids,
+            group_categories=self.group_categories,
+        )
 
     def _outcome_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
         """
@@ -1843,13 +1870,16 @@ class ILPOptimizer:
         )
 
     def _check_outcome_pool(self) -> None:
-        """Warn about outcome minimums the whole pool cannot meet, before solving."""
-        for name, minimum in self._outcome_minimums().items():
+        """
+        Warn about outcome minimums the whole pool cannot meet, before solving; the applied
+        minimum is lowered to what the pool has (_outcome_minimums).
+        """
+        for name, minimum in self._configured_outcome_minimums().items():
             available = len(self.outcome_groups[name])
             if available < minimum:
                 logger.warning(
                     f"Phase 2: the pool has only {available} combos with outcome {name}, below "
-                    f"the minimum of {minimum}; Phase 2 cannot meet it"
+                    f"the minimum of {minimum}; the minimum is lowered to {available}"
                 )
 
     def _describe_outcome_shortfalls(self, cards: Collection[str]) -> str:
@@ -1872,12 +1902,20 @@ class ILPOptimizer:
         return f" ({'; '.join(parts)})" if parts else ""
 
     def _outcome_info(self) -> dict[str, Any]:
-        """The outcome settings Phase 2 applies, for the result (None where disabled)."""
+        """
+        The outcome settings Phase 2 applies, for the result (None where disabled). Without
+        a table the rules are off by construction; that is a warning only when the caller
+        asked for a rule beyond the default minimum.
+        """
         if self.outcome_categories is None:
-            if self.min_outcome_combos or 0 < hundredths(self.max_outcome_share) < 1:
-                logger.warning(
-                    "Phase 2: no outcome category table; the outcome rules are not enforced"
-                )
+            message = "Phase 2: no outcome category table; the outcome rules are not enforced"
+            if (
+                self.min_outcome_combos != self.DEFAULT_MIN_OUTCOME_COMBOS
+                or 0 < hundredths(self.max_outcome_share) < 1
+            ):
+                logger.warning(message)
+            else:
+                logger.info(message)
             return {}
         return {
             "phase2_outcome_minimums": self._outcome_minimums() or None,
@@ -2254,13 +2292,7 @@ class ILPOptimizer:
             if self.has_color_identities
             else None
         )
-        outcome_stats = (
-            combos_per_outcome(
-                selected_name_set, self.combos, self.outcome_categories, completed_set
-            )
-            if self.outcome_categories is not None
-            else None
-        )
+        outcome_stats = self._outcome_stats_of(selected_name_set, completed_set)
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 

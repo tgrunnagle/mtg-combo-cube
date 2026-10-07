@@ -297,7 +297,8 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     category's own `min_combos` when the table gives one. A group is in every category one
     of its variants' features matches, decided before the solve (`outcome_groups`), so the
     count is a sum of group indicators: under-countable, hence the minimum is exact. 0
-    disables a category's minimum.
+    disables a category's minimum, and a minimum above the number of combos the pool has
+    in the category is lowered to that number with a warning.
 12. **Outcome share cap.** At most `--max-outcome-share` (default 0, off) of the completed
     combos may be in any one category, written per category as
     `(den - num) * inside <= num * outside` over the group indicators. As for the wide combo

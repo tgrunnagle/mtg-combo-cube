@@ -115,25 +115,54 @@ class TestOutcomeMinimum:
         assert result.profile_data is not None
         assert "outcome_minimum" not in result.profile_data["phase2"]["counts"]
 
+    def test_minimum_above_the_pool_is_lowered_with_a_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        # The pool has no mill combo and one damage combo, so neither can reach 2
+        table = parse_outcome_categories(
+            {"mana": ["infinite colored mana"], "damage": ["damage"], "mill": ["mill"]}
+        )
+        optimizer = make_optimizer(categories=table, min_outcome_combos=2)
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            result = optimizer.solve_two_phase()
+
+        assert result.is_multi_objective
+        assert result.phase2_outcome_minimums == {"mana": 2, "damage": 1}
+        assert outcomes(result.phase2_outcome_stats) == {"mana": 4, "damage": 1, "mill": 0}
+        assert (
+            "the pool has only 0 combos with outcome mill, below the minimum of 2; the "
+            "minimum is lowered to 0"
+        ) in caplog.text
+        assert (
+            "the pool has only 1 combos with outcome damage, below the minimum of 2; the "
+            "minimum is lowered to 1"
+        ) in caplog.text
+        assert "falling back" not in caplog.text
+
     def test_infeasible_minimum_falls_back_to_phase1(self, caplog: pytest.LogCaptureFixture):
-        table = parse_outcome_categories({"mana": ["infinite colored mana"], "mill": ["mill"]})
-        optimizer = make_optimizer(categories=table, min_outcome_combos=1)
+        # The pool has a mill combo, but its four cards do not fit beside a mana and a
+        # damage combo in seven
+        mill = frozenset(["Infinite mill"])
+        combos = COMBOS + [combo("mill", ["L1", "L2", "L3", "L4"], mill, 1)]
+        table = parse_outcome_categories(
+            {"mana": ["infinite colored mana"], "damage": ["damage"], "mill": ["mill"]}
+        )
+        optimizer = make_optimizer(combos, categories=table, min_outcome_combos=1)
 
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             result = optimizer.solve_two_phase()
 
         assert result.phase2_fell_back
-        assert result.phase2_outcome_minimums == {"mana": 1, "mill": 1}
-        assert "the pool has only 0 combos with outcome mill, below the minimum of 1" in caplog.text
+        assert result.phase2_outcome_minimums == {"mana": 1, "damage": 1, "mill": 1}
+        assert "the pool has only" not in caplog.text
         assert (
             "no cube satisfying the cube rules was found; the reference cube (the Phase 1 "
-            "cube) still breaks 1 outcome minimum constraints (outcomes below their minimum: "
-            "mill 0 < 1)"
+            "cube) still breaks 2 outcome minimum constraints (outcomes below their minimum: "
+            "damage 0 < 1, mill 0 < 1)"
         ) in caplog.text
 
-    def test_without_a_table_the_rules_are_skipped_with_a_warning(
-        self, caplog: pytest.LogCaptureFixture
-    ):
+    def test_without_a_table_a_requested_rule_warns(self, caplog: pytest.LogCaptureFixture):
         optimizer = make_optimizer(categories=None, min_outcome_combos=1)
 
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
@@ -144,6 +173,18 @@ class TestOutcomeMinimum:
         assert result.phase1_outcome_stats is None
         assert result.phase2_outcome_stats is None
         assert "no outcome category table; the outcome rules are not enforced" in caplog.text
+
+    def test_without_a_table_the_default_minimum_is_quiet(self, caplog: pytest.LogCaptureFixture):
+        # The optimizer's own default asks for nothing the caller chose: an info line only
+        optimizer = make_optimizer(
+            categories=None, min_outcome_combos=ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS
+        )
+
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer.solve_two_phase()
+
+        records = [r for r in caplog.records if "no outcome category table" in r.getMessage()]
+        assert records and all(r.levelno == logging.INFO for r in records)
 
     def test_negative_minimum_is_rejected(self):
         with pytest.raises(ValueError, match="min_outcome_combos"):
@@ -227,6 +268,10 @@ class TestOutcomeShareCap:
 class TestViolations:
     def test_minimum_violations_and_shortfalls(self):
         optimizer = make_optimizer(min_outcome_combos=1)
+
+        # A cached categorization backs every check
+        assert optimizer.group_categories["d"] == {"damage"}
+        assert optimizer.outcome_groups == {"mana": ["h1", "h2", "h3", "h4", "q"], "damage": ["d"]}
 
         assert optimizer._outcome_minimum_violations(HUB | {"Q1", "Q2"}) == 1
         assert optimizer._outcome_shortfalls(HUB | {"Q1", "Q2"}) == {"damage": (0, 1)}

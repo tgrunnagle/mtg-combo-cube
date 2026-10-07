@@ -177,6 +177,20 @@ class TestCombosPerOutcome:
         assert stats.uncategorized == 1
         assert stats.total == 2
 
+    def test_a_precomputed_categorization_can_be_given(self):
+        # The caller's categorization is taken as is, so it can differ from the table's
+        given = {
+            "mana1": frozenset(["lock"]),
+            "md": frozenset(),
+            "etb": frozenset(),
+            "none": frozenset(),
+        }
+
+        stats = combos_per_outcome({"M1", "M2", "D1"}, COMBOS, categories(), group_categories=given)
+
+        assert stats.combos_per_outcome == {"mana": 0, "damage": 0, "lock": 1}
+        assert stats.uncategorized == 1
+
     def test_empty_cube(self):
         stats = combos_per_outcome(set(), COMBOS, categories())
 

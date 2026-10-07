@@ -319,3 +319,10 @@ from 58% to 49% of the cube without a cap on them. Phase 2 still runs to its tim
   lowest value that finds a cube at all in 120 s, and it costs a third of the combos.
 - `bracket_tag` is on `ComboData` and unused; Spellbook's bracket letters would need
   documenting before a rule could be built on them.
+- Table tuning left for later, so the measurements above stay comparable: "Infinite Treasure
+  tokens" (542 variants) and "Infinite combat phases" (511) are uncategorized though they
+  are mana and a win in practice, and "mana" also matches the dozen "infinite X mana for
+  opponents" features.
+- A category the pool has too few combos for is lowered to what the pool has (with a
+  warning) rather than making Phase 2 infeasible, as Step 2.4 asked; the archetype minimums
+  do not do this.
