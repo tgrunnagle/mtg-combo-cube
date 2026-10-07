@@ -205,6 +205,48 @@ class TestOutcomeMinimum:
         }
 
 
+class TestGroupedCombos:
+    """A combo of several variants is one combo to both outcome rules."""
+
+    # A damage combo of two variants on a hub G, a second damage combo D and a popular mana
+    # combo Q. Five cards hold G with both partners and Q (two combos in three variants,
+    # the Phase 1 choice by popularity) or G with one partner and D (two damage combos)
+    GROUPED = [
+        combo("g1", ["G", "X1"], DAMAGE, 1, group="g"),
+        combo("g2", ["G", "X2"], DAMAGE, 1, group="g"),
+        combo("d", ["D1", "D2"], DAMAGE, 1),
+        combo("q", ["Q1", "Q2"], MANA, 100),
+    ]
+
+    def test_two_variants_of_one_combo_count_once_toward_a_minimum(self):
+        table = parse_outcome_categories(
+            {"damage": {"patterns": ["infinite damage"], "min_combos": 2}}
+        )
+        result = make_optimizer(self.GROUPED, categories=table, cube_size=5).solve_two_phase(
+            profile=True
+        )
+
+        assert result.is_multi_objective
+        # Both variants of G are one damage combo: the second must be D
+        assert {"G", "D1", "D2"} <= set(result.get_selected_card_names())
+        assert outcomes(result.phase2_outcome_stats) == {"damage": 2}
+        assert result.profile_data is not None
+        assert "warm_start_repair" in result.profile_data["phase2"]["timings"]
+
+    def test_two_variants_of_one_combo_count_once_toward_the_cap(self):
+        # The Phase 1 cube is one damage and one mana combo, 50% each, although two of its
+        # three variants are damage: it meets a 50% cap as it is
+        result = make_optimizer(self.GROUPED, max_outcome_share=0.5, cube_size=5).solve_two_phase(
+            profile=True
+        )
+
+        assert result.is_multi_objective
+        assert set(result.get_selected_card_names()) == {"G", "X1", "X2", "Q1", "Q2"}
+        assert outcomes(result.phase2_outcome_stats) == {"mana": 1, "damage": 1}
+        assert result.profile_data is not None
+        assert "warm_start_repair" not in result.profile_data["phase2"]["timings"]
+
+
 class TestOutcomeShareCap:
     def test_cap_forces_a_second_outcome_in(self):
         # Five mana combos of five is 100%; four of five is 80%

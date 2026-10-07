@@ -214,7 +214,7 @@ class TestCliPlumbing:
         received = run_cli(
             monkeypatch,
             "--min-outcome-combos",
-            "40",
+            "7",
             "--max-outcome-share",
             "0.5",
             "--outcome-categories",
@@ -223,7 +223,7 @@ class TestCliPlumbing:
             "0.5",
         )
 
-        assert received["min_outcome_combos"] == 40
+        assert received["min_outcome_combos"] == 7
         assert received["max_outcome_share"] == 0.5
         assert received["outcome_categories_path"] == str(table)
         assert received["popularity_weight"] == 0.5
@@ -318,12 +318,12 @@ class TestRunnerPlumbing:
             cube_size=10,
             output_file="unused.txt",
             outcome_categories_path="my/outcomes.json",
-            min_outcome_combos=40,
+            min_outcome_combos=7,
             max_outcome_share=0.5,
             popularity_weight=0.5,
         )
         assert received["outcome_categories_path"] == "my/outcomes.json"
-        assert received["min_outcome_combos"] == 40
+        assert received["min_outcome_combos"] == 7
         assert received["max_outcome_share"] == 0.5
         assert received["popularity_weight"] == 0.5
 

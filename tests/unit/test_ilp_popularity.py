@@ -65,17 +65,20 @@ class TestPhase1:
         assert result.combo_score == 4.0
         assert result.weighted_combo_count == 2.0  # the plain count is unchanged
 
-    def test_half_weight_is_not_enough(self):
-        # Each popular combo is worth 1.5: 3 against 3, and the tiebreak decides for
-        # popularity, so with the tie the popular cube wins
+    def test_half_weight_ties_and_the_tiebreak_decides(self):
+        # Each popular combo is worth 1.5: 3 against 3, and the popularity tiebreak, which
+        # stacks with the factor, decides for the popular cube
         result = make_optimizer(popularity_weight=0.5).solve()
 
         assert set(result.get_selected_card_names()) == POPULAR_CUBE
         assert result.combo_score == 3.0
 
-        # Just below one half the triangle wins outright
+    def test_below_half_weight_the_triangle_wins_outright(self):
+        # Each popular combo is worth 1.4: 2.8 against 3
         result = make_optimizer(popularity_weight=0.4).solve()
+
         assert TRIANGLE <= set(result.get_selected_card_names())
+        assert result.combo_score == 3.0
 
     def test_factor_is_log_scaled_relative_to_the_most_popular_combo(self):
         combos = [
@@ -112,6 +115,29 @@ class TestPhase1:
         # One completed variant: 2 x (0.5 + 0.5); two: 2 x (0.5 + 2 x 0.5)
         assert optimizer._combo_score({"h1"}) == 2 * W
         assert optimizer._combo_score({"h1", "h2"}) == 3 * W
+
+    def test_popular_grouped_combo_is_scaled_in_the_objective_and_the_window(self):
+        # A popular combo of two variants on a hub (three cards) against the obscure
+        # triangle (three combos on three cards). Unweighted the hub scores 1.6 to the
+        # triangle's 3; with the most popular combo worth 2, both its g and y weights double
+        # and it scores 3.2
+        combos = [
+            ComboData("h1", frozenset(["H", "P1"]), [], POPULAR, group_key="hub"),
+            ComboData("h2", frozenset(["H", "P2"]), [], POPULAR, group_key="hub"),
+            *COMBOS[2:],
+        ]
+        result = make_optimizer(combos, variant_weight=0.6).solve()
+
+        assert TRIANGLE <= set(result.get_selected_card_names())
+        assert result.combo_score == 3.0
+
+        result = make_optimizer(combos, variant_weight=0.6, popularity_weight=1).solve_two_phase()
+
+        assert result.is_multi_objective
+        assert {"H", "P1", "P2"} <= set(result.get_selected_card_names())
+        assert result.combo_score == pytest.approx(3.2)
+        assert result.phase2_reference_combo_score == pytest.approx(3.2)
+        assert result.weighted_combo_count == pytest.approx(1.6)
 
     @pytest.mark.parametrize("weight", [-0.5, math.inf, math.nan])
     def test_invalid_weight_is_rejected(self, weight: float):
