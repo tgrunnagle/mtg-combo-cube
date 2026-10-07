@@ -212,8 +212,8 @@ class ILPOptimizer:
         )
 
         logger.info(
-            f"ILP Optimizer initialized: {len(self.combos)} combos in "
-            f"{len(self.combo_groups)} groups, {len(self.all_cards)} cards, cube size "
+            f"ILP Optimizer initialized: {len(self.combos)} variants in "
+            f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards, cube size "
             f"{cube_size}, variant weight {variant_weight:g}"
         )
 
@@ -1170,7 +1170,7 @@ class ILPOptimizer:
 
     def _best_constrained_cube(self, phase1_start: _WarmStart) -> tuple[_WarmStart | None, str]:
         """
-        Find the cube with the most combos that satisfies coverage and color balance.
+        Find the cube with the highest combo score that satisfies coverage and color balance.
 
         Solved in the small Phase 1 model (one-sided y), hinted with the Phase 1 cube, for at
         most WARM_START_MAXIMIZE_FRACTION of the time limit, so the result is the best cube
@@ -1220,9 +1220,9 @@ class ILPOptimizer:
         return repaired, status_str
 
     def _describe_combos(self, combo_ids: Collection[str]) -> str:
-        """'N combos (G groups)' for log messages, with the weighted count when it differs."""
+        """'N variants (G combos)' for log messages, with the weighted count when it differs."""
         groups = len(self._group_sizes_of(combo_ids))
-        text = f"{len(combo_ids)} combos ({groups} groups"
+        text = f"{len(combo_ids)} variants ({groups} combos"
         if self.group_scale:
             text += f", weighted {self._weighted_combo_count(combo_ids):.1f}"
         return text + ")"

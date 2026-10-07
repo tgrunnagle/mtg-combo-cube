@@ -273,8 +273,8 @@ leaves no feasible cube. `_build_warm_start` therefore prepares two things befor
 model is built, both in the small Phase 1 model with coverage and color balance added:
 
 1. **Reference cube** (`_best_constrained_cube`). If the Phase 1 cube breaks coverage or color
-   balance, the combo count is maximized under those constraints, hinted with the Phase 1 cube,
-   for at most 10% of the Phase 2 time limit. The combo count of the result is the reference
+   balance, the combo score is maximized under those constraints, hinted with the Phase 1 cube,
+   for at most 10% of the Phase 2 time limit. The combo score of the result is the reference
    the window is measured from. It is the best cube found in that time, not a proven maximum.
    If the Phase 1 cube already satisfies both, it is the reference.
 2. **Floor repair** (`_repair_floor`). If the reference cube has cards below the utilization

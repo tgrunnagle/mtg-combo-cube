@@ -33,6 +33,8 @@ every combo count, utilization number and combo window means.
   new `base.counts[...]` entry when constraints were actually added.
 - The tracked best cube is `data/current_best_cube.txt` with
   `data/current_best_cube_stats.json` (300 cards, 20,000 variants, ratio 2: 3,249 combos).
+  *Superseded:* that cube was replaced by the `v = 0.1` run when this plan was implemented
+  (see Decisions); its evaluation is the Step 0 baseline below.
 
 ## Problem
 
@@ -80,6 +82,7 @@ No solver change. Needed to measure everything else.
 4. `write_stats`: `distinct_combo_count` in each phase block, `largest_combo_groups` (top 10
    groups by completed variants, with their cards) at the top level. `log_phase_summary`
    prints "Combos: Phase 1 X variants in G groups". `evaluate_cube` prints the same.
+   *As implemented:* the log says "X variants in G combos", the wording the README uses.
 5. Run the evaluation on `data/current_best_cube.txt` to get the real baseline (the 524
    above ignores template combos).
 
@@ -94,13 +97,16 @@ No solver change. Needed to measure everything else.
    `sum(W * g[k]) + sum(variant_weight * W * y[j]) + popularity tiebreak`, with `W =
    WEIGHT_SCALE`. With `variant_weight = 1` this reduces to the current objective, so the
    default-agreement tests keep passing if the default is 1; pick the default after
-   measuring.
+   measuring. *As implemented:* the score is `(1 - v) * g[k] + v * sum(y)` per group, and
+   the popularity tiebreak is added once per grouped combo (on `g[k]`); see Implementation
+   notes.
 3. Flag `--variant-weight` through `__main__.py`, `runner.py`, `ilp_runner.run_ilp` and
    `build_cube_ilp`, following `--max-color-ratio` for the plumbing and its tests in
    `tests/unit/test_runner.py`.
 4. Phase 2 window: `_combo_count_window` and `_add_combo_count_window` count `y`. With a
    group-aware Phase 1 the window should hold the same quantity Phase 1 maximized, so the
-   window is written over the weighted sum `sum(g) + variant_weight * sum(y)`. The reference
+   window is written over the weighted sum `sum(g) + variant_weight * sum(y)` (*as
+   implemented:* the same `(1 - v) * g + v * sum(y)` score as the objective). The reference
    count from `_build_warm_start` (the best cube under coverage and color) uses the same
    expression; `_best_constrained_cube` and `_repair_floor` build on `_repair_model`, which
    calls `_build_base_model`, so the group variables must be in the base model or added in
@@ -205,11 +211,18 @@ Observations:
 
 ## Risks and notes
 
+Written before implementation; the first two are settled by the Results and Decisions above.
+
 - Phase 1 is currently solved to optimality in seconds; the group variables may make that
-  harder. A gap limit for Phase 1 does not exist today.
+  harder. A gap limit for Phase 1 does not exist today. *Resolved:* it does make it harder;
+  at every weight below 1 Phase 1 runs to the 300 s limit with a 5-14% gap. A Phase 1 gap
+  limit is the follow-up.
 - The combo window in weighted units changes the meaning of `--combo-tolerance` and the
   `reference_combo_count` in the stats file; document both in `README.md` and
-  `docs/architecture.md`.
+  `docs/architecture.md`. *Resolved:* `--combo-tolerance` is now on the weighted score and
+  documented as such. `reference_combo_count` keeps its meaning (variants); the stats file
+  adds `reference_distinct_combo_count`, `reference_weighted_combo_count` (what the window
+  holds) and `combo_tolerance`.
 - Spellbook `includes` lists combos a variant contains as sub-combos (6,951 variants include
   two). It is not the grouping key; `of` is.
 - Plans 2 and 4 count combos per color pair and per outcome. If this plan lands first, those

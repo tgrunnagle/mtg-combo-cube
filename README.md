@@ -59,7 +59,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 20000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
---combo-tolerance      Phase 2 combo count tolerance, measured from the best cube under coverage and color balance (default: 0.1 = 10%)
+--combo-tolerance      Phase 2 combo window, on the combo score (weighted combos when --variant-weight < 1), measured from the best cube under coverage and color balance (default: 0.1 = 10%)
 --gap-limit            Phase 2 early termination gap (default: 0.05 = 5%)
 --phase2-objective     Phase 2 objective: tiered (default), softcap, maxutil, minmax or mad
 --util-cap             Utilization cap for softcap and tiered (default: 2 x Phase 1 median)
@@ -222,7 +222,7 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to pr
 
 Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and many variants are the same combo with one piece swapped for an equivalent (the cached 20,000 variants belong to about 8,700 combos; the largest combo has 301 variants). Every count in the log and the stats file is reported both ways: `combo_count` is completed variants, `distinct_combo_count` is the combos they belong to (a variant's `of` ids on Spellbook; a variant of two combos combined counts as its own).
 
-`--variant-weight` sets what the optimizer counts. A completed variant is worth 1 if it is the first of its combo and `--variant-weight` for each further one, so `1` counts variants and `0` counts distinct combos, with values in between rewarding extra variants less than new combos. The default is `0.1`: at full size it more than doubles the distinct combos of a variant-counting cube and shrinks the largest combo from 230 variants to 24, at the cost of about 40% of the variants; it is also where Phase 1 stops being solved to proven optimality within the time limit. Phase 1 maximizes this weighted count and the Phase 2 combo window (`--combo-tolerance`) holds it, so with a weight below 1 the tolerance and `reference_weighted_combo_count` are in weighted combos, not variants. The table in [docs/plans/combo-grouping-plan.md](docs/plans/combo-grouping-plan.md) compares weights at full size.
+`--variant-weight` sets what the optimizer counts. A completed variant is worth 1 if it is the first of its combo and `--variant-weight` for each further one, so `1` counts variants and `0` counts distinct combos, with values in between rewarding extra variants less than new combos. The default is `0.1`: at full size it more than doubles the distinct combos of a variant-counting cube and shrinks the largest combo from 230 variants to 24, at the cost of about 40% of the variants. Any weight below 1 makes Phase 1 run to its time limit at full size instead of proving optimality in seconds. Phase 1 maximizes this weighted count and the Phase 2 combo window (`--combo-tolerance`) holds it, so with a weight below 1 the tolerance and `reference_weighted_combo_count` are in weighted combos, not variants. The table in [docs/plans/combo-grouping-plan.md](docs/plans/combo-grouping-plan.md) compares weights at full size.
 
 **Phase 2 Options:**
 
@@ -230,7 +230,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 |--------|---------|-------------|
 | `--phase2-objective` | `tiered` | Objective function: `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x Phase 1 median utilization | Cap `T` for `softcap` and `tiered`: utilization above it is penalized |
-| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo count (10%). The reference is the most combos found for a cube that satisfies coverage and color balance, which is lower than the Phase 1 count |
+| `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under coverage and color balance, which scores lower than the Phase 1 cube |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |
 | `--max-color-ratio` | `2.0` | Color balance: no color may have more than this many times the cards of another color (all objectives, 0 disables, otherwise at least 1) |
@@ -369,7 +369,7 @@ Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
    - Combo completion requirements (required cards + optional requirements conditions)
    - Popularity-based tiebreaking
 3. **Phase 1**: Maximize weighted combo count
-4. **Phase 2** (unless `--single-phase`): Balance card utilization with combo count held within tolerance of the reference count: the most combos found for a cube that satisfies the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
+4. **Phase 2** (unless `--single-phase`): Balance card utilization with the combo score held within tolerance of the reference: the best cube found under the coverage and color balance constraints, from a short extra solve after Phase 1. The Phase 2 model adds exact combo completion (a combo counts if and only if the cube completes it), one utilization variable per card, the utilization floor, the coverage constraints, the color balance constraints and the chosen objective. It is warm-started from that reference cube, repaired in a second short solve if it has cards below the floor.
 5. Output optimized card list and statistics
 
 ### ILP Complexity

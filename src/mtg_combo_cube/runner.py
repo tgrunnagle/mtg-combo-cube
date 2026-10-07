@@ -44,7 +44,8 @@ async def run(
         use_multi_objective: Use two-phase ILP optimization
         enable_cache_write: Write API responses to cache
         read_cache: Read API responses from cache only
-        combo_tolerance: Tolerance for combo count deviation in phase 2
+        combo_tolerance: Tolerance of the phase 2 combo window, on the combo score (weighted
+            combos when variant_weight is below 1)
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
         blocklist_path: Path to blocklist file (default: data/blocklist.txt)
         profile: Enable detailed profiling of ILP optimization

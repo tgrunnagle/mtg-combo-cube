@@ -46,9 +46,10 @@ if __name__ == "__main__":
         "--combo-tolerance",
         type=float,
         default=0.1,
-        help="Tolerance for combo count deviation in phase 2 (default: 0.1 = 10%%), measured "
-        "from the most combos found for a cube that satisfies the coverage and color balance "
-        "constraints. Set to 0 for strict equality constraint.",
+        help="Tolerance of the phase 2 combo window (default: 0.1 = 10%%), measured from the "
+        "combo score of the best cube found under the coverage and color balance constraints. "
+        "The score is in weighted combos when --variant-weight is below 1 (see the README, "
+        "'Combos and variants'). Set to 0 to hold the score exactly.",
     )
     argparser.add_argument(
         "--min-coverage-ratio",
