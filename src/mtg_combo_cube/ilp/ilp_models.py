@@ -117,21 +117,16 @@ class CardMixRules:
         if 0 < self.mono_color_ratio < 1:
             raise ValueError(f"mono_color_ratio must be 0 or >= 1, got {self.mono_color_ratio}")
 
-    @staticmethod
-    def fraction(share: float) -> Fraction:
-        """A share as an integer fraction, in hundredths."""
-        return hundredths(share)
-
     def enabled(self) -> dict[str, float]:
         """The settings in force, for the stats file: every rule that is not disabled."""
         settings: dict[str, float] = {}
         for name in ("max_multicolor_share", "max_colorless_share", "max_creature_share"):
-            if 0 < self.fraction(getattr(self, name)) < 1:
+            if 0 < hundredths(getattr(self, name)) < 1:
                 settings[name] = getattr(self, name)
-        if 0 < self.fraction(self.max_expensive_share) < 1:
+        if 0 < hundredths(self.max_expensive_share) < 1:
             settings["max_expensive_share"] = self.max_expensive_share
             settings["expensive_mana_value"] = self.expensive_mana_value
-        if self.fraction(self.min_spell_share) > 0:
+        if hundredths(self.min_spell_share) > 0:
             settings["min_spell_share"] = self.min_spell_share
         if self.mono_color_ratio > 0:
             settings["mono_color_ratio"] = self.mono_color_ratio

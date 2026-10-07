@@ -105,17 +105,20 @@ class CardAttributeFetcher:
                 data = json.load(f)
             if data.get("version") != self.CACHE_VERSION:
                 raise ValueError(f"unsupported cache version {data.get('version')}")
-            return {
-                name: CardAttributes(
-                    color_identity=str(entry["color_identity"]),
-                    type_line=str(entry["type_line"]),
-                    mana_value=float(entry["mana_value"]),
-                )
-                for name, entry in data["cards"].items()
-            }
+            return {name: self._parse_entry(entry) for name, entry in data["cards"].items()}
         except Exception as e:
             logger.warning(f"Cache read error for {self.cache_path.name}: {e}")
             return {}
+
+    @staticmethod
+    def _parse_entry(entry: dict) -> CardAttributes:
+        """A cache entry as attributes; a wrong type is a ValueError (the cache is unusable)."""
+        identity, type_line = entry["color_identity"], entry["type_line"]
+        if not isinstance(identity, str) or not isinstance(type_line, str):
+            raise ValueError(f"malformed cache entry {entry!r}")
+        return CardAttributes(
+            color_identity=identity, type_line=type_line, mana_value=float(entry["mana_value"])
+        )
 
     def _write_cache(self, fetched: dict[str, CardAttributes]) -> None:
         """Add fetched attributes to the cache file, keeping entries already in the file."""

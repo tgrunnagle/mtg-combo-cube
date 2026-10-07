@@ -224,6 +224,10 @@ class TestCardAttributeFetcher:
                     "Card A": {"color_identity": "W", "type_line": "Creature", "mana_value": "x"}
                 },
             },
+            {
+                "version": CardAttributeFetcher.CACHE_VERSION,
+                "cards": {"Card A": {"color_identity": None, "type_line": "", "mana_value": 1}},
+            },
         ],
     )
     @pytest.mark.asyncio
