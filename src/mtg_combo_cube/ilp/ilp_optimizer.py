@@ -584,18 +584,31 @@ class ILPOptimizer:
             base.counts["variables_group"] = len(base.g)
             base.counts["group_linking"] = linking
 
+    def _tiebreak_weight(self, popularity: int) -> int:
+        """The popularity part of _compute_weight: the integer weight above WEIGHT_SCALE."""
+        return self._compute_weight(popularity) - self.WEIGHT_SCALE
+
     def _add_combo_count_objective(self, base: _BaseModel) -> None:
         """
         Phase 1 objective: maximize the combo score, with popularity as a tiebreak.
 
-        The tiebreak is the popularity part of _compute_weight (the weight above
-        WEIGHT_SCALE), so with variant_weight 1 this is the popularity-weighted variant count.
+        The tiebreak is added once per counted item: on y[j] for a variant of a group
+        without a g variable (so with variant_weight 1 this is the popularity-weighted
+        variant count), and on g[k], with the group's highest popularity, for a grouped
+        combo. A further variant of a grouped combo earns exactly variant_scale, so the
+        tiebreak can never outweigh the variant credit, and with variant_weight 0 the
+        objective counts distinct combos only.
         """
-        tiebreak = sum(
-            (self._compute_weight(combo.popularity) - self.WEIGHT_SCALE) * base.y[combo.id]
-            for combo in self.combos
-        )
-        base.model.maximize(self._combo_score_expr(base) + tiebreak)
+        tiebreak_terms: list[cp_model.LinearExpr] = []
+        for key, members in self.combo_groups.items():
+            if key in base.g:
+                popularity = max(combo.popularity for combo in members)
+                tiebreak_terms.append(self._tiebreak_weight(popularity) * base.g[key])
+            else:
+                tiebreak_terms.extend(
+                    self._tiebreak_weight(combo.popularity) * base.y[combo.id] for combo in members
+                )
+        base.model.maximize(self._combo_score_expr(base) + cp_model.LinearExpr.sum(tiebreak_terms))
 
     def _combo_count_window(self, target_combo_count: float) -> tuple[int, int]:
         """Smallest and largest combo count Phase 2 accepts, in combo units (tolerance > 0)."""

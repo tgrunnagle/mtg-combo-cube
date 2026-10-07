@@ -198,11 +198,14 @@ reference cube and the warm-start checks.
 ### Phase 1: maximize combo count
 
 ```
-maximize  WEIGHT_SCALE * score + sum_j t[j] * y[j]        t[j] = 0.001 * log(1 + popularity[j])
+maximize  WEIGHT_SCALE * score + tiebreak        t(p) = 0.001 * log(1 + p)
+tiebreak = sum_{j not grouped} t(popularity[j]) * y[j] + sum_{k grouped} t(max popularity in k) * g[k]
 ```
 
-Popularity is a tiebreak only. Weights are scaled to integers for CP-SAT. With `v = 1` this is
-the popularity-weighted variant count.
+Popularity is a tiebreak only, added once per counted item: per variant for groups without a
+`g` variable, per group otherwise. A further variant of a grouped combo earns exactly `v`, so
+with `v = 0` the objective counts distinct combos. Weights are scaled to integers for CP-SAT.
+With `v = 1` this is the popularity-weighted variant count.
 
 ### Phase 2: balance utilization
 

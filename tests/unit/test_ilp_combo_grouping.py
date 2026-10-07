@@ -105,8 +105,8 @@ class TestPhase1:
         assert "H" in selected
         assert len(selected & {"P1", "P2", "P3", "P4"}) == 1
         assert result.largest_combo_groups is not None
-        assert [g.group_key for g in result.largest_combo_groups][0] == "big"
-        assert result.largest_combo_groups[0].variant_count == 1
+        sizes = {g.group_key: g.variant_count for g in result.largest_combo_groups}
+        assert sizes["big"] == 1 and len(sizes) == 3
 
         # One group variable for "big", linked to its four variants
         assert result.profile_data is not None
@@ -116,11 +116,12 @@ class TestPhase1:
 
     def test_weight_one_half_ties_and_popularity_decides(self):
         # Three hub variants plus one single score 1 + 2 x 0.5 + 1 = 3, the same as three
-        # distinct combos; the hub variants are more popular
+        # distinct combos. The tiebreak counts once per combo (the hub's 100 and one 10
+        # against the hub's 100 and two 10s), so the three distinct combos win
         result = make_optimizer(variant_weight=0.5).solve()
 
-        assert result.combo_count == 4
-        assert result.distinct_combo_count == 2
+        assert result.combo_count == 3
+        assert result.distinct_combo_count == 3
 
     def test_high_weight_still_prefers_variants(self):
         # At 0.9 three hub variants plus one single score 1 + 2 x 0.9 + 1 = 3.8 against 3
@@ -129,6 +130,51 @@ class TestPhase1:
 
         assert result.combo_count == 4
         assert result.distinct_combo_count == 2
+
+
+class TestPopularityTiebreak:
+    def test_redundant_popular_variants_do_not_outweigh_a_distinct_combo(self):
+        # 100 variants of one hub combo, all completed by the same two cards, at the highest
+        # popularity on Spellbook; three unpopular single-variant combos on a triangle. At
+        # weight 0 the triangle (3 distinct combos) must beat the hub plus one single (2).
+        hub = [
+            ComboData(f"hub{i}", frozenset(["H", "P1"]), [], 356_633, group_key="hub")
+            for i in range(100)
+        ]
+        triangle = [
+            ComboData("ab", frozenset(["A", "B"]), [], 0),
+            ComboData("bc", frozenset(["B", "C"]), [], 0),
+            ComboData("ca", frozenset(["C", "A"]), [], 0),
+        ]
+        combos = hub + triangle
+        optimizer = ILPOptimizer(
+            combos=combos,
+            candidate_cards=build_candidate_cards(combos),
+            cube_size=4,
+            time_limit_seconds=30,
+            num_workers=1,
+            variant_weight=0,
+        )
+
+        result = optimizer.solve()
+
+        assert result.phase1_status == "OPTIMAL"
+        assert result.distinct_combo_count == 3
+        assert result.combo_count == 3
+        assert {"A", "B", "C"} <= set(result.get_selected_card_names())
+
+    def test_tiebreak_is_counted_once_per_grouped_combo(self):
+        optimizer = make_optimizer(variant_weight=0)
+        base = optimizer._build_base_model()
+        optimizer._add_combo_count_objective(base)
+        hub_tiebreak = optimizer._tiebreak_weight(100)
+        single_tiebreak = optimizer._tiebreak_weight(10)
+
+        objective = str(base.model.proto.objective)
+
+        # One term for the hub group's g, one per single; nothing on the hub variants' y
+        assert objective.count(str(hub_tiebreak)) == 1
+        assert objective.count(str(single_tiebreak)) == 3
 
 
 class TestPhase2Window:
