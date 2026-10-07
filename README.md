@@ -68,7 +68,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --variant-weight       Value of each further variant of a combo the cube already completes (default: 0.1; 1 counts variants, 0 counts distinct combos)
 --min-pair-combos      Phase 2 archetype support: distinct combos every two-color pair must be able to assemble (default: 250, 0 disables)
 --min-mono-combos      Phase 2 archetype support: distinct combos every mono color must be able to assemble (default: 150, 0 disables)
---max-wide-combo-share Phase 2 cap on the share of completed combos that need three or more colors (default: 0.25, 0 disables)
+--max-wide-combo-share Phase 2 cap on the share of completed combos that need three or more colors (default: 0.25, 0 or 1 disables)
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization

@@ -136,8 +136,9 @@ class TestPairMinimum:
         assert result.phase2_min_mono_combos == 1
         assert "the pool has only 0 combos for U, below the minimum of 1" in caplog.text
         assert (
-            "no cube meeting the archetype minimums was found; the reference cube is below "
-            "them for U 0 < 1, B 0 < 1, R 0 < 1, G 0 < 1"
+            "no cube satisfying the cube rules was found; the reference cube (the Phase 1 "
+            "cube) still breaks 4 archetype minimum constraints (archetypes below their "
+            "minimum: U 0 < 1, B 0 < 1, R 0 < 1, G 0 < 1)"
         ) in caplog.text
 
     def test_fallback_for_another_reason_says_the_minimums_were_met(
@@ -151,8 +152,38 @@ class TestPairMinimum:
             result = optimizer.solve_two_phase()
 
         assert result.phase2_fell_back
-        assert "the reference cube meets the archetype minimums" in caplog.text
-        assert "no cube meeting the archetype minimums" not in caplog.text
+        assert "the reference cube satisfies every cube rule" in caplog.text
+        assert "no cube satisfying the cube rules" not in caplog.text
+
+    def test_fallback_names_the_rule_the_phase1_cube_breaks(self, caplog: pytest.LogCaptureFixture):
+        # Every card is needed for the mono minimums, and the three extra cards complete a
+        # wide combo: one in six is over the cap, and no cube can satisfy both rules
+        combos = [
+            ComboData("abc", frozenset(["A", "B", "C"]), [], 50, color_identity="WUB"),
+            *(
+                ComboData(
+                    color.lower(),
+                    frozenset([f"{color}1", f"{color}2"]),
+                    [],
+                    10,
+                    color_identity=color,
+                )
+                for color in MONO_COLORS
+            ),
+        ]
+        optimizer = make_optimizer(
+            combos, cube_size=13, min_mono_combos=1, max_wide_combo_share=0.1
+        )
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            result = optimizer.solve_two_phase()
+
+        assert result.phase2_fell_back
+        assert (
+            "no cube satisfying the cube rules was found; the reference cube (the Phase 1 "
+            "cube) still breaks 1 wide combo cap constraints"
+        ) in caplog.text
+        assert "archetypes below their minimum" not in caplog.text
 
     @pytest.mark.parametrize("name", ["min_pair_combos", "min_mono_combos"])
     def test_negative_minimum_is_rejected(self, name: str):
@@ -251,8 +282,9 @@ class TestWideComboCap:
         assert {"A", "B", "C", "D"} <= best.cards
         assert len(completable_combo_ids(best.cards, combos)) == 6
 
-    def test_share_of_one_disables_the_cap(self):
-        optimizer = make_optimizer(MONO, cube_size=7, max_wide_combo_share=1, combo_tolerance=0)
+    @pytest.mark.parametrize("share", [1, 0.999, 0.001])
+    def test_share_rounding_to_one_or_zero_disables_the_cap(self, share: float):
+        optimizer = make_optimizer(MONO, cube_size=7, max_wide_combo_share=share, combo_tolerance=0)
 
         assert not optimizer._archetype_rules_enabled()
         result = optimizer.solve_two_phase(profile=True)

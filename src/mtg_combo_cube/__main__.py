@@ -155,7 +155,8 @@ if __name__ == "__main__":
         type=float,
         default=0.25,
         help="Archetype support for phase 2: at most this share of the completed combos may "
-        "need three or more colors (default: 0.25). Between 0 and 1; 0 or 1 removes the cap.",
+        "need three or more colors (default: 0.25). Between 0 and 1, in hundredths; 0 or 1 "
+        "removes the cap.",
     )
     args = argparser.parse_args()
     if 0 < args.max_color_ratio < 1:

@@ -1211,12 +1211,13 @@ class ILPOptimizer:
 
     def _wide_share_fraction(self) -> Fraction | None:
         """
-        The wide combo cap as an integer fraction, or None when there is no cap: a share of
-        0, or of 1 (every combo may be wide), disables it.
+        The wide combo cap as an integer fraction, or None when there is no cap: a share
+        that rounds (to hundredths) to 0, or to 1 (every combo may be wide), disables it.
         """
-        if not self.has_color_identities or not 0 < self.max_wide_combo_share < 1:
+        if not self.has_color_identities:
             return None
-        return Fraction(self.max_wide_combo_share).limit_denominator(100)
+        share = Fraction(self.max_wide_combo_share).limit_denominator(100)
+        return share if 0 < share < 1 else None
 
     @staticmethod
     def _is_narrow(combo: ComboData) -> bool:
@@ -1405,24 +1406,25 @@ class ILPOptimizer:
         violations = self._cube_rule_violations(cards)
         return ", ".join(f"{count} {label}" for label, count in violations.items() if count)
 
-    def _log_archetype_fallback(self, reference: _WarmStart) -> None:
+    def _log_fallback_cause(self, reference: _WarmStart) -> None:
         """
-        After a Phase 2 failure, say whether the archetype minimums are the likely cause:
-        they are when no cube meeting them was found (the reference is then the Phase 1
-        cube, below them); when the reference cube meets them, the cause lies elsewhere.
+        After a Phase 2 failure, say whether the cube rules are the likely cause: they are
+        when no cube satisfying them was found, so the reference is still the Phase 1 cube
+        and breaks some of them (named, with the archetypes below their minimum); when the
+        reference satisfies every rule, the cause lies elsewhere.
         """
-        if not self._archetype_minimums():
-            return
-        shortfalls = self._describe_archetype_shortfalls(reference.cards)
-        if shortfalls:
+        broken = self._describe_broken_rules(reference.cards)
+        if broken:
+            shortfalls = self._describe_archetype_shortfalls(reference.cards)
+            detail = f" (archetypes below their minimum: {shortfalls})" if shortfalls else ""
             logger.warning(
-                f"Phase 2: no cube meeting the archetype minimums was found; the reference "
-                f"cube is below them for {shortfalls}"
+                f"Phase 2: no cube satisfying the cube rules was found; the reference cube "
+                f"(the Phase 1 cube) still breaks {broken} constraints{detail}"
             )
         else:
             logger.warning(
-                "Phase 2: the reference cube meets the archetype minimums, so the failure "
-                "lies in the combo window, the utilization floor or the time limit"
+                "Phase 2: the reference cube satisfies every cube rule, so the failure lies in "
+                "the combo window, the utilization floor or the time limit"
             )
 
     def _repair_model(self, hint: _WarmStart) -> _BaseModel:
@@ -1931,7 +1933,11 @@ class ILPOptimizer:
     def _archetype_info(self) -> dict[str, Any]:
         """The archetype settings Phase 2 applies, for the result (None where disabled)."""
         if not self.has_color_identities:
-            if self.min_pair_combos or self.min_mono_combos or self.max_wide_combo_share:
+            if (
+                self.min_pair_combos
+                or self.min_mono_combos
+                or 0 < Fraction(self.max_wide_combo_share).limit_denominator(100) < 1
+            ):
                 logger.warning(
                     "Phase 2: the combos have no color identities; archetype support is not "
                     "enforced"
@@ -2024,7 +2030,7 @@ class ILPOptimizer:
         # If Phase 2 fails, fall back to Phase 1
         if status_str not in ("OPTIMAL", "FEASIBLE"):
             logger.warning(f"Phase 2 failed ({status_str}), falling back to Phase 1 result")
-            self._log_archetype_fallback(reference)
+            self._log_fallback_cause(reference)
             profile_data = phase1_result.profile_data
             if profile_result:
                 profile_result.log_summary()

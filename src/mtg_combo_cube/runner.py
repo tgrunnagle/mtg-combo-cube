@@ -66,7 +66,7 @@ async def run(
         min_mono_combos: Phase 2 minimum number of distinct combos every mono color can
             assemble (0 disables)
         max_wide_combo_share: Phase 2 cap on the share of completed combos that need three
-            or more colors (0 disables)
+            or more colors (0 or 1 disables)
     """
     blocklist = load_blocklist(blocklist_path)
 
