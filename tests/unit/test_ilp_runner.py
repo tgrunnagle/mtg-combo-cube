@@ -751,6 +751,21 @@ class TestWriteStatsCardMix:
             "min_spell_share": 0.05,
             "mono_color_ratio": 1.5,
         }
+        assert "card_mix_limits" not in stats["phase2"]
+        assert "unknown_candidate_cards" not in stats["phase2"]
+
+    def test_card_mix_limits_and_unknown_cards(self, tmp_path: Path):
+        result = replace(
+            self._two_phase_result(),
+            phase2_card_mix=CardMixRules(),
+            phase2_card_mix_limits={"creature_cap": 180, "spell_floor": 15},
+            phase2_unknown_candidate_cards=3,
+        )
+
+        stats = self._write(result, tmp_path, attributes=CARD_MIX_ATTRIBUTES)
+
+        assert stats["phase2"]["card_mix_limits"] == {"creature_cap": 180, "spell_floor": 15}
+        assert stats["phase2"]["unknown_candidate_cards"] == 3
 
     def test_rules_all_off_are_left_out(self, tmp_path: Path):
         off = CardMixRules(0, 0, 0, 5, 0, 0, 0)

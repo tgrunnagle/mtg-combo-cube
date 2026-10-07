@@ -113,7 +113,7 @@ class TestColorBalance:
         assert result.phase2_fell_back
         assert result.phase2_max_color_ratio == 2.0
 
-    @pytest.mark.parametrize("ratio", [0.5, 0.99])
+    @pytest.mark.parametrize("ratio", [0.5, 0.99, float("nan")])
     def test_ratio_between_zero_and_one_is_rejected(self, ratio: float):
         with pytest.raises(ValueError, match="max_color_ratio"):
             make_optimizer(max_color_ratio=ratio)

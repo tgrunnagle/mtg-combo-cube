@@ -386,6 +386,20 @@ class TestComputeCardMixStats:
             "G": 1.0,  # the forest is a land
         }
 
+    def test_lands_count_as_types_only(self):
+        attributes = {
+            "Wolf Run": CardAttributes("RG", "Land", 0),
+            "Coffers": CardAttributes("B", "Land", 0),
+            "Maze": CardAttributes("", "Land", 0),
+        }
+
+        stats = compute_card_mix_stats(list(attributes), attributes)
+
+        assert stats.type_counts["Land"] == 3
+        assert stats.multicolor == 0
+        assert stats.colorless == 0
+        assert stats.mean_mana_value == 0.0
+
     def test_empty(self):
         stats = compute_card_mix_stats([], {})
 

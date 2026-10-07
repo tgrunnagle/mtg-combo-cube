@@ -1,13 +1,17 @@
 """Data structures for ILP optimization."""
 
-from dataclasses import dataclass
+import math
+from dataclasses import dataclass, fields
 from fractions import Fraction
 from typing import Any
 
 
 def hundredths(value: float) -> Fraction:
-    """A share or ratio as an integer fraction, rounded to hundredths, for the model."""
-    return Fraction(value).limit_denominator(100)
+    """
+    A share or ratio rounded to hundredths, as an integer fraction for the model: 0.333
+    becomes 33/100 and 0.15 becomes 3/20. The value must be finite.
+    """
+    return Fraction(round(value * 100), 100)
 
 
 # =============================================================================
@@ -77,19 +81,29 @@ class ComboData:
         return all(len(opt.cards) > 0 for opt in self.requirement_options)
 
 
+class CardMixRuleError(ValueError):
+    """An invalid CardMixRules setting; `field` names the setting."""
+
+    def __init__(self, field: str, message: str):
+        super().__init__(f"{field} {message}")
+        self.field = field
+
+
 @dataclass(frozen=True)
 class CardMixRules:
     """
     Phase 2 limits on the make-up of the cube by card type, mana value and color count,
-    each a share of the cube size. A share of 0 disables its rule (a cap of 1 too, since
-    every card may then count), as does a ratio of 0.
+    each a share of the cube size, rounded to hundredths. A share of 0 disables its rule (a
+    cap of 1 too, since every card may then count), as does a ratio of 0. Lands are left
+    out of every rule: they are combo pieces, not part of the mix being shaped.
     """
 
     # At most this share of the cube may be multicolor cards (two or more colors)
     max_multicolor_share: float = 0.15
-    # At most this share may be colorless cards (cards without Scryfall data count here)
+    # At most this share may be colorless nonland cards (cards without Scryfall data count
+    # here)
     max_colorless_share: float = 0.25
-    # At most this share may have a mana value of expensive_mana_value or more
+    # At most this share may have a mana value of expensive_mana_value (above 0) or more
     max_expensive_share: float = 0.2
     expensive_mana_value: float = 5
     # At most this share may be creatures
@@ -100,31 +114,44 @@ class CardMixRules:
     # (the color balance form on mono-colored cards); 0 disables, otherwise at least 1
     mono_color_ratio: float = 0
 
+    CAP_FIELDS = (
+        "max_multicolor_share",
+        "max_colorless_share",
+        "max_expensive_share",
+        "max_creature_share",
+    )
+    SHARE_FIELDS = (*CAP_FIELDS, "min_spell_share")
+
     def __post_init__(self) -> None:
-        for name in (
-            "max_multicolor_share",
-            "max_colorless_share",
-            "max_expensive_share",
-            "max_creature_share",
-            "min_spell_share",
-        ):
-            if not 0 <= getattr(self, name) <= 1:
-                raise ValueError(f"{name} must be between 0 and 1, got {getattr(self, name)}")
-        if self.expensive_mana_value < 0:
-            raise ValueError(
-                f"expensive_mana_value must be 0 or more, got {self.expensive_mana_value}"
+        for field in fields(self):
+            if not math.isfinite(getattr(self, field.name)):
+                raise CardMixRuleError(
+                    field.name, f"must be a number, got {getattr(self, field.name)}"
+                )
+        for name in self.SHARE_FIELDS:
+            share = getattr(self, name)
+            if not 0 <= share <= 1:
+                raise CardMixRuleError(name, f"must be between 0 and 1, got {share}")
+            if share > 0 and hundredths(share) == 0:
+                raise CardMixRuleError(
+                    name, f"of {share} rounds to 0 in hundredths; use 0 to disable the rule"
+                )
+        if self.expensive_mana_value <= 0:
+            raise CardMixRuleError(
+                "expensive_mana_value", f"must be above 0, got {self.expensive_mana_value}"
             )
-        if 0 < self.mono_color_ratio < 1:
-            raise ValueError(f"mono_color_ratio must be 0 or >= 1, got {self.mono_color_ratio}")
+        if not (self.mono_color_ratio == 0 or self.mono_color_ratio >= 1):
+            raise CardMixRuleError(
+                "mono_color_ratio", f"must be 0 or at least 1, got {self.mono_color_ratio}"
+            )
 
     def enabled(self) -> dict[str, float]:
         """The settings in force, for the stats file: every rule that is not disabled."""
         settings: dict[str, float] = {}
-        for name in ("max_multicolor_share", "max_colorless_share", "max_creature_share"):
+        for name in self.CAP_FIELDS:
             if 0 < hundredths(getattr(self, name)) < 1:
                 settings[name] = getattr(self, name)
-        if 0 < hundredths(self.max_expensive_share) < 1:
-            settings["max_expensive_share"] = self.max_expensive_share
+        if "max_expensive_share" in settings:
             settings["expensive_mana_value"] = self.expensive_mana_value
         if hundredths(self.min_spell_share) > 0:
             settings["min_spell_share"] = self.min_spell_share
@@ -196,8 +223,11 @@ class CardMixStats:
     card_count: int
     # Cards of each card type (Creature, Instant, ...); a card counts once per type it has
     type_counts: dict[str, int]
-    multicolor: int  # cards with two or more colors in their identity
-    colorless: int  # cards with none (cards without Scryfall data count here)
+    # Nonland cards with two or more colors, and nonland cards with none (cards without
+    # Scryfall data count here): what the multicolor and colorless caps count. Lands
+    # appear in type_counts only.
+    multicolor: int
+    colorless: int
     # Nonland cards by mana value, 0 to MANA_VALUE_CAP (the last bucket is "that or more")
     mana_value_counts: dict[int, int]
     mean_mana_value: float  # of the nonland cards
@@ -305,8 +335,13 @@ class OptimizationResult:
     phase2_min_pair_combos: int | None = None
     phase2_min_mono_combos: int | None = None
     phase2_max_wide_combo_share: float | None = None
-    # The card mix rules Phase 2 applied; None when there was no card data to apply them to
+    # The card mix rules Phase 2 applied; None when there was no (or too little) card data
+    # to apply them to. The limits are the card counts each enabled rule applied at this cube
+    # size, by rule name ("multicolor_cap", ..., "spell_floor").
     phase2_card_mix: CardMixRules | None = None
+    phase2_card_mix_limits: dict[str, int] | None = None
+    # Candidate cards without Scryfall data (None without any card data)
+    phase2_unknown_candidate_cards: int | None = None
     # Distinct combos per draft archetype of each phase's cube
     phase1_archetype_stats: ArchetypeStats | None = None
     phase2_archetype_stats: ArchetypeStats | None = None

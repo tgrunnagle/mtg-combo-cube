@@ -3,12 +3,14 @@
 import argparse
 import asyncio
 import logging
+import math
 
-from mtg_combo_cube.ilp.ilp_models import CardMixRules
+from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
     card_mix_defaults = CardMixRules()
+    cap_note = "Between 0 and 1, rounded to hundredths; 0 or 1 removes the cap."
     argparser = argparse.ArgumentParser(
         description="Build MTG combo cube with optimal card selection"
     )
@@ -164,16 +166,17 @@ if __name__ == "__main__":
         "--max-multicolor-share",
         type=float,
         default=card_mix_defaults.max_multicolor_share,
-        help="Card mix for phase 2: at most this share of the cube may be multicolor cards "
-        f"(default: {card_mix_defaults.max_multicolor_share:g}). Between 0 and 1, in "
-        "hundredths; 0 or 1 removes the cap.",
+        help="Card mix for phase 2: at most this share of the cube may be multicolor cards; "
+        f"lands are left out of every card mix rule (default: "
+        f"{card_mix_defaults.max_multicolor_share:g}). {cap_note}",
     )
     argparser.add_argument(
         "--max-colorless-share",
         type=float,
         default=card_mix_defaults.max_colorless_share,
-        help="Card mix for phase 2: at most this share of the cube may be colorless cards "
-        f"(default: {card_mix_defaults.max_colorless_share:g}). 0 or 1 removes the cap.",
+        help="Card mix for phase 2: at most this share of the cube may be colorless nonland "
+        "cards; cards without Scryfall data count as colorless (default: "
+        f"{card_mix_defaults.max_colorless_share:g}). {cap_note}",
     )
     argparser.add_argument(
         "--max-expensive-share",
@@ -181,28 +184,29 @@ if __name__ == "__main__":
         default=card_mix_defaults.max_expensive_share,
         help="Card mix for phase 2: at most this share of the cube may have a mana value of "
         f"--expensive-mana-value or more (default: {card_mix_defaults.max_expensive_share:g}). "
-        "0 or 1 removes the cap.",
+        f"{cap_note}",
     )
     argparser.add_argument(
         "--expensive-mana-value",
         type=float,
         default=card_mix_defaults.expensive_mana_value,
         help="Mana value from which a card counts as expensive for --max-expensive-share "
-        f"(default: {card_mix_defaults.expensive_mana_value:g}).",
+        f"(default: {card_mix_defaults.expensive_mana_value:g}). Above 0.",
     )
     argparser.add_argument(
         "--max-creature-share",
         type=float,
         default=card_mix_defaults.max_creature_share,
         help="Card mix for phase 2: at most this share of the cube may be creatures "
-        f"(default: {card_mix_defaults.max_creature_share:g}). 0 or 1 removes the cap.",
+        f"(default: {card_mix_defaults.max_creature_share:g}). {cap_note}",
     )
     argparser.add_argument(
         "--min-spell-share",
         type=float,
         default=card_mix_defaults.min_spell_share,
         help="Card mix for phase 2: at least this share of the cube must be instants or "
-        f"sorceries (default: {card_mix_defaults.min_spell_share:g}). 0 disables.",
+        f"sorceries (default: {card_mix_defaults.min_spell_share:g}). Between 0 and 1, "
+        "rounded to hundredths; 0 disables.",
     )
     argparser.add_argument(
         "--mono-color-ratio",
@@ -213,7 +217,7 @@ if __name__ == "__main__":
         f"only (default: {card_mix_defaults.mono_color_ratio:g}, disabled). 0 or at least 1.",
     )
     args = argparser.parse_args()
-    if 0 < args.max_color_ratio < 1:
+    if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
     if not 0 <= args.variant_weight <= 1:
         argparser.error("--variant-weight must be between 0 and 1")
@@ -221,28 +225,19 @@ if __name__ == "__main__":
         argparser.error("--min-pair-combos and --min-mono-combos must be 0 or more")
     if not 0 <= args.max_wide_combo_share <= 1:
         argparser.error("--max-wide-combo-share must be between 0 and 1")
-    for share_flag in (
-        "max_multicolor_share",
-        "max_colorless_share",
-        "max_expensive_share",
-        "max_creature_share",
-        "min_spell_share",
-    ):
-        if not 0 <= getattr(args, share_flag) <= 1:
-            argparser.error(f"--{share_flag.replace('_', '-')} must be between 0 and 1")
-    if args.expensive_mana_value < 0:
-        argparser.error("--expensive-mana-value must be 0 or more")
-    if 0 < args.mono_color_ratio < 1:
-        argparser.error("--mono-color-ratio must be 0 or at least 1")
-    card_mix = CardMixRules(
-        max_multicolor_share=args.max_multicolor_share,
-        max_colorless_share=args.max_colorless_share,
-        max_expensive_share=args.max_expensive_share,
-        expensive_mana_value=args.expensive_mana_value,
-        max_creature_share=args.max_creature_share,
-        min_spell_share=args.min_spell_share,
-        mono_color_ratio=args.mono_color_ratio,
-    )
+    # The card mix settings are validated once, by CardMixRules; the error names the field
+    try:
+        card_mix = CardMixRules(
+            max_multicolor_share=args.max_multicolor_share,
+            max_colorless_share=args.max_colorless_share,
+            max_expensive_share=args.max_expensive_share,
+            expensive_mana_value=args.expensive_mana_value,
+            max_creature_share=args.max_creature_share,
+            min_spell_share=args.min_spell_share,
+            mono_color_ratio=args.mono_color_ratio,
+        )
+    except CardMixRuleError as e:
+        argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(

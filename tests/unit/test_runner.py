@@ -182,9 +182,14 @@ class TestCliPlumbing:
             ("--max-colorless-share", "x"),
             ("--max-expensive-share", "2"),
             ("--expensive-mana-value", "-1"),
+            ("--expensive-mana-value", "0"),
             ("--max-creature-share", "-0.5"),
+            ("--max-creature-share", "nan"),
             ("--min-spell-share", "1.1"),
+            ("--min-spell-share", "0.001"),
             ("--mono-color-ratio", "0.5"),
+            ("--mono-color-ratio", "inf"),
+            ("--max-color-ratio", "nan"),
         ],
     )
     def test_invalid_card_mix_options_are_rejected(
@@ -192,6 +197,14 @@ class TestCliPlumbing:
     ):
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *args)
+
+    def test_card_mix_error_names_the_flag(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--max-creature-share", "1.5")
+
+        assert "--max-creature-share must be between 0 and 1, got 1.5" in capsys.readouterr().err
 
 
 class TestRunnerPlumbing:
@@ -264,6 +277,7 @@ class TestRunnerPlumbing:
             "A": CardAttributes("W", "Creature \u2014 Human", 2),
             "B": CardAttributes("WU", "Instant", 1),
             "C": CardAttributes("", "Artifact", 0),
+            "D": CardAttributes("G", "Creature \u2014 Elf", 3),
         }
 
         async def fake_fetch_card_attributes(
@@ -339,3 +353,5 @@ class TestRunnerPlumbing:
             "max_creature_share": 0.7,
             "min_spell_share": 0.3,
         }
+        assert stats["phase2"]["card_mix_limits"] == {"creature_cap": 2, "spell_floor": 1}
+        assert stats["phase2"]["unknown_candidate_cards"] == 0

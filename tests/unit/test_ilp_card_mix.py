@@ -2,14 +2,17 @@
 creature cards, the floor on instants and sorceries, and the mono-colored balance."""
 
 import logging
+from fractions import Fraction
 from typing import Any
 
 import pytest
 
 from mtg_combo_cube.ilp.ilp_models import (
+    CardMixRuleError,
     CardMixRules,
     ComboData,
     OptimizationResult,
+    hundredths,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.models import CardAttributes
@@ -45,6 +48,13 @@ ATTRIBUTES = {
     "S2": CardAttributes("U", "Sorcery", 3),
 }
 PHASE1_CUBE = {"X1", "X2", "R1", "R2", "B1", "B2"}
+# Twelve more white creatures in unpopular pairs, to make a pool of twenty cards
+FILLER = [ComboData(f"f{i}", frozenset([f"F{2 * i - 1}", f"F{2 * i}"]), [], 1) for i in range(1, 7)]
+FILLER_ATTRIBUTES = {
+    card: CardAttributes("W", "Creature \u2014 Soldier", 2)
+    for combo in FILLER
+    for card in combo.required_cards
+}
 
 
 def make_optimizer(combos: list[ComboData] = COMBOS, **kwargs: Any) -> ILPOptimizer:
@@ -112,12 +122,26 @@ class TestCardMixRules:
             {"max_creature_share": -1},
             {"min_spell_share": 1.01},
             {"expensive_mana_value": -1},
+            {"expensive_mana_value": 0},
             {"mono_color_ratio": 0.5},
+            {"max_creature_share": float("nan")},
+            {"mono_color_ratio": float("nan")},
+            {"expensive_mana_value": float("inf")},
+            {"min_spell_share": 0.004},  # rounds to 0 in hundredths
         ],
     )
     def test_invalid_values_are_rejected(self, kwargs: dict[str, float]):
-        with pytest.raises(ValueError, match=next(iter(kwargs))):
+        name = next(iter(kwargs))
+        with pytest.raises(CardMixRuleError, match=name) as error:
             CardMixRules(**kwargs)
+        assert error.value.field == name
+
+    def test_hundredths_rounds(self):
+        assert hundredths(0.333) == Fraction(33, 100)
+        assert hundredths(0.15) == Fraction(3, 20)
+        assert hundredths(0.125) == Fraction(12, 100)  # round half to even
+        assert hundredths(2.0) == 2
+        assert hundredths(0.004) == 0
 
 
 class TestShareCaps:
@@ -218,39 +242,95 @@ class TestShareCaps:
     def test_share_rounds_to_hundredths(self):
         optimizer = make_optimizer()
 
-        # 0.333 rounds to 1/3 of six cards: two; 0.5 of six: three
-        assert optimizer._cap_count(0.333) == 2
+        # 0.333 rounds to 0.33: 1.98 of six cards, one for a cap and two for a floor
+        assert optimizer._cap_count(0.333) == 1
         assert optimizer._cap_count(0.5) == 3
         assert optimizer._floor_count(0.333) == 2
         assert optimizer._floor_count(0.34) == 3
         assert optimizer._floor_count(0) is None
+
+    def test_limits_are_recorded(self):
+        optimizer = make_optimizer(
+            card_mix=rules(max_multicolor_share=0.2, max_creature_share=0.5, min_spell_share=0.3)
+        )
+
+        result = optimizer.solve_two_phase()
+
+        assert result.is_multi_objective
+        assert result.phase2_card_mix_limits == {
+            "multicolor_cap": 1,
+            "creature_cap": 3,
+            "spell_floor": 2,
+        }
+        assert result.phase2_unknown_candidate_cards == 0
+
+    def test_colored_lands_are_left_out_of_every_rule(self):
+        attributes = {
+            **ATTRIBUTES,
+            "X1": CardAttributes("WU", "Land", 0),
+            "B2": CardAttributes("W", "Land \u2014 Forest", 0),
+        }
+        optimizer = make_optimizer(card_attributes=attributes)
+
+        assert optimizer.multicolor_cards == {"X2"}
+        assert optimizer.expensive_cards == {"B1"}
+        assert optimizer.creature_cards == {"X2", "B1"}
 
 
 class TestMissingCardData:
     def test_cards_without_attributes_count_as_colorless_and_typeless(
         self, caplog: pytest.LogCaptureFixture
     ):
-        # The big creatures lose their data: they no longer count as creatures or as
-        # expensive, and they count as colorless alongside the artifacts
-        attributes = {card: value for card, value in ATTRIBUTES.items() if card[0] != "B"}
+        # One of twenty cards (5%, the limit) loses its data: B2 no longer counts as a
+        # creature or as expensive, and counts as colorless alongside the artifacts
+        combos = [*COMBOS, *FILLER]
+        attributes = {**ATTRIBUTES, **FILLER_ATTRIBUTES}
+        del attributes["B2"]
         optimizer = make_optimizer(
+            combos,
             card_attributes=attributes,
             card_mix=rules(max_colorless_share=0.4, max_creature_share=0.5),
         )
 
-        assert optimizer.colorless_cards == {"B1", "B2", "R1", "R2"}
-        assert optimizer.creature_cards == {"X1", "X2"}
-        assert optimizer.expensive_cards == frozenset()
+        assert optimizer.card_mix_active
+        assert optimizer.colorless_cards == {"B2", "R1", "R2"}
+        assert "B2" not in optimizer.creature_cards
+        assert optimizer.expensive_cards == {"B1"}
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             result = optimizer.solve_two_phase()
 
         # 0.4 of six cards: two colorless, so the artifacts or the big creatures go
         assert result.is_multi_objective
-        assert {"X1", "X2", "S1", "S2"} <= cube(result)
+        assert not ({"R1", "R2", "B2"} <= cube(result))
+        assert result.phase2_unknown_candidate_cards == 1
+        assert result.phase2_card_mix_limits == {"colorless_cap": 2, "creature_cap": 3}
         assert (
-            "2 of 8 candidate cards have no Scryfall data; they count as colorless, typeless "
+            "1 of 20 candidate cards have no Scryfall data; they count as colorless, typeless "
             "and mana value 0"
         ) in caplog.text
+
+    def test_too_many_unknown_cards_disable_the_rules(self, caplog: pytest.LogCaptureFixture):
+        # Two of eight cards (25%) without data: the pool is too uncertain for the rules
+        attributes = {card: value for card, value in ATTRIBUTES.items() if card[0] != "B"}
+        optimizer = make_optimizer(
+            card_attributes=attributes, card_mix=rules(max_colorless_share=0.4)
+        )
+
+        assert not optimizer.card_mix_active
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            result = optimizer.solve_two_phase(profile=True)
+
+        assert result.is_multi_objective
+        assert cube(result) == PHASE1_CUBE
+        assert result.phase2_card_mix is None
+        assert result.phase2_card_mix_limits is None
+        assert result.phase2_unknown_candidate_cards == 2
+        assert (
+            "2 of 8 candidate cards (25%) have no Scryfall data, more than 5%; the card mix "
+            "rules are not enforced"
+        ) in caplog.text
+        assert result.profile_data is not None
+        assert "colorless_cap" not in result.profile_data["phase2"]["counts"]
 
     def test_no_card_data_disables_the_rules(self, caplog: pytest.LogCaptureFixture):
         optimizer = make_optimizer(card_attributes=None, card_mix=CardMixRules())
@@ -261,6 +341,7 @@ class TestMissingCardData:
         assert result.is_multi_objective
         assert cube(result) == PHASE1_CUBE
         assert result.phase2_card_mix is None
+        assert result.phase2_unknown_candidate_cards is None
         assert "no card data from Scryfall; the card mix rules are not enforced" in caplog.text
         assert result.profile_data is not None
         assert "creature_cap" not in result.profile_data["phase2"]["counts"]
@@ -389,6 +470,13 @@ class TestMonoColorBalance:
         cards = ["W1", "W2", "W3", "W4", "U1", "B1", "R1", "G1"]
 
         assert optimizer._mono_cards_of_color("W", cards) == ["W1", "W2", "W3"]
+        # A white land is not a mono-colored white card for the balance
+        with_land = make_optimizer(
+            MONO_COMBOS,
+            card_attributes={**MONO_ATTRIBUTES, "W3": CardAttributes("W", "Land")},
+            card_mix=rules(mono_color_ratio=2),
+        )
+        assert with_land._mono_cards_of_color("W", cards) == ["W1", "W2"]
         # Three mono-white cards against one of each other color: four pairs over 2 x 1
         assert optimizer._mono_color_violations(cards) == 4
         assert optimizer._mono_color_violations(["W1", "W2", "U1", "B1", "R1", "G1"]) == 0

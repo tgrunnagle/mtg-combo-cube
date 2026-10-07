@@ -268,11 +268,13 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    (default 0.15), `--max-colorless-share` (0.25), `--max-expensive-share` (0.2) and
    `--max-creature-share` (0.6); and at least `ceil(--min-spell-share x cube size)` (0.05)
    selected cards are instants or sorceries. Each is one linear constraint over the
-   candidate cards that count for it, decided from the Scryfall attributes before the solve;
-   lands are left out of the colorless cap, and a card without attributes counts as
-   colorless, typeless and mana value 0. A share of 0 skips a rule (a cap of 1 too), as does
-   missing card data. Before the solve, a warning names any rule the pool cannot meet
-   (too few candidates for the floor, or too few cards outside a cap to fill the cube).
+   candidate cards that count for it, decided from the Scryfall attributes before the solve.
+   Lands are left out of every card mix rule, and a card without attributes counts as
+   colorless, typeless and mana value 0. Shares are rounded to hundredths; a share of 0
+   skips a rule (a cap of 1 too), and so does missing card data: none at all, or more than
+   5% of the candidates without it. Before the solve, a warning names any rule the pool
+   cannot meet (too few candidates for the floor, or too few cards outside a cap to fill
+   the cube).
 10. **Mono-colored balance.** `--mono-color-ratio` (default 0, off) applies the color balance
     form to the cards whose identity is exactly one color.
 11. **The objective**, chosen with `--phase2-objective`.
@@ -399,11 +401,11 @@ colorless cards, and the variance and standard deviation of the five per-color c
 also has an `archetypes` entry: `combos_per_archetype`, the distinct combos whose color
 identity fits each of the ten color pairs, the five mono colors and `C` (colorless), and
 `combos_by_color_count`, the distinct combos by the number of colors they need. A `card_mix`
-entry gives the cards per type, the multicolor and colorless counts (what the two caps
-count, so lands are not colorless there), and the mana value histogram and means (overall
-and per color) of the nonland cards. The `phase2` block records
-the archetype settings that were applied and, as `card_mix_rules`, the card mix settings in
-force.
+entry gives the cards per type, the multicolor and colorless counts (nonland cards, as the
+two caps count them), and the mana value histogram and means (overall and per color) of the
+nonland cards. The `phase2` block records the archetype settings that were applied, the card
+mix settings in force as `card_mix_rules` with the card counts they applied as
+`card_mix_limits`, and the number of candidate cards without Scryfall data.
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
 settings (`--variant-weight 0.1`, the archetype minimums and the card mix rules) at 300 cards

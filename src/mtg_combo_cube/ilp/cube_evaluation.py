@@ -316,6 +316,11 @@ def compute_color_stats(
     )
 
 
+def is_land(attributes: CardAttributes) -> bool:
+    """Whether the card is a land; lands are left out of the card mix rules."""
+    return "Land" in attributes.types
+
+
 def is_spell(attributes: CardAttributes) -> bool:
     """Whether the card is an instant or sorcery."""
     return not attributes.types.isdisjoint(SPELL_TYPES)
@@ -332,10 +337,10 @@ def compute_card_mix_stats(
     """
     Compute the make-up of the cards by type, color count and mana value.
 
-    `multicolor` and `colorless` count what the multicolor and colorless caps count, so
-    lands are not colorless here. Cards missing from attributes are counted as unknown and,
-    as in the card mix rules, as colorless and typeless; they are left out of the mana
-    values, which are over the nonland cards with data.
+    `multicolor` and `colorless` count what the multicolor and colorless caps count: nonland
+    cards, so lands appear in `type_counts` only. Cards missing from attributes are counted
+    as unknown and, as in the card mix rules, as colorless and typeless; they are left out
+    of the mana values, which are over the nonland cards with data.
     """
     type_counts = dict.fromkeys(CARD_TYPES, 0)
     mana_value_counts = dict.fromkeys(range(MANA_VALUE_CAP + 1), 0)
@@ -352,11 +357,13 @@ def compute_card_mix_stats(
         types = card_attributes.types
         for card_type in types & set(CARD_TYPES):
             type_counts[card_type] += 1
+        if is_land(card_attributes):
+            continue
         if card_attributes.is_multicolor:
             multicolor += 1
-        elif card_attributes.is_colorless and "Land" not in types:
+        elif card_attributes.is_colorless:
             colorless += 1
-        if "Land" in types or not known:
+        if not known:
             continue
         mana_value = card_attributes.mana_value
         mana_value_counts[min(int(mana_value), MANA_VALUE_CAP)] += 1

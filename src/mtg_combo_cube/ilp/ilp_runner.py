@@ -91,6 +91,10 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["max_wide_combo_share"] = result.phase2_max_wide_combo_share
     if result.phase2_card_mix is not None and (card_mix_rules := result.phase2_card_mix.enabled()):
         info["card_mix_rules"] = card_mix_rules
+    if result.phase2_card_mix_limits:
+        info["card_mix_limits"] = result.phase2_card_mix_limits
+    if result.phase2_unknown_candidate_cards is not None:
+        info["unknown_candidate_cards"] = result.phase2_unknown_candidate_cards
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:

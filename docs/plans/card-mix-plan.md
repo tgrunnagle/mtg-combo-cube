@@ -192,9 +192,13 @@ Decisions:
   of the other rules, but it is a floor on interaction only in name (see the open questions).
 - The multicolor cap and the mono-colored balance are not binding at the default
   configuration; the multicolor cap is kept as a guard, the mono balance is off.
-- Lands do not count toward the colorless cap ("Lands: leave alone" above): the cap is about
-  artifacts, and a land's color identity is empty. The measurements above counted lands (the
-  cubes had 0 to 9), which changes the 0.25 figure by at most 3 cards.
+- Lands are left out of every card mix rule and of the `card_mix` multicolor and colorless
+  counts ("Lands: leave alone" above): colorless lands would otherwise fill the colorless cap
+  and colored lands such as Kessig Wolf Run the multicolor cap. The measurements above counted
+  lands (the cubes had 0 to 9), which changes the figures by at most 3 cards.
+- Cards without Scryfall data count as colorless, typeless and mana value 0; when more than 5%
+  of the candidates lack data (a failed Scryfall batch), the rules are skipped with a warning
+  rather than applied to a skewed pool. The stats file records the count.
 
 ### Verification
 

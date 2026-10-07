@@ -25,6 +25,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_utilization_stats,
     fits_archetype,
     is_expensive,
+    is_land,
     is_spell,
     known_color_identity,
     largest_combo_groups,
@@ -176,6 +177,9 @@ class ILPOptimizer:
     # Shares of the Phase 2 time limit for the two warm-start repair stages
     WARM_START_MAXIMIZE_FRACTION = 0.2
     WARM_START_FLOOR_FRACTION = 0.2
+    # Share of the candidate cards that may lack Scryfall data before the card mix rules are
+    # skipped: with more, the cards' colors, types and mana values are too uncertain
+    MAX_UNKNOWN_CARD_SHARE = 0.05
     TIER_MULTIPLES = (1, 2, 4)  # "tiered" objective: overage is counted above each multiple of T
     WEIGHT_SCALE = 10000  # Scale for integer conversion
 
@@ -222,7 +226,7 @@ class ILPOptimizer:
         if util_cap is not None and util_cap < 0:
             raise ValueError(f"util_cap must be >= 0, got {util_cap}")
         self.util_cap = util_cap  # "softcap" and "tiered"; None = derive from Phase 1
-        if 0 < max_color_ratio < 1:
+        if not math.isfinite(max_color_ratio) or 0 < max_color_ratio < 1:
             raise ValueError(f"max_color_ratio must be 0 or >= 1, got {max_color_ratio}")
         # Card name -> Scryfall attributes (color identity, types, mana value), behind the
         # Phase 2 color balance and card mix rules. Without the data (None, a failed lookup)
@@ -255,15 +259,27 @@ class ILPOptimizer:
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
-        # The candidate cards each card mix rule counts. Lands are left out of the colorless
-        # cap: it is about artifacts, and lands have an empty color identity.
-        self.multicolor_cards = self._cards_where(lambda a: a.is_multicolor)
-        self.colorless_cards = self._cards_where(lambda a: a.is_colorless and "Land" not in a.types)
-        self.expensive_cards = self._cards_where(
+        # The candidate cards each card mix rule counts. Lands are left out of every rule:
+        # they are combo pieces rather than the mix being shaped, and colorless lands would
+        # otherwise fill the colorless cap and colored lands the multicolor cap.
+        self.multicolor_cards = self._nonland_cards_where(lambda a: a.is_multicolor)
+        self.colorless_cards = self._nonland_cards_where(lambda a: a.is_colorless)
+        self.expensive_cards = self._nonland_cards_where(
             lambda a: is_expensive(a, card_mix.expensive_mana_value)
         )
-        self.creature_cards = self._cards_where(lambda a: "Creature" in a.types)
-        self.spell_cards = self._cards_where(is_spell)
+        self.creature_cards = self._nonland_cards_where(lambda a: "Creature" in a.types)
+        self.spell_cards = self._nonland_cards_where(is_spell)
+        # Candidate cards without Scryfall data (None without any). They count as colorless,
+        # typeless and mana value 0; past MAX_UNKNOWN_CARD_SHARE the card mix rules are off.
+        self.unknown_candidate_cards: int | None = (
+            sum(1 for card in self.all_cards if card not in card_attributes)
+            if card_attributes is not None
+            else None
+        )
+        self.card_mix_active: bool = (
+            self.unknown_candidate_cards is not None
+            and self.unknown_candidate_cards <= self.MAX_UNKNOWN_CARD_SHARE * len(self.all_cards)
+        )
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
@@ -1155,6 +1171,10 @@ class ILPOptimizer:
         """The candidate cards whose attributes satisfy the predicate."""
         return frozenset(card for card in self.all_cards if predicate(self._attributes_of(card)))
 
+    def _nonland_cards_where(self, predicate: Callable[[CardAttributes], bool]) -> frozenset[str]:
+        """The candidate nonland cards whose attributes satisfy the predicate."""
+        return self._cards_where(lambda a: not is_land(a) and predicate(a))
+
     def _balance_ratio(self, ratio: float) -> Fraction | None:
         """A balance ratio as an integer fraction, or None when there is no constraint."""
         if self.card_attributes is None or ratio <= 0:
@@ -1170,8 +1190,13 @@ class ILPOptimizer:
         return [card for card in cards if color in self._attributes_of(card).color_identity]
 
     def _mono_cards_of_color(self, color: str, cards: Collection[str]) -> list[str]:
-        """The given cards whose color identity is exactly the color."""
-        return [card for card in cards if self._attributes_of(card).color_identity == color]
+        """The given nonland cards whose color identity is exactly the color."""
+        return [
+            card
+            for card in cards
+            if (attributes := self._attributes_of(card)).color_identity == color
+            and not is_land(attributes)
+        ]
 
     def _add_balance(
         self,
@@ -1233,17 +1258,17 @@ class ILPOptimizer:
     def _cap_count(self, max_share: float) -> int | None:
         """
         The most cards a share cap allows, or None when there is no cap: a share that
-        rounds (to hundredths) to 0 or to 1, or no card data to apply it to.
+        rounds (to hundredths) to 0 or to 1, or too little card data to apply it to.
         """
         share = hundredths(max_share)
-        if self.card_attributes is None or not 0 < share < 1:
+        if not self.card_mix_active or not 0 < share < 1:
             return None
         return math.floor(share * self.cube_size)
 
     def _floor_count(self, min_share: float) -> int | None:
         """The fewest cards a share floor requires, or None when there is no floor."""
         share = hundredths(min_share)
-        if self.card_attributes is None or share <= 0:
+        if not self.card_mix_active or share <= 0:
             return None
         return math.ceil(share * self.cube_size)
 
@@ -1319,6 +1344,8 @@ class ILPOptimizer:
 
     def _mono_color_ratio(self) -> Fraction | None:
         """The mono-colored balance ratio, or None when there is no constraint."""
+        if not self.card_mix_active:
+            return None
         return self._balance_ratio(self.card_mix.mono_color_ratio)
 
     def _add_mono_color_balance(self, base: _BaseModel) -> None:
@@ -1380,25 +1407,52 @@ class ILPOptimizer:
             ),
         ]
 
+    def _card_mix_limits(self) -> dict[str, int]:
+        """The card counts each enabled card mix cap and floor applies, by rule name."""
+        limits: dict[str, int] = {}
+        for label, _, share in self._share_caps():
+            limit = self._cap_count(share)
+            if limit is not None:
+                limits[label.replace(" ", "_")] = limit
+        required = self._floor_count(self.card_mix.min_spell_share)
+        if required is not None:
+            limits["spell_floor"] = required
+        return limits
+
     def _card_mix_info(self) -> dict[str, Any]:
         """
-        The card mix rules Phase 2 applies, for the result (None without card data), with
-        a warning when the data is missing or incomplete.
+        The card mix rules Phase 2 applies and their limits, for the result (None without
+        enough card data), with a warning when the data is missing or incomplete.
         """
         enabled = self.card_mix.enabled()
-        if self.card_attributes is None:
+        unknown = self.unknown_candidate_cards
+        info: dict[str, Any] = {
+            "phase2_card_mix": None,
+            "phase2_card_mix_limits": None,
+            "phase2_unknown_candidate_cards": unknown,
+        }
+        if unknown is None:
             if enabled:
                 logger.warning(
                     "Phase 2: no card data from Scryfall; the card mix rules are not enforced"
                 )
-            return {"phase2_card_mix": None}
-        unknown = sum(1 for card in self.all_cards if card not in self.card_attributes)
+            return info
+        if not self.card_mix_active:
+            if enabled:
+                logger.warning(
+                    f"Phase 2: {unknown} of {len(self.all_cards)} candidate cards "
+                    f"({unknown / len(self.all_cards):.0%}) have no Scryfall data, more than "
+                    f"{self.MAX_UNKNOWN_CARD_SHARE:.0%}; the card mix rules are not enforced"
+                )
+            return info
         if enabled and unknown:
             logger.warning(
                 f"Phase 2: {unknown} of {len(self.all_cards)} candidate cards have no Scryfall "
                 f"data; they count as colorless, typeless and mana value 0"
             )
-        return {"phase2_card_mix": self.card_mix}
+        info["phase2_card_mix"] = self.card_mix
+        info["phase2_card_mix_limits"] = self._card_mix_limits() or None
+        return info
 
     def _coverage_violations(self, cards: Collection[str]) -> int:
         """Number of Phase 2 coverage constraints (_add_coverage_constraints) a cube breaks."""
