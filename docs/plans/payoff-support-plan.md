@@ -284,9 +284,11 @@ id to widen the inference) was deferred: 53 of the 5,449 bundled terminal varian
 engine in the pool, so the download would have to cover most of the other 5,400 engines, and
 the table already covers every category at the chosen floor; it stays an open question.
 
-The resolved default table (queries resolved on 7 October 2026) has 190 payoff cards, 109 of
-them in no combo of the pool: mana 57 (4 inferred, 53 from the queries), storm 12, tokens 76,
-lifegain 10, counters 25. 4,664 candidate cards after adding them, all with Scryfall data.
+The resolved default table (queries resolved on 7 October 2026, the tightened storm query)
+has 177 distinct payoff cards, 99 of them in no combo of the pool: mana 57 (4 inferred, 53
+from the queries), storm 14 (2 inferred, 12 from the query), tokens 76, lifegain 10, counters
+25; a card can be in several categories. 4,654 candidate cards after adding them, all with
+Scryfall data.
 
 ### Step 2: combo cost of the payoff floor
 

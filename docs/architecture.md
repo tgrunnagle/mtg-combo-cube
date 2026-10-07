@@ -360,9 +360,10 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     only tightens the cap. Both outcome rules are skipped without a table.
 13. **Payoff floor.** For each category of the payoff table whose outcome has at least one
     combo in the pool, at least `--min-payoffs` (default 2) of the category's payoff cards
-    are selected: one linear constraint over `x`, exact in every model. A category with
-    fewer payoff cards than the floor has it lowered to what it has, with a warning, as the
-    outcome minimum is. Skipped at 0, without a payoff table, and without an outcome table
+    are selected: one linear constraint over `x`, exact in every model. Only selectable
+    cards count (payoff-only cards, or combo pieces at or above the utilization floor); a
+    category with fewer of them than the floor has it lowered to what it has, with a
+    warning, as the outcome minimum is. Skipped at 0, without a payoff table, and without an outcome table
     (which says whether a category has engines in the pool).
 14. **The objective**, chosen with `--phase2-objective`.
 15. **Warm start.** The model is hinted with a starting cube.
