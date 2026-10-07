@@ -29,7 +29,11 @@ from mtg_combo_cube.ilp.ilp_models import (
     PopularityStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.ilp.outcomes import load_outcome_categories
+from mtg_combo_cube.ilp.outcomes import (
+    DEFAULT_OUTCOME_CATEGORIES_PATH,
+    outcome_rules_requested,
+    resolve_outcome_categories,
+)
 from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.scryfall_fetcher import ScryfallFetcher
@@ -667,7 +671,7 @@ async def build_cube_ilp(
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
     outcome_categories_path: str | None = None,
-    min_outcome_combos: int = 40,
+    min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
 ) -> tuple[list[str], int, OptimizationResult, dict[str, CardAttributes] | None]:
@@ -675,7 +679,9 @@ async def build_cube_ilp(
     Build cube using ILP optimization with optional API caching.
 
     outcome_categories_path is the outcome category table (data/outcome_categories.json by
-    default), behind the outcome statistics and the Phase 2 outcome rules.
+    default), behind the outcome statistics and the Phase 2 outcome rules. The default
+    table is read from the working directory; when it is missing there and no rule is
+    on, the build goes on without the outcome statistics.
 
     Returns:
         - List of card names in cube
@@ -686,11 +692,20 @@ async def build_cube_ilp(
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
     # Read the table first: a bad path or table should fail before the instance is loaded
-    outcome_categories = load_outcome_categories(outcome_categories_path)
-    logger.info(
-        f"Loaded {len(outcome_categories)} outcome categories: "
-        f"{', '.join(outcome_categories.names)}"
+    outcome_categories = resolve_outcome_categories(
+        outcome_categories_path,
+        required=outcome_rules_requested(min_outcome_combos, max_outcome_share),
     )
+    if outcome_categories is None:
+        logger.warning(
+            f"No outcome category table at {DEFAULT_OUTCOME_CATEGORIES_PATH} (run from the "
+            "repository root or pass --outcome-categories); the outcome statistics are skipped"
+        )
+    else:
+        logger.info(
+            f"Loaded {len(outcome_categories)} outcome categories: "
+            f"{', '.join(outcome_categories.names)}"
+        )
 
     combo_data, candidate_cards = await load_instance(
         max_cards_in_combo=max_cards_in_combo,
@@ -793,7 +808,7 @@ async def run_ilp(
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
     outcome_categories_path: str | None = None,
-    min_outcome_combos: int = 40,
+    min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
 ):

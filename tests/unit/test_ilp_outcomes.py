@@ -132,11 +132,11 @@ class TestOutcomeMinimum:
         assert outcomes(result.phase2_outcome_stats) == {"mana": 4, "damage": 1, "mill": 0}
         assert (
             "the pool has only 0 combos with outcome mill, below the minimum of 2; the "
-            "minimum is lowered to 0"
+            "minimum is lowered to 0 (every such combo must be completed)"
         ) in caplog.text
         assert (
             "the pool has only 1 combos with outcome damage, below the minimum of 2; the "
-            "minimum is lowered to 1"
+            "minimum is lowered to 1 (every such combo must be completed)"
         ) in caplog.text
         assert "falling back" not in caplog.text
 

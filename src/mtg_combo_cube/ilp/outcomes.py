@@ -22,6 +22,8 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from mtg_combo_cube.ilp.ilp_models import hundredths
+
 DEFAULT_OUTCOME_CATEGORIES_PATH = "data/outcome_categories.json"
 REGEX_PREFIX = "re:"
 
@@ -169,3 +171,24 @@ def load_outcome_categories(path: str | None = None) -> OutcomeCategories:
         except json.JSONDecodeError as e:
             raise OutcomeCategoryError(f"{table_path} is not valid JSON: {e}") from e
     return parse_outcome_categories(table)
+
+
+def outcome_rules_requested(min_outcome_combos: int, max_outcome_share: float) -> bool:
+    """Whether the settings ask for an outcome rule: a minimum above 0 or a cap in (0, 1)."""
+    return min_outcome_combos > 0 or 0 < hundredths(max_outcome_share) < 1
+
+
+def resolve_outcome_categories(
+    path: str | None, *, required: bool = True
+) -> OutcomeCategories | None:
+    """
+    The category table a run should use: the file at `path`, or the default table.
+
+    A path that was given must exist. Without one, the default table is read from the
+    working directory, which is the repository root for every `data/` path. When it is
+    missing there, that is an error only when the table is `required` (an outcome rule is
+    on); otherwise the result is None and the run goes on without the outcome statistics.
+    """
+    if path is None and not required and not Path(DEFAULT_OUTCOME_CATEGORIES_PATH).exists():
+        return None
+    return load_outcome_categories(path)

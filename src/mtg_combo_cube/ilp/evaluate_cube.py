@@ -44,7 +44,11 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_popularity_stats,
     load_instance,
 )
-from mtg_combo_cube.ilp.outcomes import OutcomeCategories, load_outcome_categories
+from mtg_combo_cube.ilp.outcomes import (
+    OutcomeCategories,
+    OutcomeCategoryError,
+    resolve_outcome_categories,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -150,6 +154,12 @@ if __name__ == "__main__":
         help="Path to the outcome category table (default: data/outcome_categories.json)",
     )
     args = argparser.parse_args()
+    # A missing or invalid outcome table is a usage error; without the default table the
+    # outcome counts are left out
+    try:
+        outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
+    except (FileNotFoundError, OutcomeCategoryError) as e:
+        argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
     evaluation = asyncio.run(
@@ -158,7 +168,7 @@ if __name__ == "__main__":
             max_variants=args.max_variants,
             blocklist=load_blocklist(args.blocklist),
             variant_weight=args.variant_weight,
-            outcome_categories=load_outcome_categories(args.outcome_categories),
+            outcome_categories=outcome_categories,
         )
     )
     stats = evaluation.utilization_stats

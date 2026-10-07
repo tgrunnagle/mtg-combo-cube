@@ -2,6 +2,7 @@
 
 import inspect
 import json
+import logging
 import runpy
 import sys
 from pathlib import Path
@@ -206,7 +207,10 @@ class TestCliPlumbing:
         assert received["outcome_categories_path"] is None
         assert received["popularity_weight"] == 0
 
-    def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch):
+    def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        # The table is validated up front, so it must exist
+        table = tmp_path / "outcomes.json"
+        table.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
         received = run_cli(
             monkeypatch,
             "--min-outcome-combos",
@@ -214,14 +218,14 @@ class TestCliPlumbing:
             "--max-outcome-share",
             "0.5",
             "--outcome-categories",
-            "my/outcomes.json",
+            str(table),
             "--popularity-weight",
             "0.5",
         )
 
         assert received["min_outcome_combos"] == 40
         assert received["max_outcome_share"] == 0.5
-        assert received["outcome_categories_path"] == "my/outcomes.json"
+        assert received["outcome_categories_path"] == str(table)
         assert received["popularity_weight"] == 0.5
 
     @pytest.mark.parametrize(
@@ -240,6 +244,23 @@ class TestCliPlumbing:
     ):
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *args)
+
+    def test_missing_outcome_table_is_a_usage_error(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--method", "ilp", "--outcome-categories", "missing.json")
+
+        assert "Outcome categories file not found: missing.json" in capsys.readouterr().err
+
+    def test_missing_default_table_is_a_usage_error_only_with_a_rule_on(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.chdir(tmp_path)
+
+        assert run_cli(monkeypatch, "--method", "ilp", "--min-outcome-combos", "0")
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, "--method", "ilp")
 
     def test_card_mix_error_names_the_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -428,6 +449,61 @@ class TestRunnerPlumbing:
         assert "outcome_minimums" not in stats["phase2"]
         assert stats["metadata"]["popularity_weight"] == 0
         assert "combo_score" not in stats["metadata"]
+
+    async def test_run_ilp_without_the_default_table_skips_the_outcome_statistics(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        # Outside the repository root there is no default table; with the rules off that
+        # is a warning, and the stats file has no outcome counts
+        monkeypatch.chdir(tmp_path)
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 10),
+            ComboData("bc", frozenset(["B", "C"]), [], 10),
+            ComboData("ca", frozenset(["C", "A"]), [], 10),
+        ]
+        cards = {name: CandidateCard(name, frozenset(), frozenset()) for name in ["A", "B", "C"]}
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, cards
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> None:
+            return None
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_runner"):
+            await ilp_runner.run_ilp(
+                cube_size=3,
+                output_file=str(tmp_path / "cube.txt"),
+                time_limit_seconds=10,
+                num_workers=1,
+                max_color_ratio=0,
+                min_pair_combos=0,
+                min_mono_combos=0,
+                max_wide_combo_share=0,
+                card_mix=CardMixRules(
+                    max_multicolor_share=0,
+                    max_colorless_share=0,
+                    max_expensive_share=0,
+                    max_creature_share=0,
+                    min_spell_share=0,
+                ),
+                min_outcome_combos=0,
+            )
+
+        assert created[0].outcome_categories is None
+        assert "No outcome category table at data/outcome_categories.json" in caplog.text
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert "outcomes" not in stats["phase2"]
 
     async def test_run_ilp_fails_on_a_missing_outcome_table_before_loading_the_instance(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

@@ -9,7 +9,11 @@
     "infinite red mana",
     "infinite green mana"
   ],
-  "damage": ["infinite damage", "infinite combat damage", "infinite lifeloss"],
+  "damage": [
+    "re:infinite damage(?! to (all |most |some )?creatures)",
+    "infinite combat damage",
+    "infinite lifeloss"
+  ],
   "tokens": ["infinite creature tokens", "infinite tapped creature tokens"],
   "draw": ["infinite card draw"],
   "mill": ["infinite mill", "infinite self-mill"],

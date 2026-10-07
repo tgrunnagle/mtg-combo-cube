@@ -230,7 +230,7 @@ def compute_archetype_stats(
 
 def group_features(combos: list[ComboData]) -> dict[str, frozenset[str]]:
     """
-    The features of each combo group: the union over its variants, in instance order.
+    The features of each combo group: the union over its variants (keys in instance order).
 
     A combo's outcome is judged from every variant it has, not only the completed ones, so
     that the model, the rule checks and the statistics all place a combo in the same

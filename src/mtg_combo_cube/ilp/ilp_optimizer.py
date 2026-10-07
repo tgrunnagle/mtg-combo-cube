@@ -1746,8 +1746,14 @@ class ILPOptimizer:
         """
         The minimum completed combos per outcome category that Phase 2 applies, for the
         categories with one: the configured minimum, lowered to the number of combos the
-        pool has in the category when that is smaller (_check_outcome_pool warns), so a
-        category the pool cannot fill does not make Phase 2 infeasible.
+        pool has in the category when that is smaller (_check_outcome_pool warns).
+
+        This differs from the archetype minimums, which are kept as configured and fall
+        back when the pool is short: those are two numbers for a pool known to be large,
+        so a shortfall is a configuration error, whereas one outcome minimum applies to
+        every category of an editable table, and a small category (a handful of "turns"
+        combos at a low variant limit) would otherwise make every Phase 2 infeasible. The
+        lowered minimum asks for every such combo, which a small cube can still miss.
         """
         minimums = {}
         for name, minimum in self._configured_outcome_minimums().items():
@@ -1787,13 +1793,14 @@ class ILPOptimizer:
     def _add_outcome_share_cap(self, base: _BaseModel) -> None:
         """
         At most max_outcome_share of the completed combos may be in any one outcome
-        category. For each category, written as (den - num) * inside <= num * outside over
-        the group indicators, where outside counts the completed groups not in the category.
+        category. For each category, written as den * inside <= num * total over the group
+        indicators, where total counts every completed group (built once, as for the wide
+        combo cap) and inside those in the category.
 
         As for the wide combo cap, the one-sided repair models could meet the cap by leaving
         y at 0 for a completed combo in the category, so every variant of a group in a
-        capped category is linked exactly; under-counting the groups outside only tightens
-        the cap. A category with no combos in the pool needs no constraint.
+        capped category is linked exactly; under-counting the groups outside the category
+        only tightens the cap. A category with no combos in the pool needs no constraint.
         """
         share = self._outcome_share_fraction()
         if share is None:
@@ -1803,18 +1810,14 @@ class ILPOptimizer:
         self._add_exact_combo_linking(
             base, [combo for combo in self.combos if combo.group_key in inside_keys]
         )
+        total = cp_model.LinearExpr.sum(
+            [self._group_indicator(base, key) for key in self.combo_groups]
+        )
         for name in capped:
-            inside = set(self.outcome_groups[name])
-            inside_count = cp_model.LinearExpr.sum(
-                [self._group_indicator(base, key) for key in self.combo_groups if key in inside]
+            inside = cp_model.LinearExpr.sum(
+                [self._group_indicator(base, key) for key in self.outcome_groups[name]]
             )
-            outside_count = cp_model.LinearExpr.sum(
-                [self._group_indicator(base, key) for key in self.combo_groups if key not in inside]
-            )
-            base.model.add(
-                (share.denominator - share.numerator) * inside_count
-                <= share.numerator * outside_count
-            )
+            base.model.add(share.denominator * inside <= share.numerator * total)
         logger.info(
             f"Phase 2: Added {len(capped)} outcome share cap constraints (at most "
             f"{self.max_outcome_share:.0%} of the completed combos in any one category; "
@@ -1872,14 +1875,16 @@ class ILPOptimizer:
     def _check_outcome_pool(self) -> None:
         """
         Warn about outcome minimums the whole pool cannot meet, before solving; the applied
-        minimum is lowered to what the pool has (_outcome_minimums).
+        minimum is lowered to what the pool has (_outcome_minimums explains why), which
+        asks the cube to complete every combo the pool has in the category.
         """
         for name, minimum in self._configured_outcome_minimums().items():
             available = len(self.outcome_groups[name])
             if available < minimum:
                 logger.warning(
                     f"Phase 2: the pool has only {available} combos with outcome {name}, below "
-                    f"the minimum of {minimum}; the minimum is lowered to {available}"
+                    f"the minimum of {minimum}; the minimum is lowered to {available} (every "
+                    "such combo must be completed)"
                 )
 
     def _describe_outcome_shortfalls(self, cards: Collection[str]) -> str:

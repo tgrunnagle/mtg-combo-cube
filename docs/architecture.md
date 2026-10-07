@@ -298,7 +298,11 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     of its variants' features matches, decided before the solve (`outcome_groups`), so the
     count is a sum of group indicators: under-countable, hence the minimum is exact. 0
     disables a category's minimum, and a minimum above the number of combos the pool has
-    in the category is lowered to that number with a warning.
+    in the category is lowered to that number with a warning (every such combo must then
+    be completed). The archetype minimums are instead kept and fall back: they are two
+    numbers for a pool known to be large, so a shortfall there is a configuration error,
+    whereas one outcome minimum applies to every category of an editable table, and a
+    small category would otherwise make every Phase 2 infeasible.
 12. **Outcome share cap.** At most `--max-outcome-share` (default 0, off) of the completed
     combos may be in any one category, written per category as
     `(den - num) * inside <= num * outside` over the group indicators. As for the wide combo

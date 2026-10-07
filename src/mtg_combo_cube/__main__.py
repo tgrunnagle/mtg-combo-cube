@@ -6,6 +6,12 @@ import logging
 import math
 
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.outcomes import (
+    OutcomeCategoryError,
+    outcome_rules_requested,
+    resolve_outcome_categories,
+)
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
@@ -219,11 +225,11 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--min-outcome-combos",
         type=int,
-        default=40,
+        default=ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
         help="Outcome support for phase 2: the cube must complete at least this many distinct "
         "combos of every outcome category in the table (what the combos do: mana, damage, "
-        "tokens, ...), unless the table gives a category its own minimum (default: 40). Set "
-        "to 0 to disable.",
+        "tokens, ...), unless the table gives a category its own minimum (default: "
+        f"{ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS}). Set to 0 to disable.",
     )
     argparser.add_argument(
         "--max-outcome-share",
@@ -231,7 +237,8 @@ if __name__ == "__main__":
         default=0,
         help="Outcome support for phase 2: at most this share of the completed combos may be "
         "in any one outcome category (default: 0, disabled). Between 0 and 1, in hundredths; "
-        "0 or 1 removes the cap.",
+        "0 or 1 removes the cap. Costly: every combo in a category is linked exactly in the "
+        "warm-start repair models too, so a tight cap may find no cube within the time limit.",
     )
     argparser.add_argument(
         "--outcome-categories",
@@ -277,6 +284,15 @@ if __name__ == "__main__":
         )
     except CardMixRuleError as e:
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
+    if args.method == "ilp":
+        # A missing or invalid outcome table is a usage error, not a traceback
+        try:
+            resolve_outcome_categories(
+                args.outcome_categories,
+                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share),
+            )
+        except (FileNotFoundError, OutcomeCategoryError) as e:
+            argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     asyncio.run(

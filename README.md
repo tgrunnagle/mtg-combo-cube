@@ -161,7 +161,7 @@ Every combo count and utilization number is computed from the selected cards, no
 
 - `combos_per_outcome`: for each category of the table (by default mana, damage, tokens, draw, mill, lifegain, counters, turns, lock, storm and win), the completed combos with a feature matching one of the category's patterns. A combo counts for every category it matches, so the counts overlap; a combo's features are those of all its variants.
 - `uncategorized`: completed combos in no category, typically a trigger loop (creature ETB, death triggers) without a terminal result; `total` is the completed combos.
-- The table maps a category name to a list of patterns: case-insensitive substrings, or regular expressions with a `re:` prefix. A category may instead give `{"patterns": [...], "min_combos": N}` to set its own minimum for `--min-outcome-combos`. Pass another table with `--outcome-categories`.
+- The table maps a category name to a list of patterns: case-insensitive substrings, or regular expressions with a `re:` prefix. A category may instead give `{"patterns": [...], "min_combos": N}` to set its own minimum for `--min-outcome-combos`. Pass another table with `--outcome-categories`. The default table is read from the working directory; when it is missing there and both outcome rules are off, the build goes on without the outcome statistics.
 
 `popularity` describes the distinct combos by Spellbook usage, a combo's popularity being its most popular variant's: `median_popularity` and `mean_log_popularity` (the mean of `log(1 + popularity)`), `below_pool_median_share`, the share of the completed combos less popular than the median combo of the whole pool (`pool_median_popularity`), and `combo_count`.
 
@@ -283,7 +283,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 | `--min-spell-share` | `0.05` | Card mix: at least this share must be instants or sorceries (0 disables) |
 | `--mono-color-ratio` | `0` | Card mix: no color may have more than this many times the mono-colored cards of another, as `--max-color-ratio` on mono-colored cards only (0 disables, otherwise at least 1) |
 | `--min-outcome-combos` | `40` | Outcome support: the cube must complete at least this many distinct combos of every category in the outcome table (mana, damage, tokens, ...), unless the table gives a category its own minimum (0 disables) |
-| `--max-outcome-share` | `0` | Outcome support: at most this share of the completed combos may be in any one outcome category (0 or 1 disables) |
+| `--max-outcome-share` | `0` | Outcome support: at most this share of the completed combos may be in any one outcome category (0 or 1 disables). Costly: every combo in a category is linked exactly in the warm-start repair models too, so a tight cap may find no cube within the time limit |
 | `--outcome-categories` | `data/outcome_categories.json` | The outcome category table: category name to feature-name patterns, see "Output Files" |
 | `--popularity-weight` | `0` | Value added to a combo for its popularity in both phases (see "Combos and variants"); 0 keeps popularity a tiebreak |
 

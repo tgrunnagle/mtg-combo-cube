@@ -14,7 +14,9 @@ from mtg_combo_cube.ilp.outcomes import (
     OutcomeCategory,
     OutcomeCategoryError,
     load_outcome_categories,
+    outcome_rules_requested,
     parse_outcome_categories,
+    resolve_outcome_categories,
 )
 
 TABLE = {
@@ -118,6 +120,15 @@ class TestLoad:
         with pytest.raises(OutcomeCategoryError, match="not valid JSON"):
             load_outcome_categories(str(path))
 
+    def test_default_table_excludes_damage_to_creatures_only(self):
+        table = load_outcome_categories()
+
+        assert table.categorize(["Infinite damage"]) == {"damage"}
+        assert table.categorize(["Near-infinite damage to one opponent"]) == {"damage"}
+        assert table.categorize(["Infinite damage to creatures"]) == set()
+        assert table.categorize(["Near-infinite damage to all creatures"]) == set()
+        assert table.categorize(["Infinite damage to most creatures"]) == set()
+
     def test_default_table_ships_with_the_repository(self):
         table = load_outcome_categories()
 
@@ -155,6 +166,34 @@ COMBOS = [
     combo("etb", ["E1", "E2"], ["Infinite creature ETB"], 0),
     combo("none", ["N1", "N2"], [], 1000),
 ]
+
+
+class TestResolve:
+    """resolve_outcome_categories: the default table is optional when no rule needs it."""
+
+    def test_a_given_path_must_exist_even_when_not_required(self, tmp_path: Path):
+        with pytest.raises(FileNotFoundError):
+            resolve_outcome_categories(str(tmp_path / "missing.json"), required=False)
+
+    def test_missing_default_is_an_error_only_when_required(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ):
+        monkeypatch.chdir(tmp_path)
+
+        assert resolve_outcome_categories(None, required=False) is None
+        with pytest.raises(FileNotFoundError):
+            resolve_outcome_categories(None, required=True)
+
+    def test_present_default_is_loaded_either_way(self):
+        assert resolve_outcome_categories(None, required=False) is not None
+        assert resolve_outcome_categories(None, required=True) is not None
+
+    @pytest.mark.parametrize(
+        ("minimum", "share", "requested"),
+        [(0, 0, False), (0, 1, False), (0, 0.001, False), (1, 0, True), (0, 0.5, True)],
+    )
+    def test_rules_requested(self, minimum: int, share: float, requested: bool):
+        assert outcome_rules_requested(minimum, share) is requested
 
 
 class TestCombosPerOutcome:

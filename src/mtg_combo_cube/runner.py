@@ -5,6 +5,7 @@ import logging
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.ilp_runner import run_ilp
 
 logger = logging.getLogger(__name__)
@@ -36,7 +37,7 @@ async def run(
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
     outcome_categories_path: str | None = None,
-    min_outcome_combos: int = 40,
+    min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
 ):
