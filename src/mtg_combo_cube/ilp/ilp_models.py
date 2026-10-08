@@ -280,6 +280,15 @@ class PayoffStats:
     cards_per_category: dict[str, int]
     # category -> card -> the sources that named it ("inferred", "card", "query")
     cards: dict[str, dict[str, list[str]]]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
 
 
 @dataclass

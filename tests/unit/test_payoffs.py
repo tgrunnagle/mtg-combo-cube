@@ -199,8 +199,8 @@ class TestInference:
 
     def test_engine_may_bundle_a_smaller_combo_itself(self):
         # A token engine that includes a mana sub-combo, bundled with Blood Artist: the
-        # outlet is credited to the token engine (includes a strict subset), and the mana
-        # sub-combo also claims the two cards it does not have
+        # outlet is what the bundle adds beyond every engine it includes, so the mana
+        # sub-combo does not claim the token maker as a mana outlet
         pool = [
             combo("mana", ["Rock", "Untapper"], ["Infinite mana"], [10]),
             combo("tokens", ["Rock", "Untapper", "Maker"], ["Infinite creature tokens"], [30, 10]),
@@ -215,7 +215,28 @@ class TestInference:
         inferred = infer_payoffs(pool, OUTCOMES, ENGINES)
 
         assert inferred["tokens"] == Counter({"Blood Artist": 1})
-        assert inferred["mana"] == Counter({"Blood Artist": 1, "Maker": 1})
+        assert inferred["mana"] == Counter({"Blood Artist": 1})
+
+    def test_two_engines_in_one_bundle_are_not_each_others_outlets(self):
+        # A mana engine and a token engine bundled with one outlet: each engine's cards are
+        # not credited to the other's category
+        pool = [
+            combo("mana", ["Rock", "Untapper"], ["Infinite mana"], [10]),
+            combo("tokens", ["Maker", "Flicker"], ["Infinite creature tokens"], [30]),
+            combo(
+                "b",
+                ["Rock", "Untapper", "Maker", "Flicker", "Blood Artist"],
+                ["Infinite damage"],
+                [40, 30, 10],
+            ),
+        ]
+
+        inferred = infer_payoffs(pool, OUTCOMES, ENGINES)
+
+        assert inferred == {
+            "mana": Counter({"Blood Artist": 1}),
+            "tokens": Counter({"Blood Artist": 1}),
+        }
 
     def test_a_card_counts_once_per_bundled_variant(self):
         # Two engine variants of the same combo both match the bundled variant
@@ -295,6 +316,21 @@ class TestResolve:
         assert payoffs.sources["mana"]["Comet Storm"] == {"inferred"}
         assert payoffs.cards("tokens") == {"Blood Artist", "Impact Tremors", "Grapeshot"}
 
+    def test_excluded_query_results_do_not_use_up_the_limit(self, caplog):
+        definitions = parse_payoff_table(
+            {"mana": {"queries": ["q"], "exclude": ["Chromatic Orrery", "No Such Card"]}}
+        )
+
+        with caplog.at_level("WARNING"):
+            payoffs = resolve_payoffs(
+                definitions, {}, {"q": ["Chromatic Orrery", "Crypt Rats"]}, query_limit=1
+            )
+
+        assert payoffs.cards("mana") == {"Crypt Rats"}
+        # An exclusion that matches nothing is a warning (a typo excludes nothing)
+        assert "the exclusions ['No Such Card'] of 'mana' match no card" in caplog.text
+        assert "Chromatic Orrery" not in caplog.text
+
     def test_blocked_query_results_do_not_use_up_the_limit(self):
         payoffs = resolve_payoffs(
             self.DEFINITIONS,
@@ -316,11 +352,24 @@ class TestResolve:
     def test_stats_list_the_cube_cards_with_their_sources(self):
         payoffs = resolve_payoffs(self.DEFINITIONS, self.INFERRED, self.QUERIES)
 
-        stats = payoffs.stats(["Walking Ballista", "Grapeshot", "Other"])
+        stats = payoffs.stats(
+            ["Walking Ballista", "Grapeshot", "Other"], payoff_only=["Grapeshot", "Crypt Rats"]
+        )
 
         assert stats.cards_per_category == {"mana": 1, "tokens": 1}
         assert stats.cards == {
             "mana": {"Walking Ballista": ["inferred", "query"]},
             "tokens": {"Grapeshot": ["query"]},
         }
+        assert stats.payoff_only == ["Grapeshot"]  # of the cube's cards only
         assert payoffs.stats([]).cards_per_category == {"mana": 0, "tokens": 0}
+        assert payoffs.stats([]).payoff_only == []
+
+    def test_without_drops_cards_from_every_category(self):
+        payoffs = resolve_payoffs(self.DEFINITIONS, self.INFERRED, self.QUERIES)
+
+        smaller = payoffs.without(["Walking Ballista", "Grapeshot", "Not There"])
+
+        assert smaller.cards("mana") == payoffs.cards("mana") - {"Walking Ballista"}
+        assert smaller.cards("tokens") == payoffs.cards("tokens") - {"Grapeshot"}
+        assert smaller.inferred == payoffs.inferred

@@ -19,7 +19,11 @@ from mtg_combo_cube.ilp.ilp_models import (
     OptimizationResult,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD, PayoffTableError
+from mtg_combo_cube.ilp.payoffs import (
+    DEFAULT_INFERENCE_THRESHOLD,
+    PayoffFetchError,
+    PayoffTableError,
+)
 from mtg_combo_cube.models import CardAttributes
 
 
@@ -371,6 +375,22 @@ class TestCliPlumbing:
             runpy.run_module("mtg_combo_cube", run_name="__main__")
 
         assert "payoff queries match no card on Scryfall: 'o:nothing'" in capsys.readouterr().err
+
+    def test_payoff_fetch_failure_from_the_run_exits_one_without_the_usage_banner(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        async def failing_run(**kwargs: Any) -> None:
+            raise PayoffFetchError("payoff queries could not be fetched from Scryfall: 'q'")
+
+        monkeypatch.setattr(runner, "run", failing_run)
+        monkeypatch.setattr(sys, "argv", ["mtg_combo_cube"])
+        with pytest.raises(SystemExit) as exit_info:
+            runpy.run_module("mtg_combo_cube", run_name="__main__")
+
+        assert exit_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "error: payoff queries could not be fetched from Scryfall: 'q'" in err
+        assert "usage:" not in err
 
     def test_card_mix_error_names_the_flag(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -750,24 +770,114 @@ class TestRunnerPlumbing:
             > stats["phase2"]["reference_weighted_combo_count"]
         )
 
+    @staticmethod
+    def fake_payoff_fetcher(
+        monkeypatch: pytest.MonkeyPatch, results: dict[str, list[str]], rejected: dict | None = None
+    ) -> None:
+        class FakePayoffFetcher:
+            def __init__(self, *args: Any, **kwargs: Any):
+                self.rejected = dict(rejected or {})
+
+            async def fetch_queries(self, queries: Any) -> dict[str, list[str]]:
+                return dict(results)
+
+        monkeypatch.setattr(ilp_runner, "PayoffFetcher", FakePayoffFetcher)
+
     @pytest.mark.parametrize("required", [False, True])
     async def test_fetch_payoff_queries_treats_a_failed_query_as_an_error_only_when_required(
         self, monkeypatch: pytest.MonkeyPatch, required: bool
     ):
-        class FakePayoffFetcher:
-            def __init__(self, *args: Any, **kwargs: Any):
-                pass
-
-            async def fetch_queries(self, queries: Any) -> dict[str, list[str]]:
-                return {"a": ["Card"]}  # "b" could not be fetched
-
-        monkeypatch.setattr(ilp_runner, "PayoffFetcher", FakePayoffFetcher)
+        self.fake_payoff_fetcher(monkeypatch, {"a": ["Card"]})  # "b" could not be fetched
 
         if required:
-            with pytest.raises(PayoffTableError, match="could not be fetched .*'b'"):
+            with pytest.raises(PayoffFetchError, match="could not be fetched .*'b'"):
                 await ilp_runner.fetch_payoff_queries(["a", "b"], required=True)
         else:
             assert await ilp_runner.fetch_payoff_queries(["a", "b"]) == {"a": ["Card"]}
+
+    @pytest.mark.parametrize("required", [False, True])
+    async def test_fetch_payoff_queries_treats_an_empty_query_as_an_error_only_when_required(
+        self, monkeypatch: pytest.MonkeyPatch, required: bool, caplog: pytest.LogCaptureFixture
+    ):
+        self.fake_payoff_fetcher(monkeypatch, {"a": ["Card"], "b": []})
+
+        if required:
+            with pytest.raises(PayoffTableError, match="match no card on Scryfall: 'b'"):
+                await ilp_runner.fetch_payoff_queries(["a", "b"], required=True)
+        else:
+            with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_runner"):
+                results = await ilp_runner.fetch_payoff_queries(["a", "b"])
+            assert results == {"a": ["Card"]}
+            assert "match no card on Scryfall and are skipped: 'b'" in caplog.text
+
+    async def test_fetch_payoff_queries_fails_on_a_rejected_query_whatever_the_settings(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        self.fake_payoff_fetcher(monkeypatch, {"a": ["Card"]}, rejected={"b": "HTTP 400"})
+
+        with pytest.raises(PayoffTableError, match=r"rejected by Scryfall .*'b' \(HTTP 400\)"):
+            await ilp_runner.fetch_payoff_queries(["a", "b"])
+
+    async def test_run_ilp_with_the_floor_off_leaves_the_pool_unchanged(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        # The table still serves the statistics, but no payoff-only card joins the pool and
+        # an empty query is only a warning
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 100, features=frozenset(["Infinite mana"])),
+            ComboData("bc", frozenset(["B", "C"]), [], 100, features=frozenset(["Infinite mana"])),
+            ComboData("ca", frozenset(["C", "A"]), [], 100, features=frozenset(["Infinite mana"])),
+        ]
+        cards = {name: CandidateCard(name, frozenset(), frozenset()) for name in "ABC"}
+        outcomes = tmp_path / "outcomes.json"
+        outcomes.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
+        payoffs = tmp_path / "payoffs.json"
+        payoffs.write_text(json.dumps({"mana": {"cards": ["Ballista"]}}), encoding="utf-8")
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, dict(cards)
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> dict:
+            assert set(card_names) == {"A", "B", "C"}
+            return {name: CardAttributes("R", "Instant", 1) for name in card_names}
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        queries = fake_payoff_queries(monkeypatch)
+
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            await ilp_runner.run_ilp(
+                cube_size=3,
+                output_file=str(tmp_path / "cube.txt"),
+                time_limit_seconds=10,
+                num_workers=1,
+                max_color_ratio=0,
+                min_pair_combos=0,
+                min_mono_combos=0,
+                max_wide_combo_share=0,
+                card_mix=CardMixRules(0, 0, 0, 5, 0, 0, 0),
+                outcome_categories_path=str(outcomes),
+                min_outcome_combos=0,
+                payoffs_path=str(payoffs),
+                min_payoffs=0,
+            )
+
+        assert queries == [[]]  # the table has no queries; the lookup is still asked
+        assert created[0].payoffs is not None
+        assert created[0].payoff_only_cards == frozenset()
+        assert set(created[0].all_cards) == {"A", "B", "C"}
+        assert "The payoff floor is off: payoff cards the pool lacks are not added" in caplog.text
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["phase2"]["payoffs"]["cards_per_category"] == {"mana": 0}
+        assert "payoff_floors" not in stats["phase2"]
 
     async def test_run_ilp_adds_payoff_only_cards_and_writes_the_payoff_blocks(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -800,7 +910,8 @@ class TestRunnerPlumbing:
         )
         payoffs = tmp_path / "payoffs.json"
         payoffs.write_text(
-            json.dumps({"mana": {"cards": ["Ballista"], "queries": ["o:storm"]}}), encoding="utf-8"
+            json.dumps({"mana": {"cards": ["Ballista", "Balista"], "queries": ["o:storm"]}}),
+            encoding="utf-8",
         )
         calls: list[str] = []
 
@@ -810,9 +921,12 @@ class TestRunnerPlumbing:
 
         async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> dict:
             calls.append("attributes")
-            # Every candidate, the payoff-only cards included, is looked up
-            assert set(card_names) == {"A", "B", "C", "X", "Ballista", "Comet"}
-            return {name: CardAttributes("R", "Instant", 1) for name in card_names}
+            # Every candidate, the payoff-only cards included, is looked up; the misspelt
+            # table card is not known to Scryfall
+            assert set(card_names) == {"A", "B", "C", "X", "Ballista", "Balista", "Comet"}
+            return {
+                name: CardAttributes("R", "Instant", 1) for name in card_names if name != "Balista"
+            }
 
         async def fake_fetch_payoff_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
             calls.append("payoff_queries")
@@ -863,12 +977,18 @@ class TestRunnerPlumbing:
             "Comet": {"query"},
             "X": {"inferred"},
         }
+        # The misspelt table card was dropped from the pool and the table
         assert optimizer.payoff_only_cards == {"Ballista", "Comet"}
+        assert "Balista" not in optimizer.all_cards
         assert optimizer.min_payoffs == 1
-        assert "Added 2 payoff-only cards to the candidate pool; 1 payoff cards were combo" in (
+        assert "Added 3 payoff-only cards to the candidate pool; 1 payoff cards were combo" in (
             caplog.text
         )
-        assert "Payoff cards: mana 3 (inferred 1, cards 1, queries 2)" in caplog.text
+        assert "1 cards are not known to Scryfall and are dropped (check the spelling): " in (
+            caplog.text
+        )
+        # The table is logged as resolved, before the misspelt card is dropped
+        assert "Payoff cards: mana 4 (inferred 1, cards 2, queries 2)" in caplog.text
         assert "Payoffs, Phase 2: mana=1" in caplog.text
 
         cube = (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n")
@@ -881,6 +1001,7 @@ class TestRunnerPlumbing:
             assert stats[phase]["payoffs"] == {
                 "cards_per_category": {"mana": 1},
                 "cards": {"mana": {"X": ["inferred"]}},
+                "payoff_only": [],
             }
         assert stats["payoffs"] == {
             "inference_threshold": 2,

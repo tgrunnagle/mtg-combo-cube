@@ -113,11 +113,11 @@ class TestPayoffFloor:
         assert result.is_multi_objective
         selected = set(result.get_selected_card_names())
         # The outlet takes a slot from the Phase 1 cube, which costs one combo: three combos
-        # remain, and "minmax" prefers the hub with two partners beside Q (range 1) to the
-        # whole hub beside both outlets (range 2)
+        # remain (the whole hub, or two of its partners beside Q), and the cap allows one
+        # payoff-only card for the one floor
         outlets = selected & OUTLETS
         assert len(outlets) == 1
-        assert {"H", "Q1", "Q2"} <= selected
+        assert "H" in selected
         assert result.combo_count == 3
         assert result.phase2_min_payoffs == 1
         assert result.phase2_payoff_floors == {"mana": 1}
@@ -126,17 +126,58 @@ class TestPayoffFloor:
         assert result.phase2_payoff_stats.cards == {
             "mana": {outlet: ["card"] for outlet in outlets}
         }
-        # Payoff-only cards have utilization 0 by definition
+        # Payoff-only cards have utilization 0 by definition; the statistics describe the
+        # combo cards and the payoff statistics name them
         assert result.utilization_per_card is not None
         assert result.utilization_per_card[next(iter(outlets))] == 0
         assert result.phase2_utilization_stats is not None
-        assert result.phase2_utilization_stats.min_utilization == 0
+        assert result.phase2_utilization_stats.min_utilization >= 1
+        assert result.phase2_payoff_stats.payoff_only == sorted(outlets)
         assert result.profile_data is not None
         assert result.profile_data["phase2"]["counts"]["payoff_floor"] == 1
         # The floor constraint covers the combo cards only
         assert result.profile_data["phase2"]["counts"]["utilization_floor"] == 8
         # The Phase 1 cube breaks the rule, so the warm start was repaired
         assert "warm_start_repair" in result.profile_data["phase2"]["timings"]
+
+    @pytest.mark.parametrize("objective", ["mad", "minmax"])
+    def test_payoff_only_cards_are_capped_at_the_floors(self, objective: str):
+        # Ten cards: the eight combo cards hold the score (five combos); without a
+        # utilization floor the two spare slots may take dead cards of the three-card combo
+        # E or outlets. "mad" and "minmax" would prefer the outlets (no deviation, outside
+        # the range), so without a floor none may be selected, and with a floor of 1 one
+        combos = [*COMBOS, combo("e", ["E1", "E2", "E3"], MANA, 1)]
+        off = make_optimizer(
+            combos, cube_size=10, min_utilization_floor=0, phase2_objective=objective
+        ).solve_two_phase(profile=True)
+
+        assert off.is_multi_objective
+        assert not OUTLETS & set(off.get_selected_card_names())
+        assert off.profile_data is not None
+        assert off.profile_data["phase2"]["counts"]["payoff_only_cap"] == 2
+        assert off.phase2_payoff_stats is not None
+        assert off.phase2_payoff_stats.payoff_only == []
+
+        one = make_optimizer(
+            combos,
+            cube_size=10,
+            min_utilization_floor=0,
+            phase2_objective=objective,
+            min_payoffs=1,
+        ).solve_two_phase(profile=True)
+
+        assert one.is_multi_objective
+        assert len(OUTLETS & set(one.get_selected_card_names())) == 1
+        assert one.profile_data is not None
+        assert one.profile_data["phase2"]["counts"]["payoff_only_cap"] == 1
+
+    def test_the_cap_is_a_violation(self):
+        optimizer = make_optimizer(min_payoffs=1)
+
+        assert optimizer._payoff_only_cap() == 1
+        assert optimizer._payoff_violations(HUB | {"Ballista"}) == 0
+        assert optimizer._payoff_violations(HUB | OUTLETS) == 1
+        assert make_optimizer()._payoff_violations(HUB | {"Ballista"}) == 1
 
     @pytest.mark.parametrize("objective", sorted(ILPOptimizer._PHASE2_OBJECTIVES))
     def test_every_objective_accepts_payoff_only_cards(self, objective: str):
@@ -209,7 +250,7 @@ class TestPayoffFloor:
         )
 
         assert optimizer.payoff_cards == {"mana": frozenset(["Ballista"]), "damage": frozenset()}
-        assert optimizer._payoff_floors() == {"mana": 1}
+        assert optimizer.payoff_floors == {"mana": 1}
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             optimizer._check_payoff_pool()
         assert (
@@ -322,7 +363,9 @@ class TestWarmStart:
         optimizer = make_optimizer(min_payoffs=1)
         cube = optimizer._warm_start_for(HUB | OUTLETS)
 
-        assert cube.utilization["Ballista"] == 0
+        # The warm start's utilization covers the combo cards only
+        assert "Ballista" not in cube.utilization
+        assert set(cube.utilization) == HUB
         assert optimizer._satisfies_window_and_floor(cube, optimizer._combo_score(cube.combo_ids))
         # A combo card below the floor still fails the check
         below = optimizer._warm_start_for(HUB | {"Q1", "Ballista"})
@@ -335,7 +378,7 @@ class TestViolations:
     def test_floor_violations_and_shortfalls(self):
         optimizer = make_optimizer(min_payoffs=2)
 
-        assert optimizer._payoff_floors() == {"mana": 2}
+        assert optimizer.payoff_floors == {"mana": 2}
         assert optimizer._payoff_violations(HUB | {"Q1", "Q2"}) == 1
         assert optimizer._payoff_shortfalls(HUB | {"Ballista"}) == {"mana": (1, 2)}
         assert optimizer._describe_payoff_shortfalls(HUB | {"Ballista"}) == "mana 1 < 2"

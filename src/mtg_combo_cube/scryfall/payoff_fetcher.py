@@ -23,6 +23,11 @@ class PayoffFetcher:
     (as for the template searches) and the cache stays valid when those change. A query is
     cached under its search URL, so editing a query in the table fetches the edited query
     and leaves the rest cached.
+
+    The table is edited by hand, so the two ways a bad query fails quietly are caught: a
+    query Scryfall rejects (HTTP 4xx) and a query it only partly understands (a 200 with
+    `warnings` naming the ignored terms, whose results would be a wider search). Both are
+    recorded in `rejected` with the reason, left out of the results and not cached.
     """
 
     CACHE_FILENAME = "scryfall_payoffs.json"
@@ -50,6 +55,9 @@ class PayoffFetcher:
         self.cache_path = cache_dir / self.CACHE_FILENAME
         self.enable_read = enable_read
         self.enable_write = enable_write
+        # Queries Scryfall rejected or only partly understood in this run: query -> reason.
+        # A table error for the caller; never cached, and not asked for again.
+        self.rejected: dict[str, str] = {}
 
     @classmethod
     def search_url(cls, query: str) -> str:
@@ -67,8 +75,10 @@ class PayoffFetcher:
 
         Returns:
             Query -> card names (empty when no card matches). A query whose request failed
-            is left out, with a warning. Empty results are not cached: a query that matches
-            nothing is a table error for the caller to report, and may be fixed on Scryfall.
+            (a network error, or HTTP 429 / 5xx after the retries) is left out with a
+            warning; a query Scryfall rejected or partly ignored is left out and recorded in
+            `rejected`. Empty results are not cached: a query that matches nothing is a
+            table error for the caller to report, and may be fixed on Scryfall.
         """
         wanted = list(dict.fromkeys(queries))
         urls = {query: self.search_url(query) for query in wanted}
@@ -82,13 +92,25 @@ class PayoffFetcher:
 
         fetched: dict[str, list[str]] = {}
         for query in wanted:
-            if query in results:
+            if query in results or query in self.rejected:
                 continue
-            names = await self._fetcher.fetch_card_names(urls[query])
-            if names is None:
-                logger.warning(f"Payoff query could not be fetched: {query!r}")
+            data = await self._fetcher.request_json(urls[query])
+            if data is None:
+                status = self._fetcher.last_status
+                if status is not None and status != 429 and 400 <= status < 500:
+                    self.rejected[query] = f"HTTP {status}"
+                    logger.warning(f"Payoff query rejected by Scryfall (HTTP {status}): {query!r}")
+                else:
+                    logger.warning(f"Payoff query could not be fetched: {query!r}")
                 continue
-            fetched[query] = names
+            if warnings := data.get("warnings"):
+                reason = "; ".join(str(warning) for warning in warnings)
+                self.rejected[query] = reason
+                logger.warning(
+                    f"Payoff query only partly understood by Scryfall ({reason}): {query!r}"
+                )
+                continue
+            fetched[query] = [card["name"] for card in data.get("data", [])]
 
         if self.enable_write and (to_cache := {urls[q]: n for q, n in fetched.items() if n}):
             self._write_cache(to_cache)
@@ -102,10 +124,11 @@ class PayoffFetcher:
 
     def _load_entries(self) -> dict[str, dict]:
         """
-        Load the cache file: search URL -> entry (`cards`, `fetched_at`). A missing, outdated
-        or malformed file counts as empty (it will be rewritten without the bad entries). A
-        file that cannot be read at all raises OSError, so a transient lock does not look
-        like an empty cache.
+        Load the cache file: search URL -> entry (`cards`, `fetched_at`). A missing or
+        outdated file counts as empty, and so does a file with a malformed entry: the whole
+        file is then dropped and rewritten with this run's results, as the card attribute
+        cache does. A file that cannot be read at all raises OSError, so a transient lock
+        does not look like an empty cache.
         """
         if not self.cache_path.exists():
             return {}
@@ -133,9 +156,9 @@ class PayoffFetcher:
 
     def _write_cache(self, fetched: dict[str, list[str]]) -> None:
         """
-        Add fetched results to the cache file, keeping the valid entries already in the file,
-        each with the time it was fetched. The file is left alone when it cannot be read, so
-        a transient error does not erase it.
+        Add fetched results to the cache file, each with the time it was fetched. The
+        entries already in the file are kept when the file is valid (see _load_entries); the
+        file is left alone when it cannot be read, so a transient error does not erase it.
         """
         try:
             entries = self._load_entries()

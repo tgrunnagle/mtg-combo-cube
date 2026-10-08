@@ -122,6 +122,7 @@ async def evaluate_cube(
         blocklist=blocklist,
     )
     payoffs: PayoffTable | None = None
+    payoff_only: list[str] = []
     if payoff_definitions is not None and outcome_categories is not None:
         payoffs = build_payoff_table(
             payoff_definitions,
@@ -131,7 +132,7 @@ async def evaluate_cube(
             blocklist,
             inference_threshold=payoff_inference_min,
         )
-        add_payoff_cards(candidate_cards, payoffs)
+        payoff_only = add_payoff_cards(candidate_cards, payoffs)
 
     unknown = [card for card in cards if card not in candidate_cards]
     if unknown:
@@ -156,7 +157,7 @@ async def evaluate_cube(
             if outcome_categories is not None
             else None
         ),
-        payoff_stats=payoffs.stats(cards) if payoffs is not None else None,
+        payoff_stats=payoffs.stats(cards, payoff_only) if payoffs is not None else None,
         payoffs=payoffs,
     )
 

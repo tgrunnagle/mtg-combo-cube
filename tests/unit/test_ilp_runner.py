@@ -924,13 +924,16 @@ class TestWriteStatsPayoffs:
     def _result(self) -> OptimizationResult:
         return replace(
             TestWriteStatsCombosAndColors._two_phase_result(),
-            phase1_payoff_stats=PayoffStats({"mana": 0, "storm": 0}, {"mana": {}, "storm": {}}),
+            phase1_payoff_stats=PayoffStats(
+                {"mana": 0, "storm": 0}, {"mana": {}, "storm": {}}, payoff_only=[]
+            ),
             phase2_payoff_stats=PayoffStats(
                 {"mana": 2, "storm": 1},
                 {
                     "mana": {"Comet Storm": ["query"], "Walking Ballista": ["inferred", "query"]},
                     "storm": {"Grapeshot": ["card", "query"]},
                 },
+                payoff_only=["Comet Storm"],
             ),
             phase2_min_payoffs=3,
             phase2_payoff_floors={"mana": 3, "storm": 1},
@@ -942,8 +945,10 @@ class TestWriteStatsPayoffs:
         assert stats["phase1"]["payoffs"] == {
             "cards_per_category": {"mana": 0, "storm": 0},
             "cards": {"mana": {}, "storm": {}},
+            "payoff_only": [],
         }
         assert stats["phase2"]["payoffs"]["cards_per_category"] == {"mana": 2, "storm": 1}
+        assert stats["phase2"]["payoffs"]["payoff_only"] == ["Comet Storm"]
         assert stats["phase2"]["payoffs"]["cards"]["mana"]["Walking Ballista"] == [
             "inferred",
             "query",
@@ -998,7 +1003,7 @@ class TestWriteStatsPayoffs:
         assert "Payoffs, Phase 2: mana=2, storm=1" in caplog.text
 
     def test_formats(self):
-        assert format_payoff_stats(PayoffStats({"mana": 2}, {"mana": {}})) == "mana=2"
+        assert format_payoff_stats(PayoffStats({"mana": 2}, {"mana": {}}, [])) == "mana=2"
         assert format_payoff_table(self.TABLE) == (
             "mana 2 (inferred 1, cards 0, queries 2); storm 1 (inferred 0, cards 1, queries 1)"
         )

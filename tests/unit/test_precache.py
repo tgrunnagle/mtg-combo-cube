@@ -445,7 +445,7 @@ class TestPrecache:
         assert result.complete
         assert result.payoff_queries == 1
         assert result.failed_payoff_queries == 0
-        assert result.empty_payoff_queries == []
+        assert result.bad_payoff_queries == {}
         # The payoff cards (query results and table cards) join the candidates
         assert result.cards == 5
         assert session.bodies == [
@@ -516,8 +516,30 @@ class TestPrecache:
         # Nothing failed, but a build with this table would, so the run is not complete
         assert not result.complete
         assert result.failed_payoff_queries == 0
-        assert result.empty_payoff_queries == [STORM_QUERY]
+        assert result.bad_payoff_queries == {STORM_QUERY: "matches no card"}
         assert session.requests.count(STORM_URL) == 1
+
+    @pytest.mark.asyncio
+    async def test_rejected_payoff_query_is_a_table_error_not_a_failure(self, tmp_path):
+        # Scryfall rejects the query (400): no retry passes, reported like an empty query
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                STORM_URL: [FakeResponse(400)],
+                COLLECTION_URL: [ALL_COLORS],
+            }
+        )
+        sleep = SleepRecorder()
+
+        result = await run_precache(
+            tmp_path, FakeSpellbook(VARIANTS), session, sleep=sleep, payoffs=PAYOFFS
+        )
+
+        assert not result.complete
+        assert result.failed_payoff_queries == 0
+        assert result.bad_payoff_queries == {STORM_QUERY: "rejected by Scryfall (HTTP 400)"}
+        assert session.requests.count(STORM_URL) == 1
+        assert not [delay for delay in sleep.delays if delay >= 30]
 
     @pytest.mark.asyncio
     async def test_card_unknown_to_scryfall_is_not_a_failure(self, tmp_path):

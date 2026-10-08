@@ -116,6 +116,7 @@ class TestEvaluateCube:
         assert evaluation.payoffs.cards("mana") == {"A", "Grapeshot"}
         assert evaluation.payoff_stats is not None
         assert evaluation.payoff_stats.cards == {"mana": {"Grapeshot": ["query"]}}
+        assert evaluation.payoff_stats.payoff_only == ["Grapeshot"]
 
     async def test_payoffs_need_the_outcome_table(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path

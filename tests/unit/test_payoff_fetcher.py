@@ -101,6 +101,26 @@ class TestPayoffFetcher:
 
     @pytest.mark.asyncio
     async def test_failed_query_is_left_out_and_not_cached(self, tmp_path: Path, caplog):
+        # A server error after every retry is a transient failure, not a rejected query
+        session = FakeSession(
+            {
+                STORM_URL: [FakeResponse(503)],
+                X_DAMAGE_URL: [FakeResponse(200, card_names=["Crypt Rats"])],
+            }
+        )
+        fetcher = make_payoff_fetcher(session, tmp_path)
+
+        with caplog.at_level("WARNING"):
+            results = await fetcher.fetch_queries([STORM, X_DAMAGE])
+
+        assert results == {X_DAMAGE: ["Crypt Rats"]}
+        assert fetcher.rejected == {}
+        assert f"Payoff query could not be fetched: {STORM!r}" in caplog.text
+        assert list(read_cache(fetcher)["queries"]) == [X_DAMAGE_URL]
+
+    @pytest.mark.asyncio
+    async def test_rejected_query_is_recorded_and_not_cached(self, tmp_path: Path, caplog):
+        # A malformed query is a 400, which is not retried; it is not a transient failure
         session = FakeSession(
             {
                 STORM_URL: [FakeResponse(400)],
@@ -113,8 +133,32 @@ class TestPayoffFetcher:
             results = await fetcher.fetch_queries([STORM, X_DAMAGE])
 
         assert results == {X_DAMAGE: ["Crypt Rats"]}
-        assert f"Payoff query could not be fetched: {STORM!r}" in caplog.text
+        assert fetcher.rejected == {STORM: "HTTP 400"}
+        assert f"rejected by Scryfall (HTTP 400): {STORM!r}" in caplog.text
         assert list(read_cache(fetcher)["queries"]) == [X_DAMAGE_URL]
+        # It is not asked for again
+        assert await fetcher.fetch_queries([STORM]) == {}
+        assert session.requests.count(STORM_URL) == 1
+
+    @pytest.mark.asyncio
+    async def test_partly_understood_query_is_rejected(self, tmp_path: Path, caplog):
+        # Scryfall ignores a term it does not know and says so in `warnings`; the results
+        # are a wider search and must not count
+        payload = {
+            "object": "list",
+            "data": [{"name": "Grapeshot"}, {"name": "Lightning Bolt"}],
+            "warnings": ["Invalid expression “keywrd:storm” was ignored."],
+        }
+        session = FakeSession({STORM_URL: [FakeResponse(200, payload=payload)]})
+        fetcher = make_payoff_fetcher(session, tmp_path)
+
+        with caplog.at_level("WARNING"):
+            results = await fetcher.fetch_queries([STORM])
+
+        assert results == {}
+        assert fetcher.rejected == {STORM: "Invalid expression “keywrd:storm” was ignored."}
+        assert "only partly understood by Scryfall" in caplog.text
+        assert not fetcher.cache_path.exists()
 
     @pytest.mark.asyncio
     async def test_empty_result_is_returned_but_not_cached(self, tmp_path: Path):

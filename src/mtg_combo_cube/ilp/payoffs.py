@@ -9,7 +9,7 @@ find its outlets:
     {
       "mana": {"queries": ["o:\\"{X}\\" o:\\"X damage\\" -t:land"],
                "exclude": ["Chromatic Orrery"]},
-      "storm": {"queries": ["keyword:storm f:commander"]},
+      "storm": {"cards": ["Grapeshot"]},
       "tokens": {"cards": ["Impact Tremors"]}
     }
 
@@ -51,7 +51,11 @@ SOURCES = (SOURCE_INFERRED, SOURCE_CARD, SOURCE_QUERY)
 
 
 class PayoffTableError(ValueError):
-    """An invalid payoff table, or a query of it that matches no card."""
+    """An invalid payoff table, or a query of it that matches no card or Scryfall rejects."""
+
+
+class PayoffFetchError(RuntimeError):
+    """A payoff query could not be fetched from Scryfall while the payoff floor needs it."""
 
 
 def _names(entry: Mapping[str, object], key: str, category: str) -> tuple[str, ...]:
@@ -262,11 +266,13 @@ def infer_payoffs(
 
     Spellbook bundles an engine with every outlet that turns its result into a win, as a
     variant whose `includes` lists more than one combo. For every such variant with a
-    terminal result (a category outside `engine_categories`), the engine is a variant in
-    the pool whose `includes` are a strict subset of the bundled variant's (the engine may
+    terminal result (a category outside `engine_categories`), an engine is a variant in the
+    pool whose `includes` are a strict subset of the bundled variant's (the engine may
     itself bundle a smaller combo), whose cards are a strict subset and whose categories are
-    engine categories only; the cards the bundled variant adds are the outlet, credited to
-    each of the engine's categories. A card is counted once per bundled variant.
+    engine categories only. The outlet is what the bundled variant adds beyond every engine
+    it bundles (a variant of two engines plus an outlet credits neither engine's cards to
+    the other), credited to each engine's categories. A card is counted once per bundled
+    variant.
     """
     engines = frozenset(engine_categories)
     variant_categories = {combo.id: categories.categorize(combo.features) for combo in combos}
@@ -285,14 +291,19 @@ def infer_payoffs(
             for engine in by_included.get(included, [])
             if engine.includes < bundled.includes
         }
-        for engine in candidates.values():
-            engine_outcomes = variant_categories[engine.id]
-            if not engine_outcomes or not engine_outcomes <= engines:
-                continue
-            if not engine.required_cards < bundled.required_cards:
-                continue
-            for name in engine_outcomes:
-                for card in bundled.required_cards - engine.required_cards:
+        found = [
+            engine
+            for engine in candidates.values()
+            if variant_categories[engine.id]
+            and variant_categories[engine.id] <= engines
+            and engine.required_cards < bundled.required_cards
+        ]
+        if not found:
+            continue
+        outlet = bundled.required_cards.difference(*(engine.required_cards for engine in found))
+        for engine in found:
+            for name in variant_categories[engine.id]:
+                for card in outlet:
                     credits[name].setdefault(card, set()).add(bundled.id)
     return {
         name: Counter({card: len(ids) for card, ids in cards.items()})
@@ -304,7 +315,7 @@ def infer_payoffs(
 class PayoffTable:
     """The resolved payoff cards of each category and where each came from."""
 
-    # category -> card -> the sources (SOURCES) that named it, in table order
+    # category (table order) -> card (alphabetical) -> the sources (SOURCES) that named it
     sources: dict[str, dict[str, frozenset[str]]]
     # category -> card -> bundled variants the inference found it the outlet of, every
     # count (also below the threshold), so the table can be tuned from a run
@@ -331,8 +342,25 @@ class PayoffTable:
             for source in SOURCES
         }
 
-    def stats(self, selected_cards: Collection[str]) -> PayoffStats:
-        """The payoff cards of each category in a cube, with the source of each."""
+    def without(self, names: Collection[str]) -> "PayoffTable":
+        """The table without the named cards (a table card Scryfall does not know)."""
+        dropped = set(names)
+        return PayoffTable(
+            sources={
+                name: {card: s for card, s in by_card.items() if card not in dropped}
+                for name, by_card in self.sources.items()
+            },
+            inferred=self.inferred,
+            inference_threshold=self.inference_threshold,
+        )
+
+    def stats(
+        self, selected_cards: Collection[str], payoff_only: Collection[str] = ()
+    ) -> PayoffStats:
+        """
+        The payoff cards of each category in a cube, with the source of each, and which of
+        the cube's cards are payoff-only (`payoff_only`: the cards that complete no combo).
+        """
         selected = set(selected_cards)
         cards = {
             name: {
@@ -343,7 +371,9 @@ class PayoffTable:
             for name, by_card in self.sources.items()
         }
         return PayoffStats(
-            cards_per_category={name: len(found) for name, found in cards.items()}, cards=cards
+            cards_per_category={name: len(found) for name, found in cards.items()},
+            cards=cards,
+            payoff_only=sorted(set(payoff_only) & selected),
         )
 
 
@@ -357,13 +387,16 @@ def resolve_payoffs(
 ) -> PayoffTable:
     """
     The payoff set of each category: inferred cards at or above the threshold, the table's
-    cards and the first `query_limit` unblocked cards of each query (a query missing from
-    `query_results` adds nothing), minus the exclusions and the blocklist.
+    cards and the first `query_limit` cards of each query that are neither blocked nor
+    excluded (a query missing from `query_results` adds nothing), minus the exclusions and
+    the blocklist. An exclusion that matches no card of its category is a warning (a typo
+    excludes nothing).
     """
     blocked = set(blocklist)
     sources: dict[str, dict[str, frozenset[str]]] = {}
     for category in definitions:
         found: dict[str, set[str]] = {}
+        seen: set[str] = set()
         counts = inferred.get(category.name, Counter())
         named: list[tuple[Iterable[str], str]] = [
             (
@@ -373,12 +406,20 @@ def resolve_payoffs(
             (category.cards, SOURCE_CARD),
         ]
         for query in category.queries:
-            unblocked = [card for card in query_results.get(query, []) if card not in blocked]
-            named.append((unblocked[:query_limit], SOURCE_QUERY))
+            result = query_results.get(query, [])
+            seen.update(result)
+            kept = [c for c in result if c not in blocked and c not in category.exclude]
+            named.append((kept[:query_limit], SOURCE_QUERY))
         for names, source in named:
             for name in names:
+                seen.add(name)
                 if name not in category.exclude and name not in blocked:
                     found.setdefault(name, set()).add(source)
+        if unused := sorted(category.exclude - seen):
+            logger.warning(
+                f"Payoff table: the exclusions {unused} of {category.name!r} match no card of "
+                "the category"
+            )
         sources[category.name] = {
             card: frozenset(card_sources) for card, card_sources in sorted(found.items())
         }

@@ -78,6 +78,18 @@ class ScryfallFetcher:
         self._unflushed: dict[str, list[str]] = {}
         self._failed_urls: set[str] = set()
         self._last_request_time: float | None = None
+        # HTTP status of the last response (None after a network error), so a caller can
+        # tell a rejected request (4xx) from one that may pass later
+        self.last_status: int | None = None
+        # HTTP status of the last response (None after a network error), so a caller can
+        # tell a rejected request (4xx) from one that may pass later
+        self.last_status: int | None = None
+        # HTTP status of the last response (None after a network error), so a caller can
+        # tell a rejected request (4xx) from one that may pass later
+        self.last_status: int | None = None
+        # HTTP status of the last response (None after a network error), so a caller can
+        # tell a rejected request (4xx) from one that may pass later
+        self.last_status: int | None = None
 
         self.network_requests = 0
         self.cache_hits = 0
@@ -235,6 +247,7 @@ class ScryfallFetcher:
                 )
                 async with request as response:
                     status = response.status
+                    self.last_status = status
                     if status == 200:
                         return await response.json()
                     if status == 404:
@@ -247,6 +260,7 @@ class ScryfallFetcher:
                     problem = f"HTTP {status}"
                     retry_after = response.headers.get("Retry-After")
             except (aiohttp.ClientError, TimeoutError, ValueError) as e:
+                self.last_status = None
                 problem = f"{type(e).__name__}: {e}"
 
             if attempt < self._max_attempts:

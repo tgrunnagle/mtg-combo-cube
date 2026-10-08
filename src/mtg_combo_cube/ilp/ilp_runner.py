@@ -39,6 +39,7 @@ from mtg_combo_cube.ilp.outcomes import (
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
     PayoffDefinitions,
+    PayoffFetchError,
     PayoffTable,
     PayoffTableError,
     check_query_results,
@@ -727,10 +728,12 @@ async def fetch_payoff_queries(
     """
     Resolve the payoff table's Scryfall queries to card names (query -> ordered names).
 
-    A query that matches no card is a table error (PayoffTableError). A query whose request
-    failed is an error too when the results are `required` (the payoff floor is on, so a
-    missing query would change a hard constraint and make the run incomparable); otherwise
-    it is left out with a warning and its cards are missing from the payoff set.
+    A query Scryfall rejects or only partly understands is a table error
+    (PayoffTableError), whatever the settings. A query that matches no card is one too when
+    the results are `required` (the payoff floor is on, so a missing query would change a
+    hard constraint and make the run incomparable), and so is a query whose request failed
+    (PayoffFetchError, a transient problem); otherwise both are left out with a warning and
+    their cards are missing from the payoff set.
     """
     if not queries:
         return {}
@@ -739,10 +742,24 @@ async def fetch_payoff_queries(
             fetcher, enable_read=read_cache, enable_write=enable_cache_write
         )
         results = await payoff_fetcher.fetch_queries(queries)
-    check_query_results(results)
+    if payoff_fetcher.rejected:
+        raise PayoffTableError(
+            "payoff queries rejected by Scryfall (fix the table): "
+            + "; ".join(
+                f"{query!r} ({reason})" for query, reason in payoff_fetcher.rejected.items()
+            )
+        )
+    if required:
+        check_query_results(results)
+    elif empty := [query for query, cards in results.items() if not cards]:
+        logger.warning(
+            "Payoff queries match no card on Scryfall and are skipped: "
+            + ", ".join(repr(q) for q in empty)
+        )
+        results = {query: cards for query, cards in results.items() if cards}
     missing = [query for query in queries if query not in results]
     if missing and required:
-        raise PayoffTableError(
+        raise PayoffFetchError(
             "payoff queries could not be fetched from Scryfall (the payoff floor needs them; "
             "run again, or pass --min-payoffs 0): " + ", ".join(repr(q) for q in missing)
         )
@@ -779,6 +796,35 @@ def add_payoff_cards(candidate_cards: dict[str, CandidateCard], payoffs: PayoffT
         f"{len(payoffs.all_cards) - len(added)} payoff cards were combo pieces already"
     )
     return added
+
+
+def drop_unknown_payoff_cards(
+    payoffs: PayoffTable,
+    candidate_cards: dict[str, CandidateCard],
+    card_attributes: Mapping[str, CardAttributes],
+) -> PayoffTable:
+    """
+    Remove the payoff-only cards Scryfall does not know (a typo in the table's `cards`) from
+    the candidate cards and the table, with a warning; a combo piece is known to exist.
+    Returns the table to use.
+    """
+    unknown = sorted(
+        card
+        for card in payoffs.all_cards
+        if card in candidate_cards
+        and not candidate_cards[card].combo_ids
+        and not candidate_cards[card].requirement_group_keys
+        and card not in card_attributes
+    )
+    if not unknown:
+        return payoffs
+    logger.warning(
+        f"Payoff table: {len(unknown)} cards are not known to Scryfall and are dropped "
+        f"(check the spelling): {unknown}"
+    )
+    for card in unknown:
+        del candidate_cards[card]
+    return payoffs.without(unknown)
 
 
 async def build_cube_ilp(
@@ -871,7 +917,9 @@ async def build_cube_ilp(
         blocklist=blocklist,
     )
 
-    # The payoff cards the pool lacks join the candidates, as cards that complete no combo
+    # With the payoff floor on, the payoff cards the pool lacks join the candidates, as cards
+    # that complete no combo; with it off the table serves the statistics only and the pool
+    # is the same as without a table
     payoffs: PayoffTable | None = None
     if payoff_definitions is not None and outcome_categories is not None:
         payoffs = build_payoff_table(
@@ -882,7 +930,13 @@ async def build_cube_ilp(
             blocklist,
             inference_threshold=payoff_inference_min,
         )
-        add_payoff_cards(candidate_cards, payoffs)
+        if min_payoffs > 0:
+            add_payoff_cards(candidate_cards, payoffs)
+        else:
+            logger.info(
+                "The payoff floor is off: payoff cards the pool lacks are not added to the "
+                "candidate cards"
+            )
 
     if len(candidate_cards) < cube_size:
         logger.warning(
@@ -895,6 +949,10 @@ async def build_cube_ilp(
     card_attributes = await fetch_card_attributes(
         sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
     )
+    if payoffs is not None and card_attributes is not None:
+        payoffs = drop_unknown_payoff_cards(payoffs, candidate_cards, card_attributes)
+    if payoffs is not None and card_attributes is not None:
+        payoffs = drop_unknown_payoff_cards(payoffs, candidate_cards, card_attributes)
 
     # Run ILP optimization
     optimizer = ILPOptimizer(

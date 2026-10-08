@@ -26,10 +26,11 @@ import aiohttp
 
 from mtg_combo_cube.blocklist import load_blocklist
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
+from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, resolve_outcome_categories
 from mtg_combo_cube.ilp.payoffs import (
     PayoffDefinitions,
     PayoffTableError,
-    resolve_payoff_table,
+    resolve_payoff_definitions,
     resolve_payoffs,
 )
 from mtg_combo_cube.models import Variant
@@ -55,7 +56,9 @@ class PrecacheResult:
     failed_templates: int = 0
     payoff_queries: int = 0
     failed_payoff_queries: int = 0
-    empty_payoff_queries: list[str] = field(default_factory=list)  # a table error for a build
+    # Payoff queries a build with the table would reject (query -> why): no card matches,
+    # or Scryfall rejected or only partly understood the query
+    bad_payoff_queries: dict[str, str] = field(default_factory=dict)
     cards: int = 0
     cards_without_attributes: int = 0
     failed_attribute_requests: int = 0
@@ -70,7 +73,7 @@ class PrecacheResult:
             self.variants_cached
             and self.failed_templates == 0
             and self.failed_payoff_queries == 0
-            and not self.empty_payoff_queries
+            and not self.bad_payoff_queries
             and self.failed_attribute_requests == 0
         )
 
@@ -197,29 +200,39 @@ async def _precache_payoffs(
     max_passes: int,
     retry_wait_seconds: float,
     sleep: Sleep,
-) -> tuple[list[str], int, list[str]]:
+) -> tuple[list[str], int, dict[str, str]]:
     """
     Resolve the payoff table's queries the way a build does, which fills the payoff cache.
 
     Returns:
         - Names of the payoff cards a build adds to the candidates (the table's cards and the
           query results, after the blocklist and the per-query limit)
-        - Number of queries whose fetch still failed in the last pass
-        - Queries that match no card (a table error for a build)
+        - Number of queries whose fetch still failed in the last pass (a rejected query is
+          not one of them: it is a table error and is not asked for again)
+        - Queries a build would reject, with the reason: no card matches, or Scryfall
+          rejected or only partly understood the query
     """
     results: dict[str, list[str]] = {}
 
     async def run_pass() -> int:
         fetcher.clear_failures()
         results.update(await payoff_fetcher.fetch_queries(definitions.queries))
-        return fetcher.failed_url_count
+        return sum(
+            1
+            for query in definitions.queries
+            if query not in results and query not in payoff_fetcher.rejected
+        )
 
     failures = await _run_passes(
         "Scryfall payoff queries", run_pass, max_passes, retry_wait_seconds, sleep
     )
-    empty = [query for query, cards in results.items() if not cards]
+    bad = {query: "matches no card" for query, cards in results.items() if not cards}
+    bad.update(
+        (query, f"rejected by Scryfall ({reason})")
+        for query, reason in payoff_fetcher.rejected.items()
+    )
     payoffs = resolve_payoffs(definitions, {}, results, blocklist)
-    return sorted(payoffs.all_cards), failures, empty
+    return sorted(payoffs.all_cards), failures, bad
 
 
 async def _precache_attributes(
@@ -319,7 +332,7 @@ async def precache(
             (
                 payoff_cards,
                 result.failed_payoff_queries,
-                result.empty_payoff_queries,
+                result.bad_payoff_queries,
             ) = await _precache_payoffs(
                 payoffs, blocklist, payoff_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
             )
@@ -370,7 +383,14 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Path to the payoff table whose Scryfall queries to resolve (default: "
-        "data/payoffs.json; skipped when that is missing)",
+        "data/payoffs.json; skipped when that is missing or does not fit the outcome table)",
+    )
+    argparser.add_argument(
+        "--outcome-categories",
+        type=str,
+        default=None,
+        help="Path to the outcome category table the payoff table is checked against "
+        "(default: data/outcome_categories.json)",
     )
     argparser.add_argument(
         "--cache-dir",
@@ -401,11 +421,14 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     if args.max_variants < 1 or args.max_cards_in_combo < 1 or args.max_passes < 1:
         argparser.error("--max-variants, --max-cards-in-combo and --max-passes must be at least 1")
-    try:
-        payoffs = resolve_payoff_table(args.payoffs, required=False)
-    except (FileNotFoundError, PayoffTableError) as e:
-        argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
+    # The payoff table is checked against the outcome table as a build checks it, so the
+    # cache this fills is one a build accepts
+    try:
+        outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
+        payoffs = resolve_payoff_definitions(args.payoffs, outcome_categories, required=False)
+    except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
+        argparser.error(str(e))
 
     result = asyncio.run(
         precache(
@@ -427,14 +450,14 @@ if __name__ == "__main__":
         print(
             f"Payoff queries: {result.payoff_queries}, {result.failed_payoff_queries} still failing"
         )
-        for query in result.empty_payoff_queries:
-            print(f"Payoff query matches no card (fix the table): {query!r}")
+        for query, reason in result.bad_payoff_queries.items():
+            print(f"Payoff query {reason} (fix the table): {query!r}")
     print(
         f"Card attributes: {result.cards - result.cards_without_attributes} of {result.cards} "
         f"cards, {result.failed_attribute_requests} requests still failing"
     )
-    if result.empty_payoff_queries:
-        print("The payoff table has queries that match no card; a build with it fails.")
+    if result.bad_payoff_queries:
+        print("The payoff table has queries a build rejects; fix them and run again.")
         sys.exit(1)
     if not result.complete:
         print("Cache is INCOMPLETE; run again with --keep-existing to fetch what is missing.")

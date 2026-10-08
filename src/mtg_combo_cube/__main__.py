@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import logging
 import math
+import sys
 
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -14,6 +15,7 @@ from mtg_combo_cube.ilp.outcomes import (
 )
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
+    PayoffFetchError,
     PayoffTableError,
     resolve_payoff_definitions,
 )
@@ -370,5 +372,9 @@ if __name__ == "__main__":
             )
         )
     except PayoffTableError as e:
-        # A payoff query that matches no card, or could not be fetched with the floor on
+        # A payoff query that matches no card or that Scryfall rejects: a table error
         argparser.error(str(e))
+    except PayoffFetchError as e:
+        # Scryfall could not be reached for a query the payoff floor needs: not a usage error
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)

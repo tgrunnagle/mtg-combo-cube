@@ -362,6 +362,12 @@ class ILPOptimizer:
             if payoffs is not None
             else {}
         )
+        # Whether the payoff floor applies (a table, an outcome table and a minimum), and the
+        # floor of each category it applies to (see _compute_payoff_floors); fixed from here on
+        self.payoff_floor_active: bool = (
+            payoffs is not None and outcome_categories is not None and min_payoffs > 0
+        )
+        self.payoff_floors: dict[str, int] = self._compute_payoff_floors()
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
         # a group's first completed variant scores group_scale + variant_scale = WEIGHT_SCALE,
@@ -1054,8 +1060,8 @@ class ILPOptimizer:
 
         mad_constraint_count = 0
         for card in self.all_cards:
-            if not self.card_to_combos[card]:
-                continue  # a payoff-only card: utilization 0 by definition, no deviation
+            if card in self.payoff_only_cards:
+                continue  # utilization 0 by definition, no deviation (see _payoff_only_cap)
             # Deviations are bounded by the card's utilization range [0, combos it is in]
             max_plus = max(0, len(self.card_to_combos[card]) * 100 - mean_scaled)
             max_minus = max(0, mean_scaled)
@@ -1107,8 +1113,8 @@ class ILPOptimizer:
         # M = min_bound (the upper bound of min_util) switches the constraint off when x=0.
         minmax_constraint_count = 0
         for card in self.all_cards:
-            if not self.card_to_combos[card]:
-                continue  # a payoff-only card: utilization 0 by definition, outside the range
+            if card in self.payoff_only_cards:
+                continue  # utilization 0 by definition, outside the range (see _payoff_only_cap)
             model.add(max_util >= u[card])
             model.add(min_util <= u[card] + min_bound * (1 - x[card]))
             minmax_constraint_count += 2
@@ -1297,11 +1303,19 @@ class ILPOptimizer:
         return self._PHASE2_OBJECTIVES[self.phase2_objective]
 
     def _warm_start_for(self, cards: set[str]) -> _WarmStart:
-        """The warm start for a cube, with its true combos and utilization."""
+        """
+        The warm start for a cube, with its true combos and the utilization of its combo
+        cards (payoff-only cards, utilization 0 by definition, are left out so they do not
+        count as floor violations or as the hinted minimum).
+        """
         return _WarmStart(
             cards=cards,
             combo_ids=set(completable_combo_ids(cards, self.combos)),
-            utilization=card_utilization(cards, self.combos),
+            utilization={
+                card: value
+                for card, value in card_utilization(cards, self.combos).items()
+                if card not in self.payoff_only_cards
+            },
         )
 
     def _attributes_of(self, card: str) -> CardAttributes:
@@ -1997,7 +2011,7 @@ class ILPOptimizer:
 
     # --- Payoff support: outlets for the engines of each outcome category ---
 
-    def _payoff_floors(self) -> dict[str, int]:
+    def _compute_payoff_floors(self) -> dict[str, int]:
         """
         The payoff cards per category that Phase 2 requires, for the categories with a
         floor: min_payoffs, lowered to the payoff cards the category can select
@@ -2006,7 +2020,7 @@ class ILPOptimizer:
         outcome has no combo in the pool needs no outlet and gets no floor; without a payoff
         table or an outcome table there is none.
         """
-        if self.payoffs is None or self.outcome_categories is None or self.min_payoffs <= 0:
+        if not self.payoff_floor_active:
             return {}
         floors: dict[str, int] = {}
         for name, cards in self.payoff_cards.items():
@@ -2017,30 +2031,57 @@ class ILPOptimizer:
                 floors[name] = applied
         return floors
 
+    def _payoff_only_cap(self) -> int:
+        """
+        The most payoff-only cards a cube may hold: the floors added up. They are in the
+        pool for the floor alone, and without a bound the "mad" and "minmax" objectives
+        would fill the cube with them (a card in no combo has no deviation and does not
+        lower the minimum utilization), limited only by the combo window.
+        """
+        return sum(self.payoff_floors.values())
+
     def _add_payoff_floor(self, base: _BaseModel) -> None:
-        """At least the floor's number of the category's payoff cards in the cube, per category."""
-        floors = self._payoff_floors()
-        if not floors:
-            return
-        for name, floor in floors.items():
+        """
+        At least the floor's number of the category's payoff cards in the cube, per
+        category, and at most the floors' sum of payoff-only cards (none when no floor
+        applies).
+        """
+        for name, floor in self.payoff_floors.items():
             base.model.add(sum(base.x[card] for card in sorted(self.payoff_cards[name])) >= floor)
-        described = ", ".join(f"{name} {floor}" for name, floor in floors.items())
-        logger.info(f"Phase 2: Added {len(floors)} payoff floor constraints ({described})")
-        base.counts["payoff_floor"] = len(floors)
+        if self.payoff_floors:
+            described = ", ".join(f"{name} {floor}" for name, floor in self.payoff_floors.items())
+            logger.info(
+                f"Phase 2: Added {len(self.payoff_floors)} payoff floor constraints ({described})"
+            )
+            base.counts["payoff_floor"] = len(self.payoff_floors)
+        if self.payoff_only_cards:
+            cap = self._payoff_only_cap()
+            payoff_only = [base.x[card] for card in sorted(self.payoff_only_cards)]
+            if cap:
+                base.model.add(sum(payoff_only) <= cap)
+                base.counts["payoff_only_cap"] = 1
+            else:
+                for x in payoff_only:
+                    base.model.add(x == 0)
+                base.counts["payoff_only_cap"] = len(payoff_only)
 
     def _payoff_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
         """The payoff floors (_add_payoff_floor) a cube breaks: category -> (payoffs, floor)."""
         selected = set(cards)
         shortfalls: dict[str, tuple[int, int]] = {}
-        for name, floor in self._payoff_floors().items():
+        for name, floor in self.payoff_floors.items():
             have = len(self.payoff_cards[name] & selected)
             if have < floor:
                 shortfalls[name] = (have, floor)
         return shortfalls
 
     def _payoff_violations(self, cards: Collection[str]) -> int:
-        """Number of payoff floor constraints a cube breaks."""
-        return len(self._payoff_shortfalls(cards))
+        """
+        Number of payoff floor constraints a cube breaks, plus one when it holds more
+        payoff-only cards than the cap allows.
+        """
+        over_cap = len(self.payoff_only_cards & set(cards)) > self._payoff_only_cap()
+        return len(self._payoff_shortfalls(cards)) + int(over_cap)
 
     def _describe_payoff_shortfalls(self, cards: Collection[str]) -> str:
         """'storm 1 < 3, mana 0 < 3' for the payoff floors a cube breaks, or ''."""
@@ -2054,7 +2095,7 @@ class ILPOptimizer:
         Warn about payoff floors the pool cannot meet, before solving: a category with fewer
         selectable payoff cards than the minimum has its floor lowered to what it has.
         """
-        if self.payoffs is None or self.outcome_categories is None or self.min_payoffs <= 0:
+        if not self.payoff_floor_active:
             return
         for name, cards in self.payoff_cards.items():
             if not self.outcome_groups.get(name):
@@ -2077,7 +2118,7 @@ class ILPOptimizer:
         """The payoff cards per category of a cube; None without a payoff table."""
         if self.payoffs is None:
             return None
-        return self.payoffs.stats(cards)
+        return self.payoffs.stats(cards, payoff_only=self.payoff_only_cards)
 
     def _payoff_info(self) -> dict[str, Any]:
         """
@@ -2100,10 +2141,9 @@ class ILPOptimizer:
                     "categories have combos in the pool; it is not enforced"
                 )
             return {}
-        floors = self._payoff_floors()
         return {
-            "phase2_min_payoffs": self.min_payoffs if floors else None,
-            "phase2_payoff_floors": floors or None,
+            "phase2_min_payoffs": self.min_payoffs if self.payoff_floors else None,
+            "phase2_payoff_floors": self.payoff_floors or None,
         }
 
     # --- The Phase 2 cube rules together ---
@@ -2469,7 +2509,15 @@ class ILPOptimizer:
             )
 
         utilization = self._calculate_utilization(selected_names, completed)
-        utilization_stats = self._compute_utilization_stats(utilization)
+        # The statistics describe the combo cards; a payoff-only card is 0 by definition and
+        # is reported in the payoff statistics instead
+        utilization_stats = self._compute_utilization_stats(
+            {
+                card: value
+                for card, value in utilization.items()
+                if card not in self.payoff_only_cards
+            }
+        )
 
         # Calculate requirement type stats
         selected_name_set = set(selected_names)
