@@ -277,7 +277,7 @@ class TestCliPlumbing:
         )
 
     def test_missing_default_payoff_table_is_a_usage_error_only_with_the_floor_on(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):
         outcomes = tmp_path / "outcomes.json"
         outcomes.write_text(json.dumps({"mana": ["infinite mana"]}), encoding="utf-8")
@@ -287,9 +287,23 @@ class TestCliPlumbing:
         assert run_cli(monkeypatch, *common, "--min-payoffs", "0")
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *common)
-        # The floor needs the outcome table as well
+        assert "Payoff table not found: data" in capsys.readouterr().err
+
+        # The floor needs the outcome table as well: with a valid payoff table in place and
+        # the outcome rules off, only the missing outcome table can stop the run
+        payoffs = tmp_path / "payoffs.json"
+        payoffs.write_text(json.dumps({"mana": {"cards": ["Walking Ballista"]}}), encoding="utf-8")
         with pytest.raises(SystemExit):
-            run_cli(monkeypatch, "--method", "ilp", "--min-outcome-combos", "0")
+            run_cli(
+                monkeypatch,
+                "--method",
+                "ilp",
+                "--min-outcome-combos",
+                "0",
+                "--payoffs",
+                str(payoffs),
+            )
+        assert "Outcome categories file not found: data" in capsys.readouterr().err
 
     def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         # The table is validated up front, so it must exist
@@ -933,7 +947,7 @@ class TestRunnerPlumbing:
             assert list(queries) == ["o:storm"]
             # With the floor on, a query that cannot be fetched is an error
             assert kwargs == {"enable_cache_write": True, "read_cache": True, "required": True}
-            return {"o:storm": ["Comet", "Ballista"]}
+            return {"o:storm": ["Comet", "Blocked Outlet", "Ballista"]}
 
         created: list[ILPOptimizer] = []
 
@@ -961,6 +975,7 @@ class TestRunnerPlumbing:
                 max_wide_combo_share=0,
                 card_mix=CardMixRules(0, 0, 0, 5, 0, 0, 0),
                 read_cache=True,
+                blocklist=frozenset({"Blocked Outlet"}),
                 outcome_categories_path=str(outcomes),
                 min_outcome_combos=0,
                 payoffs_path=str(payoffs),
@@ -977,9 +992,12 @@ class TestRunnerPlumbing:
             "Comet": {"query"},
             "X": {"inferred"},
         }
-        # The misspelt table card was dropped from the pool and the table
+        # The misspelt table card was dropped from the pool and the table, and the blocked
+        # query result never reached either (payoff-only cards skip load_instance's filter)
         assert optimizer.payoff_only_cards == {"Ballista", "Comet"}
         assert "Balista" not in optimizer.all_cards
+        assert "Blocked Outlet" not in optimizer.all_cards
+        assert "Blocked Outlet" not in optimizer.payoffs.all_cards
         assert optimizer.min_payoffs == 1
         assert "Added 3 payoff-only cards to the candidate pool; 1 payoff cards were combo" in (
             caplog.text

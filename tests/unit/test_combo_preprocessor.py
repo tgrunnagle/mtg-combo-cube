@@ -76,6 +76,30 @@ def make_mock_variant(
     return variant
 
 
+class TestComboPreprocessorIncludes:
+    """The combos a variant includes come from its Spellbook 'includes' ids."""
+
+    @pytest.mark.asyncio
+    async def test_includes_are_the_included_combo_ids(self):
+        preprocessor = ComboPreprocessor()
+        # An engine-plus-outlet bundle includes the engine's combo beside its own
+        variants = [
+            make_mock_variant(
+                "bundle", ["Rock", "Untapper", "Ballista"], of=[20], includes=[20, 10]
+            ),
+            make_mock_variant("engine", ["Rock", "Untapper"], of=[10]),
+            make_mock_variant("none", ["Card A"], includes=[]),
+        ]
+
+        combos, _ = await preprocessor.preprocess_variants(variants)
+
+        assert [combo.includes for combo in combos] == [
+            frozenset({20, 10}),
+            frozenset({10}),
+            frozenset(),
+        ]
+
+
 class TestComboPreprocessorGroupKey:
     """The combo group of a variant comes from its Spellbook 'of' ids."""
 

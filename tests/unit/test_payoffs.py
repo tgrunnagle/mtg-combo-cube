@@ -18,6 +18,7 @@ from mtg_combo_cube.ilp.payoffs import (
     infer_payoffs,
     load_payoff_table,
     parse_payoff_table,
+    resolve_payoff_definitions,
     resolve_payoff_table,
     resolve_payoffs,
 )
@@ -155,6 +156,94 @@ class TestLoad:
             check_query_results({"a": ["Card"], "b": [], "c": []})
 
 
+class TestResolveDefinitions:
+    FITTING = {"mana": {"cards": ["A"]}}
+    UNFITTING = {"storm": {"cards": ["B"]}}
+
+    @staticmethod
+    def write(tmp_path: Path, table: dict, name: str = "payoffs.json") -> str:
+        path = tmp_path / name
+        path.write_text(json.dumps(table), encoding="utf-8")
+        return str(path)
+
+    @pytest.mark.parametrize("required", [False, True])
+    def test_a_fitting_table_is_returned_and_logged(self, tmp_path: Path, caplog, required: bool):
+        path = self.write(tmp_path, self.FITTING)
+
+        with caplog.at_level("INFO"):
+            definitions = resolve_payoff_definitions(path, OUTCOMES, required=required)
+
+        assert definitions is not None
+        assert definitions.names == ("mana",)
+        assert "Loaded payoff table with 1 categories: mana" in caplog.text
+
+    def test_missing_default_is_skipped_unless_required(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
+    ):
+        monkeypatch.chdir(tmp_path)
+
+        with caplog.at_level("INFO"):
+            assert resolve_payoff_definitions(None, OUTCOMES, required=False) is None
+        assert "No payoff table at data/payoffs.json" in caplog.text
+        with pytest.raises(FileNotFoundError):
+            resolve_payoff_definitions(None, OUTCOMES, required=True)
+
+    def test_missing_given_path_is_always_an_error(self, tmp_path: Path):
+        for required in (False, True):
+            with pytest.raises(FileNotFoundError):
+                resolve_payoff_definitions(str(tmp_path / "no.json"), OUTCOMES, required=required)
+
+    def test_default_that_does_not_fit_is_skipped_unless_required(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
+    ):
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        self.write(tmp_path / "data", self.UNFITTING)
+
+        with caplog.at_level("WARNING"):
+            assert resolve_payoff_definitions(None, OUTCOMES, required=False) is None
+        assert "does not fit the outcome table" in caplog.text
+        assert "['storm'] are not in the outcome category table" in caplog.text
+        with pytest.raises(PayoffTableError, match="not in the outcome category table"):
+            resolve_payoff_definitions(None, OUTCOMES, required=True)
+
+    def test_given_path_that_does_not_fit_is_always_an_error(self, tmp_path: Path):
+        path = self.write(tmp_path, self.UNFITTING)
+
+        for required in (False, True):
+            with pytest.raises(PayoffTableError, match="not in the outcome category table"):
+                resolve_payoff_definitions(path, OUTCOMES, required=required)
+
+    def test_without_an_outcome_table(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
+    ):
+        # The default is skipped with a warning when the floor is off; a given path, or the
+        # floor being on, needs the outcome table
+        monkeypatch.chdir(tmp_path)
+        (tmp_path / "data").mkdir()
+        self.write(tmp_path / "data", self.FITTING)
+        path = self.write(tmp_path, self.FITTING, "given.json")
+
+        with caplog.at_level("WARNING"):
+            assert resolve_payoff_definitions(None, None, required=False) is None
+        assert "needs the outcome category table" in caplog.text
+        for given, required in ((None, True), (path, False), (path, True)):
+            with pytest.raises(PayoffTableError, match="needs the outcome category table"):
+                resolve_payoff_definitions(given, None, required=required)
+
+    def test_log_off_is_silent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog):
+        monkeypatch.chdir(tmp_path)
+
+        with caplog.at_level("INFO"):
+            assert resolve_payoff_definitions(None, OUTCOMES, required=False, log=False) is None
+        assert caplog.text == ""
+
+    def test_empty_query_results_are_a_table_error_helper(self):
+        # check_query_results is what fetch_payoff_queries uses when the floor is on
+        with pytest.raises(PayoffTableError, match="match no card on Scryfall: 'b'"):
+            check_query_results({"a": ["Card"], "b": []})
+
+
 class TestInference:
     # A mana engine (combo 10), bundled with Walking Ballista into a damage combo (combo 20
     # includes 10) in two variants, and once with Comet Storm
@@ -187,6 +276,25 @@ class TestInference:
         ]
 
         assert infer_payoffs(pool, OUTCOMES, ENGINES) == {"mana": Counter(), "tokens": Counter()}
+
+    def test_engine_includes_must_be_a_strict_subset_of_the_bundle(self):
+        # The engine shares combo 10 with the bundle but also includes combo 99, which the
+        # bundle does not: it is a different bundle, not this one's engine
+        pool = [
+            combo("other", ["Rock", "Untapper"], ["Infinite mana"], [10, 99]),
+            combo("b", ["Rock", "Untapper", "Walking Ballista"], ["Infinite damage"], [20, 10]),
+        ]
+
+        assert infer_payoffs(pool, OUTCOMES, ENGINES) == {"mana": Counter(), "tokens": Counter()}
+
+    def test_engine_with_a_terminal_outcome_beside_an_engine_one_is_no_engine(self):
+        # An engine that already deals damage is terminal, whatever else it does
+        pool = [
+            combo("mixed", ["Rock", "Untapper"], ["Infinite mana", "Infinite damage"], [10]),
+            combo("b", ["Rock", "Untapper", "Walking Ballista"], ["Infinite damage"], [20, 10]),
+        ]
+
+        assert infer_payoffs(pool, OUTCOMES, ENGINES)["mana"] == Counter()
 
     def test_bundled_variant_must_have_a_terminal_result(self):
         # Engine plus a card that only makes more mana is not an outlet
