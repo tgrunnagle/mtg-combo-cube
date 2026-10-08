@@ -89,7 +89,7 @@ lifegain). It is a useful supplement, not a source.
 |----------|----------------|
 | Source of payoff cards | Both. Inference from the pool (the cards a bundled variant adds to its engine sub-variant, matched through `includes`) gives the outlets Spellbook itself treats as payoffs, 4 to 16 per category today; a table `data/payoffs.json` of Scryfall queries adds whole classes of outlet Spellbook cannot see (storm spells, overrun effects, X-cost sinks) and excludes the inference's false positives. The table is queries, not card lists: a query stays current as cards are printed, is reviewable in one line, and resolves through the same cached fetcher as the template requirements. Explicit card names are allowed but should be the exception. The payoff set of a category is the union of the two, minus the exclusions. |
 | Inference confidence | An inferred card counts when it is the extra card in at least two bundled variants of the category (`--payoff-inference-min 2`), which drops one-off accidents; a card that the inference assigns to every category (Chromatic Orrery) is still excluded by hand. |
-| Fetching and caching | Like the card attributes: a `PayoffFetcher` modelled on `CardAttributeFetcher`, with its own versioned cache `data/cache/scryfall_payoffs.json` keyed by the query text (plus the order and limit), under the same `--read-api-cache` / `--skip-api-caching` switches, filled by `task precache`. A query is re-run only when it is missing from the cache, so a warm cache makes a build network-free and the resolved table is reproducible between the runs being compared. |
+| Fetching and caching | Like the card attributes: a `PayoffFetcher` modelled on `CardAttributeFetcher`, with its own versioned cache `data/cache/scryfall_payoffs.json` keyed by the query text (plus the order and limit), under the same `--read-api-cache` / `--skip-api-caching` switches, filled by `task precache`. A query is re-run only when it is missing from the cache, so with `--read-api-cache` a warm cache makes a build network-free and the resolved table is reproducible between the runs being compared. |
 | Cards not in the pool | Add them as candidate cards with no combos (`CandidateCard` with empty sets), fetch their attributes, and exempt them from the utilization floor. This is the "reserved slots" mechanism; a later `data/playables.txt` of removal and fixing reuses it. |
 | Rule form | A hard floor per category: at least `--min-payoffs` payoff cards of each category in the table (default 3), as one linear constraint each. The stricter "an engine counts only with an outlet present" needs a variable per combo and is left as an open question. |
 | Which categories | Those the table lists. The terminal categories (damage, draw, mill, turns, win, lock) are their own payoff and need none. A category with no combos in the pool skips its floor. |
@@ -240,7 +240,11 @@ Decisions taken against the plan's recommendations:
   `includes` are a strict subset of the bundled variant's (so an engine that itself bundles a
   smaller combo still counts). Matching on `includes` of exactly one combo found 29 bundled
   variants an engine; the subset form finds 53, the same as matching on a single `of`, and
-  reproduces the plan's counts.
+  comes close to the plan's counts (mana 16, storm 17 against 14, tokens 15, counters 12,
+  lifegain 4; the Problem section counted 50 of 4,982 bundled terminal variants against 53
+  of 5,449 here, the pool having been re-fetched in between). The outlet is what a bundle
+  adds beyond every engine it includes, so a bundle of two engines credits neither engine's
+  cards to the other; on this pool that changes no count.
 - The storm query is `keyword:storm f:commander (o:damage or o:"create" or o:mills or
   o:"loses" or o:"draw" or o:"copy target")` (12 cards: Grapeshot, Brain Freeze, Empty the
   Warrens, Tendrils of Agony, Ignite Memories; Mind's Desire, which exiles and casts, is not
@@ -343,8 +347,8 @@ previous tracked cube (the combo variety plan's run):
 The floor costs 1.5% of the weighted combos against the previous run, inside the run-to-run
 noise, and was met entirely with combo pieces: Azor, the Lawbringer and Suture Priest for
 mana, Brain Freeze and Urza, Lord High Artificer for storm, Aetherflux Reservoir and Vizkopa
-Guildmage for lifegain, Walking Ballista and Ulasht for counters, five aristocrats and
-Blasting Station for tokens. No payoff-only card (a storm spell, an X spell) made the cube:
+Guildmage for lifegain, Walking Ballista and Ulasht for counters, and for tokens Blood
+Artist, Zulaport Cutthroat, Suture Priest, Thornbite Staff and Blasting Station. No payoff-only card (a storm spell, an X spell) made the cube:
 the pool has enough outlets that are also combo pieces to meet a floor of 2, so the
 reserved-slot mechanism is exercised by the tests and the measurements (one or two
 payoff-only cards at floors 2 to 5) rather than by the tracked cube. Phase 1 had one outlet
@@ -360,9 +364,8 @@ for mana and storm and none for lifegain; the previous tracked cube had the same
   1.7) it may cover most outlets Spellbook knows, leaving the table to the storm spells and
   overrun effects Spellbook has no combo for. Walking Ballista will still need the table,
   because Spellbook files its combos as self-contained.
-- The confidence threshold of 2 is a guess; the Results should list what 1, 2 and 3 keep.
-- Payoff-only cards have utilization 0 by definition, which the "every card pulls its
-  weight" story in the README must be honest about: they pull their weight as outlets, not
-  as combo pieces.
+- Resolved: the confidence threshold (the Results list what 1, 2 and 3 keep; 2 stays) and
+  the utilization of payoff-only cards (0 by definition; the README says so, the utilization
+  statistics leave them out and the `payoffs` statistics list them as `payoff_only`).
 - Mana-value and color of the outlets: a storm payoff pulls the cube toward red and blue
   instants; the card mix rules and the color balance apply to them, which may be enough.
