@@ -2311,7 +2311,7 @@ class ILPOptimizer:
         """Solve a repair model. Returns the cube found (None if none) and the solver status."""
         solver = self._make_solver(time_limit=self.time_limit * time_fraction)
         # CpSolverStatus is int at runtime, type stubs are incomplete
-        status_str = self._status_to_string(solver.solve(base.model, callback))  # type: ignore[arg-type]
+        status_str = self._status_to_string(solver.solve(base.model, callback))
         if status_str not in ("OPTIMAL", "FEASIBLE"):
             return None, status_str
         cards = {card for card in self.all_cards if solver.value(base.x[card]) == 1}
@@ -2551,8 +2551,7 @@ class ILPOptimizer:
             profile_result.timings["solver"] = solver_time
             profile_result.solver_stats = extract_solver_stats(solver)
 
-        # CpSolverStatus is int at runtime, type stubs are incomplete
-        return self._status_to_string(status)  # type: ignore[arg-type]
+        return self._status_to_string(status)
 
     def _extract_solution(
         self,
@@ -3026,9 +3025,9 @@ class ILPOptimizer:
         return self._solve_phase2(phase1_result=phase1_result, profile=profile)
 
     @staticmethod
-    def _status_to_string(status: int) -> str:
+    def _status_to_string(status: cp_model.CpSolverStatus) -> str:
         """Convert CP-SAT status to human-readable string."""
-        mapping: dict[int, str] = {
+        mapping: dict[cp_model.CpSolverStatus, str] = {
             cp_model.OPTIMAL: "OPTIMAL",
             cp_model.FEASIBLE: "FEASIBLE",
             cp_model.INFEASIBLE: "INFEASIBLE",

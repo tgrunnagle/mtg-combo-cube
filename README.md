@@ -386,6 +386,9 @@ task typecheck
 # Run all checks (lint, format, typecheck, tests)
 task check
 
+# Scan dependencies for High/Critical vulnerabilities (requires grype: https://github.com/anchore/grype)
+task security
+
 # Build a cube (see Quick Start)
 task build:ilp
 task build:ilp-single

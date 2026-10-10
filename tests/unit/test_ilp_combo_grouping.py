@@ -61,7 +61,7 @@ def fixed_cube_status(optimizer: ILPOptimizer, cube: Collection[str], reference_
     optimizer._add_combo_count_window(base, reference_score)
     solver = cp_model.CpSolver()
     solver.parameters.num_workers = 1
-    return optimizer._status_to_string(solver.solve(base.model))  # type: ignore[arg-type]
+    return optimizer._status_to_string(solver.solve(base.model))
 
 
 class TestComboScore:

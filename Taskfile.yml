@@ -76,6 +76,11 @@ tasks:
       - typecheck
       - test
 
+  security:
+    desc: Scan dependencies for known vulnerabilities with grype (requires grype on PATH)
+    cmds:
+      - grype dir:. --exclude './.venv/**' --fail-on high
+
   build:greedy:
     desc: Build a cube using the greedy method
     cmds:
