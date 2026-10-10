@@ -10,9 +10,11 @@ preprocessing), so the numbers are comparable with a build that used the same se
 import argparse
 import asyncio
 import logging
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
 from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
@@ -202,19 +204,30 @@ if __name__ == "__main__":
     logging.basicConfig(level=logging.WARNING)
 
     try:
+        blocklist = asyncio.run(
+            fetch_blocklist(
+                config.blocklist,
+                config.blocklist_queries,
+                enable_cache_write=False,
+                read_cache=True,
+            )
+        )
         evaluation = asyncio.run(
             evaluate_cube(
                 cube_file=args.cube_file,
                 max_variants=args.max_variants,
-                blocklist=config.blocklist,
+                blocklist=blocklist,
                 variant_weight=args.variant_weight,
                 outcome_categories=config.outcome_categories,
                 payoff_definitions=config.payoffs,
                 payoff_inference_min=args.payoff_inference_min,
             )
         )
-    except PayoffTableError as e:
-        argparser.error(str(e))  # a payoff query that matches no card
+    except (PayoffTableError, BlocklistQueryError) as e:
+        argparser.error(str(e))  # a payoff query that matches no card, a rejected query
+    except BlocklistFetchError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
     stats = evaluation.utilization_stats
     print(f"Cube: {Path(args.cube_file)} ({evaluation.card_count} cards)")
     print(
