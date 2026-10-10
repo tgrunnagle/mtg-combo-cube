@@ -39,3 +39,21 @@ jobs:
             git diff
             exit 1
           fi
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: anchore/scan-action/download-grype@v6
+        id: grype
+
+      - name: Add grype to PATH
+        run: echo "$(dirname "${{ steps.grype.outputs.cmd }}")" >> "$GITHUB_PATH"
+
+      - uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Scan dependencies
+        run: task security
