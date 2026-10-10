@@ -11,7 +11,8 @@
   },
   "storm": {
     "queries": [
-      "keyword:storm f:commander (o:damage or o:\"create\" or o:mills or o:\"loses\" or o:\"draw\" or o:\"copy target\")"
+      "keyword:storm f:commander (o:damage or o:\"create\" or o:mills or o:\"loses\" or o:\"draw\" or o:\"copy target\")",
+      "o:/whenever you cast (an|a) (instant|sorcery|noncreature|instant or sorcery)/ (o:\"deals 1 damage\" or o:\"deals 2 damage\" or o:\"loses 1 life\") f:commander -t:planeswalker"
     ],
     "exclude": [
       "Chromatic Orrery"
@@ -28,10 +29,20 @@
       "Chromatic Orrery"
     ]
   },
+  "triggers": {
+    "queries": [
+      "o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:\"loses 1 life\" or o:\"deals 1 damage\") f:commander",
+      "o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:\"loses 1 life\" or o:\"deals 1 damage\" or o:\"deals 2 damage\") f:commander"
+    ],
+    "exclude": [
+      "Chromatic Orrery"
+    ]
+  },
   "lifegain": {
     "queries": [
-      "o:\"whenever you gain life\" (o:\"deals that much damage\" or o:\"loses that much life\") f:commander",
-      "o:\"pay 50 life\" f:commander"
+      "o:\"whenever you gain life\" (o:\"deals that much damage\" or o:\"loses that much life\" or o:\"loses 1 life\" or o:\"deals 1 damage\") f:commander",
+      "o:\"pay 50 life\" f:commander",
+      "o:\"you win the game\" o:/\\d+ or more life/ f:commander"
     ]
   },
   "counters": {

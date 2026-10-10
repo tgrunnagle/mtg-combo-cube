@@ -43,6 +43,7 @@ async def run(
     popularity_weight: float = 0,
     payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ):
     """
@@ -92,6 +93,8 @@ async def run(
             the Scryfall queries, cards and exclusions that find its outlets
         min_payoffs: Phase 2 minimum number of payoff cards of every category in the payoff
             table (0 disables)
+        payoff_share: Share of the cube's cards the Phase 2 payoff floors add up to, split
+            among the categories by their combos in the pool (0: the minimum alone)
         payoff_inference_min: Bundled Spellbook variants a card must be the outlet of before
             the inference counts it as a payoff
     """
@@ -127,6 +130,7 @@ async def run(
             popularity_weight=popularity_weight,
             payoffs_path=payoffs_path,
             min_payoffs=min_payoffs,
+            payoff_share=payoff_share,
             payoff_inference_min=payoff_inference_min,
         )
     elif method == "greedy":

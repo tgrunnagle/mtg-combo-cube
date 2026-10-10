@@ -170,6 +170,27 @@ class _CubeRule:
     violations: Callable[[Collection[str]], int]
 
 
+def _apportion(
+    total: int, weights: dict[str, int], lower: dict[str, int], upper: dict[str, int]
+) -> dict[str, int]:
+    """
+    Split `total` whole units among the keys of `weights`: each starts at its lower bound,
+    and the rest go one at a time to the key with the most weight per unit held so far
+    (the D'Hondt method), never above its upper bound; ties go to the earlier key. When the
+    lower bounds already reach the total, they are returned as they are.
+    """
+    shares = dict(lower)
+    remaining = total - sum(shares.values())
+    while remaining > 0:
+        open_keys = [key for key in shares if shares[key] < upper[key] and weights[key] > 0]
+        if not open_keys:
+            break
+        key = max(open_keys, key=lambda k: weights[k] / (shares[k] + 1))
+        shares[key] += 1
+        remaining -= 1
+    return shares
+
+
 class ILPOptimizer:
     """
     ILP-based cube optimizer using OR-Tools CP-SAT solver.
@@ -202,6 +223,7 @@ class ILPOptimizer:
     DEFAULT_MIN_OUTCOME_COMBOS = 40
     # Default minimum payoff cards per category of the payoff table (every layer declares it)
     DEFAULT_MIN_PAYOFFS = 2
+    DEFAULT_PAYOFF_SHARE = 0.15
 
     def __init__(
         self,
@@ -231,6 +253,7 @@ class ILPOptimizer:
         popularity_weight: float = 0,
         payoffs: PayoffTable | None = None,
         min_payoffs: int = DEFAULT_MIN_PAYOFFS,
+        payoff_share: float = DEFAULT_PAYOFF_SHARE,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -307,13 +330,18 @@ class ILPOptimizer:
             raise ValueError(f"popularity_weight must be >= 0, got {popularity_weight}")
         self.popularity_weight = popularity_weight
         # Phase 2 payoff floor: payoff cards (outlets for the engines of a category, from the
-        # payoff table) the cube must hold per category. 0 disables it; without a payoff
-        # table, or without an outcome table (which says whether a category has combos in
-        # the pool), it is skipped.
+        # payoff table) the cube must hold per category: at least min_payoffs each, and
+        # payoff_share of the cube in all, split by the pool's combos per category
+        # (_compute_payoff_floors). min_payoffs 0 disables it; without a payoff table, or
+        # without an outcome table (which says whether a category has combos in the pool), it
+        # is skipped.
         if min_payoffs < 0:
             raise ValueError(f"min_payoffs must be >= 0, got {min_payoffs}")
+        if not math.isfinite(payoff_share) or not 0 <= payoff_share < 1:
+            raise ValueError(f"payoff_share must be in [0, 1), got {payoff_share}")
         self.payoffs = payoffs
         self.min_payoffs = min_payoffs
+        self.payoff_share = payoff_share
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -367,6 +395,9 @@ class ILPOptimizer:
         self.payoff_floor_active: bool = (
             payoffs is not None and outcome_categories is not None and min_payoffs > 0
         )
+        # The floor each category would get from the settings alone, before the pool's
+        # selectable payoff cards cap it (for _check_payoff_pool's warnings)
+        self.payoff_targets: dict[str, int] = {}
         self.payoff_floors: dict[str, int] = self._compute_payoff_floors()
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
@@ -2014,19 +2045,55 @@ class ILPOptimizer:
     def _compute_payoff_floors(self) -> dict[str, int]:
         """
         The payoff cards per category that Phase 2 requires, for the categories with a
-        floor: min_payoffs, lowered to the payoff cards the category can select
-        (payoff_cards: combo pieces below the utilization floor are left out) when that is
-        smaller (_check_payoff_pool warns), as the outcome minimum is. A category whose
-        outcome has no combo in the pool needs no outlet and gets no floor; without a payoff
-        table or an outcome table there is none.
+        floor. A category whose outcome has no combo in the pool needs no outlet and gets no
+        floor; without a payoff table or an outcome table there is none.
+
+        Every category gets at least min_payoffs (or the table's own `min_payoffs`). With a
+        payoff_share above 0, the floors add up to that share of the cube: the cards above
+        the minimums go to the categories in proportion to their distinct combos in the pool
+        (an engine that is half the pool's combos is half the drafters' engines, so it needs
+        half the outlets), one at a time to the category whose combos per outlet are
+        highest (D'Hondt), and no category rises above twice the even split of the total
+        (or the table's own `max_payoffs`), so a dominant category cannot take every outlet.
+        A floor is then lowered to the payoff cards the category can select (payoff_cards:
+        combo pieces below the utilization floor are left out) when that is smaller
+        (_check_payoff_pool warns), as the outcome minimum is; a category that is full this
+        way gets no more and the rest goes on to the others.
         """
         if not self.payoff_floor_active:
             return {}
+        assert self.payoffs is not None
+        names = [name for name in self.payoff_cards if self.outcome_groups.get(name)]
+        available = {name: len(self.payoff_cards[name]) for name in names}
+        lower = {name: self.payoffs.min_payoffs.get(name, self.min_payoffs) for name in names}
+        total = round(self.payoff_share * self.cube_size)
+        if total and names:
+            even_cap = math.ceil(2 * total / len(names))
+            upper = {
+                name: max(self.payoffs.max_payoffs.get(name, even_cap), lower[name])
+                for name in names
+            }
+            weights = {name: len(self.outcome_groups[name]) for name in names}
+            # A category cannot get more cards than it has; a lower bound above what it has
+            # stays as configured, so the shortfall is warned about and not made up elsewhere
+            capped_lower = {name: min(lower[name], available[name]) for name in names}
+            capped_upper = {name: min(upper[name], available[name]) for name in names}
+            self.payoff_targets = _apportion(total, weights, capped_lower, capped_upper)
+            for name in names:
+                if available[name] < lower[name]:
+                    self.payoff_targets[name] = lower[name]
+            described = ", ".join(
+                f"{name} {self.payoff_targets[name]} ({weights[name]} combos)" for name in names
+            )
+            logger.info(
+                f"Phase 2: payoff share {self.payoff_share:.0%} of {self.cube_size} cards is "
+                f"{total} payoff cards, split by the pool's combos per category: {described}"
+            )
+        else:
+            self.payoff_targets = dict(lower)
         floors: dict[str, int] = {}
-        for name, cards in self.payoff_cards.items():
-            if not self.outcome_groups.get(name):
-                continue
-            applied = min(self.min_payoffs, len(cards))
+        for name in names:
+            applied = min(self.payoff_targets[name], available[name])
             if applied > 0:
                 floors[name] = applied
         return floors
@@ -2107,10 +2174,10 @@ class ILPOptimizer:
                     f"Phase 2: the pool has no selectable payoff cards for {name}; no payoff "
                     "floor for it"
                 )
-            elif len(cards) < self.min_payoffs:
+            elif len(cards) < self.payoff_targets.get(name, 0):
                 logger.warning(
                     f"Phase 2: the pool has only {len(cards)} selectable payoff cards for {name}, "
-                    f"below the minimum of {self.min_payoffs}; the floor is lowered to "
+                    f"below the minimum of {self.payoff_targets[name]}; the floor is lowered to "
                     f"{len(cards)} (every such card must be in the cube)"
                 )
 
@@ -2143,6 +2210,9 @@ class ILPOptimizer:
             return {}
         return {
             "phase2_min_payoffs": self.min_payoffs if self.payoff_floors else None,
+            "phase2_payoff_share": (
+                self.payoff_share if self.payoff_floors and self.payoff_share else None
+            ),
             "phase2_payoff_floors": self.payoff_floors or None,
         }
 

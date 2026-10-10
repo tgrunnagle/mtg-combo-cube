@@ -271,7 +271,18 @@ if __name__ == "__main__":
         "(outlets: storm spells, X spells, aristocrats, ...) of every category in the payoff "
         "table whose engines the pool has (default: "
         f"{ILPOptimizer.DEFAULT_MIN_PAYOFFS}). Payoff cards the pool lacks are added to the "
-        "candidate cards; they complete no combo. Set to 0 to disable.",
+        "candidate cards; they complete no combo. Set to 0 to disable the payoff floor.",
+    )
+    argparser.add_argument(
+        "--payoff-share",
+        type=float,
+        default=ILPOptimizer.DEFAULT_PAYOFF_SHARE,
+        help="Payoff support for phase 2: the share of the cube's cards the payoff floors add "
+        "up to, split among the payoff categories in proportion to their combos in the pool, "
+        "each at least --min-payoffs and at most twice the even split (a category's own "
+        "min_payoffs / max_payoffs in the table override) (default: "
+        f"{ILPOptimizer.DEFAULT_PAYOFF_SHARE}). 0 keeps the floor at --min-payoffs per "
+        "category. Below 1.",
     )
     argparser.add_argument(
         "--payoffs",
@@ -305,6 +316,8 @@ if __name__ == "__main__":
         argparser.error("--popularity-weight must be 0 or more")
     if args.min_payoffs < 0:
         argparser.error("--min-payoffs must be 0 or more")
+    if not math.isfinite(args.payoff_share) or not 0 <= args.payoff_share < 1:
+        argparser.error("--payoff-share must be 0 or more and below 1")
     if args.payoff_inference_min < 1:
         argparser.error("--payoff-inference-min must be at least 1")
     # The card mix settings are validated once, by CardMixRules; the error names the field
@@ -368,6 +381,7 @@ if __name__ == "__main__":
                 popularity_weight=args.popularity_weight,
                 payoffs_path=args.payoffs,
                 min_payoffs=args.min_payoffs,
+                payoff_share=args.payoff_share,
                 payoff_inference_min=args.payoff_inference_min,
             )
         )

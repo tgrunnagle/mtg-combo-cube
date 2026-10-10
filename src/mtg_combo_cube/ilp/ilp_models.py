@@ -413,6 +413,7 @@ class OptimizationResult:
     # payoff cards per category and the floor actually applied to each category (lowered to
     # the payoff cards it has; a category whose outcome has no combo in the pool is left out)
     phase2_min_payoffs: int | None = None
+    phase2_payoff_share: float | None = None  # the share of the cube the floors add up to
     phase2_payoff_floors: dict[str, int] | None = None
     # Popularity weight: each combo's value is scaled by 1 + weight x its popularity relative
     # to the most popular combo (log scale). The combo score is the weighted combo count under

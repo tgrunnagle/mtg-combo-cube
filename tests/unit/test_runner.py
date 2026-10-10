@@ -234,6 +234,7 @@ class TestCliPlumbing:
         received = run_cli(monkeypatch)
 
         assert received["min_payoffs"] == 2
+        assert received["payoff_share"] == 0.15
         assert received["payoffs_path"] is None
         assert received["payoff_inference_min"] == DEFAULT_INFERENCE_THRESHOLD == 2
 
@@ -244,6 +245,8 @@ class TestCliPlumbing:
             monkeypatch,
             "--min-payoffs",
             "2",
+            "--payoff-share",
+            "0.2",
             "--payoffs",
             str(table),
             "--payoff-inference-min",
@@ -251,10 +254,20 @@ class TestCliPlumbing:
         )
 
         assert received["min_payoffs"] == 2
+        assert received["payoff_share"] == 0.2
         assert received["payoffs_path"] == str(table)
         assert received["payoff_inference_min"] == 3
 
-    @pytest.mark.parametrize("args", [("--min-payoffs", "-1"), ("--payoff-inference-min", "0")])
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--min-payoffs", "-1"),
+            ("--payoff-inference-min", "0"),
+            ("--payoff-share", "1"),
+            ("--payoff-share", "-0.1"),
+            ("--payoff-share", "nan"),
+        ],
+    )
     def test_invalid_payoff_options_are_rejected(
         self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
     ):
@@ -457,6 +470,7 @@ class TestRunnerPlumbing:
         assert received["outcome_categories_path"] is None
         assert received["popularity_weight"] == 0
         assert received["min_payoffs"] == 2
+        assert received["payoff_share"] == 0.15
         assert received["payoffs_path"] is None
         assert received["payoff_inference_min"] == 2
 
@@ -466,10 +480,12 @@ class TestRunnerPlumbing:
             output_file="unused.txt",
             payoffs_path="my/payoffs.json",
             min_payoffs=2,
+            payoff_share=0.2,
             payoff_inference_min=3,
         )
         assert received["payoffs_path"] == "my/payoffs.json"
         assert received["min_payoffs"] == 2
+        assert received["payoff_share"] == 0.2
         assert received["payoff_inference_min"] == 3
 
         await runner.run(
@@ -600,11 +616,12 @@ class TestRunnerPlumbing:
         assert stats["phase2"]["card_mix_limits"] == {"creature_cap": 2, "spell_floor": 1}
         assert stats["phase2"]["unknown_candidate_cards"] == 0
         # The default outcome table was loaded: the combos have no features, so every
-        # completed combo is uncategorized; no outcome rule was asked for
+        # completed combo is in its catch-all category; no outcome rule was asked for
         assert created[0].outcome_categories is not None
         assert created[0].min_outcome_combos == 0
         assert created[0].popularity_weight == 0
-        assert stats["phase1"]["outcomes"]["uncategorized"] == 3
+        assert stats["phase1"]["outcomes"]["uncategorized"] == 0
+        assert stats["phase1"]["outcomes"]["combos_per_outcome"]["other"] == 3
         assert stats["phase2"]["outcomes"]["total"] == 3
         assert stats["phase2"]["popularity"]["combo_count"] == 3
         assert "outcome_minimums" not in stats["phase2"]

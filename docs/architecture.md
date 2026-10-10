@@ -77,7 +77,7 @@ All code lives under `src/mtg_combo_cube/`.
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
 | `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, combos per outcome category, popularity, color distribution, card mix. |
-| `ilp/outcomes.py` | The outcome category table (`data/outcome_categories.json`): category names with feature-name patterns, and `categorize`. |
+| `ilp/outcomes.py` | The outcome category table (`data/outcome_categories.json`): category names with feature-name patterns, an optional catch-all category without patterns, and `categorize`. |
 | `ilp/payoffs.py` | The payoff table (`data/payoffs.json`): per outcome category the queries, cards and exclusions that find its outlets; the outlet inference from bundled variants; the resolved `PayoffTable`. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
@@ -341,9 +341,10 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
 10. **Mono-colored balance.** `--mono-color-ratio` (default 0, off) applies the color balance
     form to the cards whose identity is exactly one color.
 11. **Outcome minimums.** For each category of the outcome table (what the combos do:
-    mana, damage, tokens, draw, mill, lifegain, counters, turns, lock, storm, win), the
-    number of completed combos (groups) in it is at least `--min-outcome-combos`, or the
-    category's own `min_combos` when the table gives one. A group is in every category one
+    mana, damage, tokens, triggers, draw, mill, lifegain, counters, turns, lock, storm, win,
+    and the catch-all `other`, a category without patterns that holds every combo no other
+    category matches), the number of completed combos (groups) in it is at least
+    `--min-outcome-combos`, or the category's own `min_combos` when the table gives one. A group is in every category one
     of its variants' features matches, decided before the solve (`outcome_groups`), so the
     count is a sum of group indicators: under-countable, hence the minimum is exact. 0
     disables a category's minimum, and a minimum above the number of combos the pool has
@@ -359,12 +360,18 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     models cannot leave `y` at 0 for a completed combo inside; under-counting `outside`
     only tightens the cap. Both outcome rules are skipped without a table.
 13. **Payoff floor.** For each category of the payoff table whose outcome has at least one
-    combo in the pool, at least `--min-payoffs` (default 2) of the category's payoff cards
-    are selected: one linear constraint over `x`, exact in every model. Only selectable
-    cards count (payoff-only cards, or combo pieces at or above the utilization floor); a
-    category with fewer of them than the floor has it lowered to what it has, with a
-    warning, as the outcome minimum is. Skipped at 0, without a payoff table, and without an outcome table
-    (which says whether a category has engines in the pool).
+    combo in the pool, at least its floor of the category's payoff cards are selected: one
+    linear constraint over `x`, exact in every model. The floors are computed once in the
+    constructor (`_compute_payoff_floors`): every category gets `--min-payoffs` (default 2)
+    or the table's own `min_payoffs`, and with `--payoff-share` (default 0.15) the floors
+    add up to that share of the cube, the cards above the minimums going one at a time to
+    the category with the most distinct pool combos per outlet (`_apportion`, the D'Hondt
+    method) up to twice the even split or the table's `max_payoffs`. Only selectable cards
+    count (payoff-only cards, or combo pieces at or above the utilization floor); a category
+    with fewer of them than its floor has it lowered to what it has, with a warning, as the
+    outcome minimum is, and the apportionment passes those cards on. Skipped at
+    `--min-payoffs 0`, without a payoff table, and without an outcome table (which says
+    whether a category has engines in the pool).
 14. **The objective**, chosen with `--phase2-objective`.
 15. **Warm start.** The model is hinted with a starting cube.
 

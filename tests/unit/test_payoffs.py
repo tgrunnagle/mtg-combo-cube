@@ -74,6 +74,26 @@ class TestParse:
 
         assert definitions.names == ("mana",)
 
+    def test_floor_bounds_are_kept_per_category(self):
+        definitions = parse_payoff_table(
+            {
+                "mana": {"cards": ["A"], "min_payoffs": 3, "max_payoffs": 9},
+                "storm": {"cards": ["B"], "max_payoffs": 0},
+                "tokens": {"cards": ["C"]},
+            }
+        )
+
+        assert definitions.min_payoffs == {"mana": 3}
+        assert definitions.max_payoffs == {"mana": 9, "storm": 0}
+        table = resolve_payoffs(definitions, {}, {})
+        assert table.min_payoffs == {"mana": 3}
+        assert table.max_payoffs == {"mana": 9, "storm": 0}
+        assert table.without(["A"]).min_payoffs == {"mana": 3}
+        assert (
+            resolve_payoffs(parse_payoff_table({"mana": {"cards": ["A"]}}), {}, {}).min_payoffs
+            == {}
+        )
+
     def test_duplicates_and_blanks_are_dropped(self):
         definitions = parse_payoff_table({"mana": {"queries": ["a", " a", "b"]}})
 
@@ -91,6 +111,9 @@ class TestParse:
             ({"mana": {"cards": [""]}}, "must list its cards"),
             ({"mana": {"exclude": [1]}}, "must list its exclude"),
             ({"": {"queries": ["x"]}}, "names must be strings"),
+            ({"mana": {"cards": ["A"], "min_payoffs": -1}}, "min_payoffs as a whole number"),
+            ({"mana": {"cards": ["A"], "max_payoffs": True}}, "max_payoffs as a whole number"),
+            ({"mana": {"cards": ["A"], "min_payoffs": 3, "max_payoffs": 2}}, "above max_payoffs"),
         ],
     )
     def test_invalid_tables_are_rejected(self, table: object, message: str):
@@ -143,11 +166,11 @@ class TestLoad:
         definitions = load_payoff_table()
 
         assert Path(DEFAULT_PAYOFFS_PATH).exists()
-        assert definitions.names == ("mana", "storm", "tokens", "lifegain", "counters")
+        assert definitions.names == ("mana", "storm", "tokens", "triggers", "lifegain", "counters")
         definitions.check_categories(load_outcome_categories())
         assert resolve_payoff_table(None, required=True) == definitions
         # The terminal categories are their own payoff and are not in the table
-        for name in ("damage", "draw", "mill", "turns", "lock", "win"):
+        for name in ("damage", "draw", "mill", "turns", "lock", "win", "other"):
             assert name not in definitions.names
 
     def test_empty_query_results_are_a_table_error(self):
@@ -262,6 +285,21 @@ class TestInference:
             "mana": Counter({"Walking Ballista": 2, "Comet Storm": 1}),
             "tokens": Counter(),
         }
+
+    def test_a_bundle_whose_result_is_only_in_the_catch_all_adds_no_outlet(self):
+        # With a catch-all, an unmatched result ("Infinite creature ETB") is categorized,
+        # but it is no payoff: the bundle still credits nothing
+        table = parse_outcome_categories(
+            {"mana": ["infinite mana"], "damage": ["infinite damage"], "other": []}
+        )
+        pool = [
+            self.ENGINE,
+            combo("b1", ["Rock", "Untapper", "Blinker"], ["Infinite creature ETB"], [20, 10]),
+            combo("b2", ["Rock", "Untapper", "Blinker"], ["Infinite creature ETB"], [21, 10]),
+            combo("b3", ["Rock", "Untapper", "Comet Storm"], ["Infinite damage"], [22, 10]),
+        ]
+
+        assert infer_payoffs(pool, table, ("mana",)) == {"mana": Counter({"Comet Storm": 1})}
 
     def test_engine_must_be_non_terminal_and_a_strict_subset(self):
         # A terminal engine (it already deals damage) is no engine; an engine with the same

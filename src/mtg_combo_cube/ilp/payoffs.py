@@ -17,7 +17,9 @@ Every category must be a category of the outcome table; the categories the payof
 leaves out (damage, draw, mill, ...) are terminal and are their own payoff. A category gives
 Scryfall `queries` (resolved by the PayoffFetcher in EDHREC order; the first QUERY_CARD_LIMIT
 cards count), explicit `cards`, and `exclude`, names dropped from the category whatever
-their source. A category needs at least one of the three.
+their source. A category needs at least one of the three. It may also bound its Phase 2
+payoff floor with `min_payoffs` and `max_payoffs`, in place of the range the optimizer
+applies to every category (see ILPOptimizer._compute_payoff_floors).
 
 The payoff set of a category is the union of the inferred cards (infer_payoffs: the cards a
 bundled Spellbook variant adds to the engine it includes, kept from the confidence
@@ -30,7 +32,7 @@ import json
 import logging
 from collections import Counter
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 from mtg_combo_cube.ilp.ilp_models import ComboData, PayoffStats
@@ -70,19 +72,43 @@ def _names(entry: Mapping[str, object], key: str, category: str) -> tuple[str, .
     return tuple(dict.fromkeys(str(value).strip() for value in values))
 
 
+def _bound(entry: Mapping[str, object], key: str, category: str) -> int | None:
+    """The non-negative integer under `key`, None when absent, or an error naming the category."""
+    value = entry.get(key)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise PayoffTableError(
+            f"payoff category {category!r} must give {key} as a whole number of 0 or more, "
+            f"got {value!r}"
+        )
+    return value
+
+
 @dataclass(frozen=True)
 class PayoffCategory:
-    """How the payoff cards of one outcome category are found."""
+    """How the payoff cards of one outcome category are found, and the bounds of its floor."""
 
     name: str
     queries: tuple[str, ...] = ()  # Scryfall queries
     cards: tuple[str, ...] = ()  # explicit card names
     exclude: frozenset[str] = frozenset()  # names dropped whatever their source
+    min_payoffs: int | None = None  # the category's own lower bound for the payoff floor
+    max_payoffs: int | None = None  # the category's own upper bound for the payoff floor
 
     def __post_init__(self) -> None:
         if not (self.queries or self.cards or self.exclude):
             raise PayoffTableError(
                 f"payoff category {self.name!r} has no queries, cards or exclusions"
+            )
+        if (
+            self.min_payoffs is not None
+            and self.max_payoffs is not None
+            and self.min_payoffs > self.max_payoffs
+        ):
+            raise PayoffTableError(
+                f"payoff category {self.name!r} has min_payoffs {self.min_payoffs} above "
+                f"max_payoffs {self.max_payoffs}"
             )
 
 
@@ -113,6 +139,16 @@ class PayoffDefinitions:
         """Every card the table names explicitly."""
         return frozenset(card for category in self.categories for card in category.cards)
 
+    @property
+    def min_payoffs(self) -> dict[str, int]:
+        """The categories' own lower bounds for the payoff floor, where the table gives one."""
+        return {c.name: c.min_payoffs for c in self.categories if c.min_payoffs is not None}
+
+    @property
+    def max_payoffs(self) -> dict[str, int]:
+        """The categories' own upper bounds for the payoff floor, where the table gives one."""
+        return {c.name: c.max_payoffs for c in self.categories if c.max_payoffs is not None}
+
     def __len__(self) -> int:
         return len(self.categories)
 
@@ -142,7 +178,7 @@ def parse_payoff_table(table: object) -> PayoffDefinitions:
                 f"payoff category {name!r} must be an object with queries, cards or exclude"
             )
         entry_dict: dict[str, object] = {str(key): value for key, value in entry.items()}
-        unknown = set(entry_dict) - {"queries", "cards", "exclude"}
+        unknown = set(entry_dict) - {"queries", "cards", "exclude", "min_payoffs", "max_payoffs"}
         if unknown:
             raise PayoffTableError(f"payoff category {name!r} has unknown keys {sorted(unknown)}")
         categories.append(
@@ -151,6 +187,8 @@ def parse_payoff_table(table: object) -> PayoffDefinitions:
                 queries=_names(entry_dict, "queries", name),
                 cards=_names(entry_dict, "cards", name),
                 exclude=frozenset(_names(entry_dict, "exclude", name)),
+                min_payoffs=_bound(entry_dict, "min_payoffs", name),
+                max_payoffs=_bound(entry_dict, "max_payoffs", name),
             )
         )
     return PayoffDefinitions(tuple(categories))
@@ -269,12 +307,15 @@ def infer_payoffs(
     terminal result (a category outside `engine_categories`), an engine is a variant in the
     pool whose `includes` are a strict subset of the bundled variant's (the engine may
     itself bundle a smaller combo), whose cards are a strict subset and whose categories are
-    engine categories only. The outlet is what the bundled variant adds beyond every engine
+    engine categories only. The catch-all category, when the table has one, is no terminal
+    result: a bundle whose result matches no named category adds no known payoff. The
+    outlet is what the bundled variant adds beyond every engine
     it bundles (a variant of two engines plus an outlet credits neither engine's cards to
     the other), credited to each engine's categories. A card is counted once per bundled
     variant.
     """
     engines = frozenset(engine_categories)
+    unknown = frozenset([categories.catch_all]) if categories.catch_all is not None else frozenset()
     variant_categories = {combo.id: categories.categorize(combo.features) for combo in combos}
     by_included: dict[int, list[ComboData]] = {}
     for combo in combos:
@@ -283,7 +324,7 @@ def infer_payoffs(
 
     credits: dict[str, dict[str, set[str]]] = {name: {} for name in engine_categories}
     for bundled in combos:
-        if len(bundled.includes) < 2 or not variant_categories[bundled.id] - engines:
+        if len(bundled.includes) < 2 or not variant_categories[bundled.id] - engines - unknown:
             continue
         candidates = {
             engine.id: engine
@@ -321,6 +362,9 @@ class PayoffTable:
     # count (also below the threshold), so the table can be tuned from a run
     inferred: dict[str, dict[str, int]]
     inference_threshold: int
+    # The table's own bounds for the payoff floor, for the categories that give one
+    min_payoffs: dict[str, int] = field(default_factory=dict)
+    max_payoffs: dict[str, int] = field(default_factory=dict)
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -352,6 +396,8 @@ class PayoffTable:
             },
             inferred=self.inferred,
             inference_threshold=self.inference_threshold,
+            min_payoffs=self.min_payoffs,
+            max_payoffs=self.max_payoffs,
         )
 
     def stats(
@@ -432,4 +478,6 @@ def resolve_payoffs(
             for name in definitions.names
         },
         inference_threshold=inference_threshold,
+        min_payoffs=definitions.min_payoffs,
+        max_payoffs=definitions.max_payoffs,
     )

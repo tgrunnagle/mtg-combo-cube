@@ -67,10 +67,35 @@ class TestMinimums:
         assert table.minimums(2) == {"b": 2}
 
 
+class TestCatchAll:
+    def test_a_category_without_patterns_holds_the_unmatched_combos(self):
+        table = parse_outcome_categories({"mana": ["infinite colored mana"], "other": []})
+
+        assert table.catch_all == "other"
+        assert table.categorize(["Infinite creature ETB"]) == {"other"}
+        assert table.categorize([]) == {"other"}
+        # A combo in a named category is not in the catch-all
+        assert table.categorize(["Infinite colored mana", "Infinite creature ETB"]) == {"mana"}
+        assert table.minimums(5) == {"mana": 5, "other": 5}
+
+    def test_without_a_catch_all_unmatched_combos_are_in_no_category(self):
+        assert categories().catch_all is None
+        assert categories().categorize(["Infinite creature ETB"]) == frozenset()
+
+    def test_one_catch_all_at_most(self):
+        with pytest.raises(OutcomeCategoryError, match="more than one catch-all"):
+            parse_outcome_categories({"a": [], "b": ["x"], "c": []})
+
+    def test_default_table_has_one(self):
+        table = load_outcome_categories()
+
+        assert table.catch_all == "other"
+        assert table.names[-1] == "other"
+        assert "triggers" in table.names
+
+
 class TestParse:
-    def test_every_category_needs_a_pattern(self):
-        with pytest.raises(OutcomeCategoryError, match="'mana' has no patterns"):
-            parse_outcome_categories({"mana": []})
+    def test_patterns_must_not_be_empty_strings(self):
         with pytest.raises(OutcomeCategoryError, match="'mana' has an empty pattern"):
             OutcomeCategory("mana", ("",))
 
@@ -125,9 +150,9 @@ class TestLoad:
 
         assert table.categorize(["Infinite damage"]) == {"damage"}
         assert table.categorize(["Near-infinite damage to one opponent"]) == {"damage"}
-        assert table.categorize(["Infinite damage to creatures"]) == set()
-        assert table.categorize(["Near-infinite damage to all creatures"]) == set()
-        assert table.categorize(["Infinite damage to most creatures"]) == set()
+        assert table.categorize(["Infinite damage to creatures"]) == {"other"}
+        assert table.categorize(["Near-infinite damage to all creatures"]) == {"other"}
+        assert table.categorize(["Infinite damage to most creatures"]) == {"other"}
 
     def test_default_table_ships_with_the_repository(self):
         table = load_outcome_categories()
@@ -136,11 +161,18 @@ class TestLoad:
         assert {"mana", "damage", "tokens", "draw", "mill", "lifegain", "counters"} <= set(
             table.names
         )
-        assert all(category.patterns for category in table)
-        # Trigger loops are not an outcome; terminal results are
-        assert table.categorize(["Infinite creature ETB", "Infinite death triggers"]) == set()
-        assert table.categorize(["Infinite colored mana", "Infinite creature ETB"]) == {"mana"}
-        assert table.categorize(["Infinite lifegain triggers"]) == set()
+        assert all(category.patterns for category in table if not category.is_catch_all)
+        # Creature trigger loops are the "triggers" engine; a result no category names is
+        # in the catch-all
+        assert table.categorize(["Infinite creature ETB", "Infinite death triggers"]) == {
+            "triggers"
+        }
+        assert table.categorize(["Infinite colored mana", "Infinite creature ETB"]) == {
+            "mana",
+            "triggers",
+        }
+        assert table.categorize(["Infinite lifegain triggers"]) == {"other"}
+        assert table.categorize(["Infinite landfall triggers"]) == {"other"}
         assert table.categorize(["Infinite lifegain"]) == {"lifegain"}
         assert table.categorize(["Lock"]) == {"lock"}
 

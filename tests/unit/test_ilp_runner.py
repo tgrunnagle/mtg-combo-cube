@@ -936,6 +936,7 @@ class TestWriteStatsPayoffs:
                 payoff_only=["Comet Storm"],
             ),
             phase2_min_payoffs=3,
+            phase2_payoff_share=0.15,
             phase2_payoff_floors={"mana": 3, "storm": 1},
         )
 
@@ -954,6 +955,7 @@ class TestWriteStatsPayoffs:
             "query",
         ]
         assert stats["phase2"]["min_payoffs"] == 3
+        assert stats["phase2"]["payoff_share"] == 0.15
         assert stats["phase2"]["payoff_floors"] == {"mana": 3, "storm": 1}
         assert "payoffs" not in stats
 
@@ -982,6 +984,7 @@ class TestWriteStatsPayoffs:
         for phase in ("phase1", "phase2"):
             assert "payoffs" not in stats[phase]
         assert "min_payoffs" not in stats["phase2"]
+        assert "payoff_share" not in stats["phase2"]
         assert "payoff_floors" not in stats["phase2"]
         assert "payoffs" not in stats
 

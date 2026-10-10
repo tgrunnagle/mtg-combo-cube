@@ -122,6 +122,8 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["max_outcome_share"] = result.phase2_max_outcome_share
     if result.phase2_min_payoffs is not None:
         info["min_payoffs"] = result.phase2_min_payoffs
+    if result.phase2_payoff_share is not None:
+        info["payoff_share"] = result.phase2_payoff_share
     if result.phase2_payoff_floors is not None:
         info["payoff_floors"] = result.phase2_payoff_floors
     if result.phase2_reference_combo_count is not None:
@@ -857,6 +859,7 @@ async def build_cube_ilp(
     popularity_weight: float = 0,
     payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ) -> tuple[
     list[str], int, OptimizationResult, dict[str, CardAttributes] | None, PayoffTable | None
@@ -869,8 +872,9 @@ async def build_cube_ilp(
     table is read from the working directory; when it is missing there and no rule is
     on, the build goes on without the outcome statistics. payoffs_path is the payoff table
     (data/payoffs.json by default), behind the payoff statistics and the Phase 2 payoff
-    floor (min_payoffs); its Scryfall queries are resolved through the payoff cache, and the
-    payoff cards the pool lacks are added to the candidate cards. Both tables are read
+    floor (min_payoffs per category, payoff_share of the cube in all); its Scryfall queries
+    are resolved through the payoff cache, and the payoff cards the pool lacks are added to
+    the candidate cards. Both tables are read
     before the instance is loaded, so a bad table fails fast.
 
     Returns:
@@ -981,6 +985,7 @@ async def build_cube_ilp(
         popularity_weight=popularity_weight,
         payoffs=payoffs,
         min_payoffs=min_payoffs,
+        payoff_share=payoff_share,
     )
 
     # Run optimization (two-phase by default)
@@ -1042,6 +1047,7 @@ async def run_ilp(
     popularity_weight: float = 0,
     payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+    payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ):
     """Entry point for ILP-based cube building with caching support."""
@@ -1074,6 +1080,7 @@ async def run_ilp(
         popularity_weight=popularity_weight,
         payoffs_path=payoffs_path,
         min_payoffs=min_payoffs,
+        payoff_share=payoff_share,
         payoff_inference_min=payoff_inference_min,
     )
 

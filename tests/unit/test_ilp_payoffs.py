@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, CardMixRules, ComboData
-from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer, _apportion
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, parse_outcome_categories
 from mtg_combo_cube.ilp.payoffs import PayoffTable, parse_payoff_table, resolve_payoffs
 from mtg_combo_cube.models import CardAttributes
@@ -77,9 +77,152 @@ def make_optimizer(
         "payoffs": payoffs,
         # The default floor is sized for a full build; each test sets the one it exercises
         "min_payoffs": 0,
+        "payoff_share": 0,
     }
     settings.update(kwargs)
     return ILPOptimizer(combos=combos, candidate_cards=candidate_cards, **settings)
+
+
+TOKENS = frozenset(["Infinite creature tokens"])
+
+
+def bounded_table(cards: dict[str, list[str]], **bounds: dict[str, int]) -> PayoffTable:
+    """A resolved payoff table with the given cards and the given bounds per category."""
+    table = {name: {"cards": names} for name, names in cards.items()}
+    for key, by_category in bounds.items():
+        for name, value in by_category.items():
+            table[name][key] = value
+    return resolve_payoffs(parse_payoff_table(table), {}, {})
+
+
+class TestPayoffShare:
+    """The floors add up to a share of the cube, split by the pool's combos per category."""
+
+    # Three outlets for mana (four combos), two for damage (one) and two for tokens (one)
+    MANA_OUTLETS = [f"M{i}" for i in range(1, 11)]
+    DAMAGE_OUTLETS = ["X1", "X2"]
+    TOKEN_OUTLETS = ["Y1", "Y2"]
+    EXTRA = set(MANA_OUTLETS) | set(DAMAGE_OUTLETS) | set(TOKEN_OUTLETS)
+    COMBOS_WITH_TOKENS = [*COMBOS, combo("t", ["T1", "T2"], TOKENS, 1)]
+
+    def test_apportion_follows_the_weights_within_the_bounds(self):
+        weights = {"a": 60, "b": 30, "c": 10}
+        lower = {"a": 1, "b": 1, "c": 1}
+
+        # a: 60/2, 60/3, then a tie at 15 goes to the earlier key, then b, a (full), b, b
+        assert _apportion(10, weights, lower, {"a": 5, "b": 9, "c": 9}) == {"a": 5, "b": 4, "c": 1}
+        # Lower bounds at or above the total are returned as they are
+        assert _apportion(2, weights, {"a": 2, "b": 2, "c": 2}, {"a": 5, "b": 5, "c": 5}) == {
+            "a": 2,
+            "b": 2,
+            "c": 2,
+        }
+        # The upper bounds can keep the total from being reached; a zero weight gets nothing
+        assert _apportion(10, {"a": 1}, {"a": 0}, {"a": 3}) == {"a": 3}
+        assert _apportion(3, {"a": 0, "b": 1}, {"a": 0, "b": 0}, {"a": 5, "b": 5}) == {
+            "a": 0,
+            "b": 3,
+        }
+
+    def test_floors_follow_the_pool_share_up_to_twice_the_even_split(self):
+        optimizer = make_optimizer(
+            self.COMBOS_WITH_TOKENS,
+            payoffs=bounded_table(
+                {
+                    "mana": self.MANA_OUTLETS,
+                    "damage": self.DAMAGE_OUTLETS,
+                    "tokens": self.TOKEN_OUTLETS,
+                }
+            ),
+            extra_cards=self.EXTRA,
+            cube_size=30,
+            min_payoffs=1,
+            payoff_share=0.3,
+        )
+
+        # 9 cards: 1 each, then mana (4 of 6 combos) takes the rest up to the even cap of
+        # ceil(2 * 9 / 3) = 6, and the one left goes to damage (the earlier of the tied two)
+        assert optimizer.payoff_targets == {"mana": 6, "damage": 2, "tokens": 1}
+        assert optimizer.payoff_floors == {"mana": 6, "damage": 2, "tokens": 1}
+
+    def test_table_bounds_override_the_range(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer = make_optimizer(
+                self.COMBOS_WITH_TOKENS,
+                payoffs=bounded_table(
+                    {
+                        "mana": self.MANA_OUTLETS,
+                        "damage": self.DAMAGE_OUTLETS,
+                        "tokens": self.TOKEN_OUTLETS,
+                    },
+                    max_payoffs={"mana": 3},
+                    min_payoffs={"tokens": 2},
+                ),
+                extra_cards=self.EXTRA,
+                cube_size=30,
+                min_payoffs=1,
+                payoff_share=0.3,
+            )
+
+        # mana stops at its own cap, tokens starts at its own minimum, damage fills up to
+        # what it has; the two cards left over are not forced anywhere
+        assert optimizer.payoff_floors == {"mana": 3, "damage": 2, "tokens": 2}
+        assert (
+            "payoff share 30% of 30 cards is 9 payoff cards, split by the pool's combos per "
+            "category: mana 3 (4 combos), damage 2 (1 combos), tokens 2 (1 combos)"
+        ) in caplog.text
+
+    def test_a_category_short_of_its_minimum_is_lowered_with_a_warning(
+        self, caplog: pytest.LogCaptureFixture
+    ):
+        optimizer = make_optimizer(cube_size=20, min_payoffs=5, payoff_share=0.3)
+
+        assert optimizer.payoff_targets == {"mana": 5}
+        assert optimizer.payoff_floors == {"mana": 2}
+        with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            optimizer._check_payoff_pool()
+        assert (
+            "the pool has only 2 selectable payoff cards for mana, below the minimum of 5; "
+            "the floor is lowered to 2"
+        ) in caplog.text
+
+    def test_share_zero_keeps_the_minimum_alone(self):
+        optimizer = make_optimizer(
+            payoffs=bounded_table({"mana": self.MANA_OUTLETS}),
+            extra_cards=set(self.MANA_OUTLETS),
+            cube_size=30,
+            min_payoffs=2,
+            payoff_share=0,
+        )
+
+        assert optimizer.payoff_floors == {"mana": 2}
+        assert optimizer.payoff_targets == {"mana": 2}
+
+    def test_the_share_is_enforced_and_reported(self):
+        combos = [*COMBOS, combo("e", ["E1", "E2", "E3"], MANA, 1)]
+        result = make_optimizer(
+            combos, cube_size=10, min_utilization_floor=0, min_payoffs=1, payoff_share=0.2
+        ).solve_two_phase(profile=True)
+
+        assert result.is_multi_objective
+        assert result.phase2_payoff_floors == {"mana": 2}
+        assert result.phase2_payoff_share == 0.2
+        assert result.phase2_min_payoffs == 1
+        assert OUTLETS <= set(result.get_selected_card_names())
+
+    def test_share_off_or_floor_off_reports_no_share(self):
+        off = make_optimizer(min_payoffs=1, payoff_share=0).solve_two_phase()
+        assert off.phase2_payoff_share is None
+        assert off.phase2_payoff_floors == {"mana": 1}
+
+        no_floor = make_optimizer(min_payoffs=0, payoff_share=0.5).solve_two_phase()
+        assert no_floor.phase2_payoff_share is None
+        assert no_floor.phase2_payoff_floors is None
+
+    @pytest.mark.parametrize("share", [1, 1.5, -0.1, float("nan")])
+    def test_share_outside_zero_to_one_is_rejected(self, share: float):
+        with pytest.raises(ValueError, match="payoff_share"):
+            make_optimizer(payoff_share=share)
 
 
 class TestPayoffFloor:
