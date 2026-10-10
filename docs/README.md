@@ -11,7 +11,6 @@ Documentation for the MTG Combo Cube builder. For setup and usage, see the
   - [Package layout](architecture.md#package-layout)
   - [Data pipeline](architecture.md#data-pipeline)
   - [The ILP optimizer](architecture.md#the-ilp-optimizer)
-  - [The greedy builder](architecture.md#the-greedy-builder)
   - [Outputs](architecture.md#outputs)
   - [Testing](architecture.md#testing)
   - [Known limitations](architecture.md#known-limitations)
