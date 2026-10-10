@@ -1,0 +1,102 @@
+# Cube configuration: the blocklist, the outcome category table and the payoff table.
+# Read from the working directory by default; pass another file with --config.
+
+# Cards to always exclude from the cube
+blocklist:
+  - Command Tower
+  - Arcane Signet
+  - Path of Ancestry
+  - Commander's Sphere
+  - War Room
+  - Command Beacon
+  - Jeweled Lotus
+
+# What a combo does, from the features it produces on Commander Spellbook. A category lists
+# case-insensitive substrings of feature names, or regular expressions prefixed with "re:".
+# The long form {patterns: [...], min_combos: N} gives a category its own minimum for the
+# Phase 2 outcome rule. A category without patterns is the catch-all (at most one).
+outcome_categories:
+  mana:
+    - infinite colored mana
+    - infinite colorless mana
+    - infinite mana
+    - infinite white mana
+    - infinite blue mana
+    - infinite black mana
+    - infinite red mana
+    - infinite green mana
+  damage:
+    - 're:infinite damage(?! to (all |most |some )?creatures)'
+    - infinite combat damage
+    - infinite lifeloss
+  tokens:
+    - infinite creature tokens
+    - infinite tapped creature tokens
+  triggers:
+    - infinite creature etb
+    - infinite creature ltb
+    - infinite death triggers
+    - infinite creature sacrifice triggers
+  draw:
+    - infinite card draw
+  mill:
+    - infinite mill
+    - infinite self-mill
+  lifegain:
+    - 're:infinite lifegain(?! triggers)'
+  counters:
+    - +1/+1 counters
+  turns:
+    - infinite turns
+  lock:
+    - 're:^lock'
+  storm:
+    - infinite storm count
+  win:
+    - win the game
+    - loses the game
+  other: []
+
+# The outlets that turn an engine into a win, per outcome category (each must be a category
+# above): Scryfall `queries` (EDHREC order, the first 25 unblocked cards of each), explicit
+# `cards`, and `exclude`, names dropped whatever their source. A category may bound its own
+# payoff floor with `min_payoffs` and `max_payoffs`.
+payoffs:
+  mana:
+    queries:
+      - 'o:"{X}" o:"X damage" -t:land'
+      - 'o:"{X}" (o:"draw X cards" or o:"draws X cards")'
+      - 'o:"{X}" o:"X +1/+1 counters"'
+    exclude:
+      - Chromatic Orrery
+  storm:
+    queries:
+      - 'keyword:storm f:commander (o:damage or o:"create" or o:mills or o:"loses" or o:"draw" or o:"copy target")'
+      - 'o:/whenever you cast (an|a) (instant|sorcery|noncreature|instant or sorcery)/ (o:"deals 1 damage" or o:"deals 2 damage" or o:"loses 1 life") f:commander -t:planeswalker'
+    exclude:
+      - Chromatic Orrery
+  tokens:
+    queries:
+      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:"loses 1 life" or o:"deals 1 damage") f:commander'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:"loses 1 life" or o:"deals 1 damage" or o:"deals 2 damage") f:commander'
+      - 'o:"creatures you control get +" o:"trample until end of turn" (t:sorcery or t:instant or t:creature) f:commander'
+      - 'o:"gain trample and get +X/+X" f:commander'
+    exclude:
+      - Chromatic Orrery
+  triggers:
+    queries:
+      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:"loses 1 life" or o:"deals 1 damage") f:commander'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:"loses 1 life" or o:"deals 1 damage" or o:"deals 2 damage") f:commander'
+    exclude:
+      - Chromatic Orrery
+  lifegain:
+    queries:
+      - 'o:"whenever you gain life" (o:"deals that much damage" or o:"loses that much life" or o:"loses 1 life" or o:"deals 1 damage") f:commander'
+      - 'o:"pay 50 life" f:commander'
+      - 'o:"you win the game" o:/\d+ or more life/ f:commander'
+  counters:
+    queries:
+      - 'o:"remove a +1/+1 counter from" (o:"deals 1 damage" or o:"draw a card") f:commander'
+      - 'o:"+1/+1 counters are put on" o:"draw" f:commander'
+    exclude:
+      - Chromatic Orrery

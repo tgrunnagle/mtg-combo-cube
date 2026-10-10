@@ -6,18 +6,14 @@ import logging
 import math
 import sys
 
+from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.ilp.outcomes import (
-    OutcomeCategoryError,
-    outcome_rules_requested,
-    resolve_outcome_categories,
-)
+from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, outcome_rules_requested
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
     PayoffFetchError,
     PayoffTableError,
-    resolve_payoff_definitions,
 )
 from mtg_combo_cube.runner import run
 
@@ -85,10 +81,11 @@ if __name__ == "__main__":
         help="Read API responses from cache, fall back to live API if missing",
     )
     argparser.add_argument(
-        "--blocklist",
+        "--config",
         type=str,
         default=None,
-        help="Path to blocklist file (default: data/blocklist.txt)",
+        help="Path to the configuration file with the blocklist, the outcome category table "
+        "and the payoff table (default: config.yaml)",
     )
     argparser.add_argument(
         "--profile",
@@ -248,13 +245,6 @@ if __name__ == "__main__":
         "warm-start repair models too, so a tight cap may find no cube within the time limit.",
     )
     argparser.add_argument(
-        "--outcome-categories",
-        type=str,
-        default=None,
-        help="Path to the outcome category table, a JSON object of category name to feature "
-        "name patterns (default: data/outcome_categories.json)",
-    )
-    argparser.add_argument(
         "--popularity-weight",
         type=float,
         default=0,
@@ -283,13 +273,6 @@ if __name__ == "__main__":
         "min_payoffs / max_payoffs in the table override) (default: "
         f"{ILPOptimizer.DEFAULT_PAYOFF_SHARE}). 0 keeps the floor at --min-payoffs per "
         "category. Below 1.",
-    )
-    argparser.add_argument(
-        "--payoffs",
-        type=str,
-        default=None,
-        help="Path to the payoff table, a JSON object of outcome category name to the Scryfall "
-        "queries, cards and exclusions that find its outlets (default: data/payoffs.json)",
     )
     argparser.add_argument(
         "--payoff-inference-min",
@@ -333,19 +316,19 @@ if __name__ == "__main__":
         )
     except CardMixRuleError as e:
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
-    if args.method == "ilp":
-        # A missing or invalid outcome or payoff table is a usage error, not a traceback
-        try:
-            outcome_categories = resolve_outcome_categories(
-                args.outcome_categories,
-                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share)
+    # A missing, invalid or incomplete configuration is a usage error, not a traceback
+    try:
+        config = load_config(args.config)
+        if args.method == "ilp":
+            config.require(
+                outcome_categories=outcome_rules_requested(
+                    args.min_outcome_combos, args.max_outcome_share
+                )
                 or args.min_payoffs > 0,
+                payoffs=args.min_payoffs > 0,
             )
-            resolve_payoff_definitions(
-                args.payoffs, outcome_categories, required=args.min_payoffs > 0, log=False
-            )
-        except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
-            argparser.error(str(e))
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
+        argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
     try:
@@ -362,7 +345,7 @@ if __name__ == "__main__":
                 read_cache=args.read_api_cache,
                 combo_tolerance=args.combo_tolerance,
                 min_coverage_ratio=args.min_coverage_ratio,
-                blocklist_path=args.blocklist,
+                config_path=args.config,
                 profile=args.profile,
                 gap_limit=args.gap_limit,
                 phase2_objective=args.phase2_objective,
@@ -375,11 +358,9 @@ if __name__ == "__main__":
                 min_mono_combos=args.min_mono_combos,
                 max_wide_combo_share=args.max_wide_combo_share,
                 card_mix=card_mix,
-                outcome_categories_path=args.outcome_categories,
                 min_outcome_combos=args.min_outcome_combos,
                 max_outcome_share=args.max_outcome_share,
                 popularity_weight=args.popularity_weight,
-                payoffs_path=args.payoffs,
                 min_payoffs=args.min_payoffs,
                 payoff_share=args.payoff_share,
                 payoff_inference_min=args.payoff_inference_min,

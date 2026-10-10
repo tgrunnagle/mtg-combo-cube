@@ -22,7 +22,7 @@ Two builders exist:
 
 ```mermaid
 flowchart TD
-    CLI["__main__.py<br/>argument parsing"] --> RUN["runner.py<br/>load blocklist, pick method"]
+    CLI["__main__.py<br/>argument parsing"] --> RUN["runner.py<br/>load config.yaml, pick method"]
 
     RUN -->|ilp| ILPR["ilp/ilp_runner.py"]
     RUN -->|greedy| GR["greedy/greedy_runner.py"]
@@ -63,9 +63,9 @@ All code lives under `src/mtg_combo_cube/`.
 | Module | Responsibility |
 |--------|----------------|
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
-| `runner.py` | Loads the blocklist and dispatches to the ILP or greedy runner. |
+| `runner.py` | Loads the configuration and dispatches to the ILP or greedy runner. |
 | `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
-| `blocklist.py` | Reads `data/blocklist.txt`: one card name per line, `#` comments allowed. |
+| `config.py` | Reads `config.yaml` into a `CubeConfig`: the `blocklist`, `outcome_categories` and `payoffs` sections, each optional, the payoff table checked against the outcome table on load; `require` names the sections the rules that are on need. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
@@ -77,8 +77,8 @@ All code lives under `src/mtg_combo_cube/`.
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
 | `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, combos per outcome category, popularity, color distribution, card mix. |
-| `ilp/outcomes.py` | The outcome category table (`data/outcome_categories.json`): category names with feature-name patterns, an optional catch-all category without patterns, and `categorize`. |
-| `ilp/payoffs.py` | The payoff table (`data/payoffs.json`): per outcome category the queries, cards and exclusions that find its outlets; the outlet inference from bundled variants; the resolved `PayoffTable`. |
+| `ilp/outcomes.py` | The outcome category table (the `outcome_categories` section of `config.yaml`): category names with feature-name patterns, an optional catch-all category without patterns, and `categorize`. |
+| `ilp/payoffs.py` | The payoff table (the `payoffs` section of `config.yaml`): per outcome category the queries, cards and exclusions that find its outlets; the outlet inference from bundled variants; the resolved `PayoffTable`. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -163,7 +163,7 @@ color and card mix statistics. After a failed lookup the run continues without t
 
 ### Payoff cards
 
-`ilp/payoffs.py` turns the payoff table `data/payoffs.json` into the `PayoffTable` of an
+`ilp/payoffs.py` turns the payoff table (the `payoffs` section of `config.yaml`) into the `PayoffTable` of an
 instance: for each non-terminal outcome category (mana, storm, tokens, lifegain, counters by
 default; every name must be a category of the outcome table), the outlets that turn its
 engines into a win, each with its sources:
@@ -184,12 +184,13 @@ engines into a win, each with its sources:
   `data/cache/scryfall_payoffs.json`, keyed by the search URL with the time each was fetched,
   under the same two flags as the other caches.
 
-The exclusions and the blocklist are removed from the union. `build_cube_ilp` reads both
-tables before the instance is loaded (a bad table fails fast), resolves the queries, runs the
-inference on the preprocessed combos, and adds every payoff card the pool lacks to the
-candidate cards as a `CandidateCard` with no combos: a *payoff-only* card, selectable for the
-payoff floor and nothing else. With the floor off, a default table that is missing or does not
-fit a custom outcome table is skipped with a warning; with it on, both are errors.
+The exclusions and the blocklist are removed from the union. `build_cube_ilp` takes the
+loaded configuration and checks it before the instance is loaded (a bad or incomplete one fails
+fast), resolves the queries, runs the inference on the preprocessed combos, and adds every
+payoff card the pool lacks to the candidate cards as a `CandidateCard` with no combos: a
+*payoff-only* card, selectable for the payoff floor and nothing else. With the floor off, a
+configuration without a payoff table skips payoffs; with it on, that is an error. A payoff
+table that does not fit the outcome table is an error on load, whatever the settings.
 
 ### Cache flags
 
@@ -203,8 +204,8 @@ The greedy builder uses the Scryfall cache but always calls the Spellbook API li
 anything. It runs the same steps as a build: fetch the variants, preprocess them with the
 blocklist, resolve the payoff table's queries, look up the attributes of the candidate and
 payoff cards. Its arguments are the values that decide what a build reads: `--max-variants`
-and `--max-cards-in-combo` name the variants file, `--blocklist` decides which templates and
-cards are looked up, and `--payoffs` which queries. A payoff query that matches no card is
+and `--max-cards-in-combo` name the variants file, and `--config` decides through its
+blocklist which templates and cards are looked up and through its payoff table which queries. A payoff query that matches no card is
 reported as a table error.
 
 By default it reads nothing from the cache, so the variants file and every entry of the
@@ -541,7 +542,7 @@ type checking.
   parsing, inference and resolution.
 - **Data layer:** the Scryfall fetchers (templates, card attributes, payoff queries) against a
   fake HTTP session (cache hit and miss, cache versions, retries, failures, 404), the
-  preprocessor, the requirement normalizer, the blocklist and the precache script.
+  preprocessor, the requirement normalizer, the configuration file and the precache script.
 - **Wiring:** a test that defaults agree across the CLI, both runners and the optimizer, and
   that every option reaches the optimizer and the stats file.
 

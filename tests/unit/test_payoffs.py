@@ -1,25 +1,20 @@
 """Tests for the payoff table: parsing, the outlet inference and the resolved payoff set."""
 
-import json
 from collections import Counter
-from pathlib import Path
 
 import pytest
 
+from mtg_combo_cube.config import load_config
 from mtg_combo_cube.ilp.ilp_models import ComboData
-from mtg_combo_cube.ilp.outcomes import load_outcome_categories, parse_outcome_categories
+from mtg_combo_cube.ilp.outcomes import parse_outcome_categories
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
-    DEFAULT_PAYOFFS_PATH,
     PayoffCategory,
     PayoffDefinitions,
     PayoffTableError,
     check_query_results,
     infer_payoffs,
-    load_payoff_table,
     parse_payoff_table,
-    resolve_payoff_definitions,
-    resolve_payoff_table,
     resolve_payoffs,
 )
 
@@ -102,7 +97,7 @@ class TestParse:
     @pytest.mark.parametrize(
         ("table", "message"),
         [
-            ([], "must be a JSON object"),
+            ([], "must be a mapping of category name"),
             ({}, "is empty"),
             ({"mana": ["keyword:storm"]}, "must be an object"),
             ({"mana": {}}, "no queries, cards or exclusions"),
@@ -134,41 +129,14 @@ class TestParse:
         parse_payoff_table(TABLE).check_categories(OUTCOMES)
 
 
-class TestLoad:
-    def test_load_from_path(self, tmp_path: Path):
-        path = tmp_path / "payoffs.json"
-        path.write_text(json.dumps(TABLE), encoding="utf-8")
-
-        assert load_payoff_table(str(path)).names == ("mana", "tokens")
-
-    def test_missing_and_invalid_files(self, tmp_path: Path):
-        with pytest.raises(FileNotFoundError, match="Payoff table not found"):
-            load_payoff_table(str(tmp_path / "missing.json"))
-        broken = tmp_path / "broken.json"
-        broken.write_text("{", encoding="utf-8")
-        with pytest.raises(PayoffTableError, match="not valid JSON"):
-            load_payoff_table(str(broken))
-
-    def test_given_path_must_exist_even_when_not_required(self, tmp_path: Path):
-        with pytest.raises(FileNotFoundError):
-            resolve_payoff_table(str(tmp_path / "missing.json"), required=False)
-
-    def test_missing_default_is_an_error_only_when_required(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.chdir(tmp_path)
-
-        assert resolve_payoff_table(None, required=False) is None
-        with pytest.raises(FileNotFoundError):
-            resolve_payoff_table(None, required=True)
-
+class TestDefaultTable:
     def test_default_table_is_present_and_names_outcome_categories(self):
-        definitions = load_payoff_table()
+        # The shipped configuration is checked on load: its payoff categories are outcome
+        # categories
+        definitions = load_config().payoffs
 
-        assert Path(DEFAULT_PAYOFFS_PATH).exists()
+        assert definitions is not None
         assert definitions.names == ("mana", "storm", "tokens", "triggers", "lifegain", "counters")
-        definitions.check_categories(load_outcome_categories())
-        assert resolve_payoff_table(None, required=True) == definitions
         # The terminal categories are their own payoff and are not in the table
         for name in ("damage", "draw", "mill", "turns", "lock", "win", "other"):
             assert name not in definitions.names
@@ -179,88 +147,7 @@ class TestLoad:
             check_query_results({"a": ["Card"], "b": [], "c": []})
 
 
-class TestResolveDefinitions:
-    FITTING = {"mana": {"cards": ["A"]}}
-    UNFITTING = {"storm": {"cards": ["B"]}}
-
-    @staticmethod
-    def write(tmp_path: Path, table: dict, name: str = "payoffs.json") -> str:
-        path = tmp_path / name
-        path.write_text(json.dumps(table), encoding="utf-8")
-        return str(path)
-
-    @pytest.mark.parametrize("required", [False, True])
-    def test_a_fitting_table_is_returned_and_logged(self, tmp_path: Path, caplog, required: bool):
-        path = self.write(tmp_path, self.FITTING)
-
-        with caplog.at_level("INFO"):
-            definitions = resolve_payoff_definitions(path, OUTCOMES, required=required)
-
-        assert definitions is not None
-        assert definitions.names == ("mana",)
-        assert "Loaded payoff table with 1 categories: mana" in caplog.text
-
-    def test_missing_default_is_skipped_unless_required(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-    ):
-        monkeypatch.chdir(tmp_path)
-
-        with caplog.at_level("INFO"):
-            assert resolve_payoff_definitions(None, OUTCOMES, required=False) is None
-        assert "No payoff table at data/payoffs.json" in caplog.text
-        with pytest.raises(FileNotFoundError):
-            resolve_payoff_definitions(None, OUTCOMES, required=True)
-
-    def test_missing_given_path_is_always_an_error(self, tmp_path: Path):
-        for required in (False, True):
-            with pytest.raises(FileNotFoundError):
-                resolve_payoff_definitions(str(tmp_path / "no.json"), OUTCOMES, required=required)
-
-    def test_default_that_does_not_fit_is_skipped_unless_required(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-    ):
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / "data").mkdir()
-        self.write(tmp_path / "data", self.UNFITTING)
-
-        with caplog.at_level("WARNING"):
-            assert resolve_payoff_definitions(None, OUTCOMES, required=False) is None
-        assert "does not fit the outcome table" in caplog.text
-        assert "['storm'] are not in the outcome category table" in caplog.text
-        with pytest.raises(PayoffTableError, match="not in the outcome category table"):
-            resolve_payoff_definitions(None, OUTCOMES, required=True)
-
-    def test_given_path_that_does_not_fit_is_always_an_error(self, tmp_path: Path):
-        path = self.write(tmp_path, self.UNFITTING)
-
-        for required in (False, True):
-            with pytest.raises(PayoffTableError, match="not in the outcome category table"):
-                resolve_payoff_definitions(path, OUTCOMES, required=required)
-
-    def test_without_an_outcome_table(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog
-    ):
-        # The default is skipped with a warning when the floor is off; a given path, or the
-        # floor being on, needs the outcome table
-        monkeypatch.chdir(tmp_path)
-        (tmp_path / "data").mkdir()
-        self.write(tmp_path / "data", self.FITTING)
-        path = self.write(tmp_path, self.FITTING, "given.json")
-
-        with caplog.at_level("WARNING"):
-            assert resolve_payoff_definitions(None, None, required=False) is None
-        assert "needs the outcome category table" in caplog.text
-        for given, required in ((None, True), (path, False), (path, True)):
-            with pytest.raises(PayoffTableError, match="needs the outcome category table"):
-                resolve_payoff_definitions(given, None, required=required)
-
-    def test_log_off_is_silent(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog):
-        monkeypatch.chdir(tmp_path)
-
-        with caplog.at_level("INFO"):
-            assert resolve_payoff_definitions(None, OUTCOMES, required=False, log=False) is None
-        assert caplog.text == ""
-
+class TestQueryResults:
     def test_empty_query_results_are_a_table_error_helper(self):
         # check_query_results is what fetch_payoff_queries uses when the floor is on
         with pytest.raises(PayoffTableError, match="match no card on Scryfall: 'b'"):

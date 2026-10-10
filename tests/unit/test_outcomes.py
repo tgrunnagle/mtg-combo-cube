@@ -1,22 +1,18 @@
 """Tests for the outcome category table: parsing, matching and the shipped default."""
 
-import json
 import math
-from pathlib import Path
 
 import pytest
 
+from mtg_combo_cube.config import load_config
 from mtg_combo_cube.ilp.cube_evaluation import combos_per_outcome, popularity_stats
 from mtg_combo_cube.ilp.ilp_models import ComboData
 from mtg_combo_cube.ilp.outcomes import (
-    DEFAULT_OUTCOME_CATEGORIES_PATH,
     OutcomeCategories,
     OutcomeCategory,
     OutcomeCategoryError,
-    load_outcome_categories,
     outcome_rules_requested,
     parse_outcome_categories,
-    resolve_outcome_categories,
 )
 
 TABLE = {
@@ -28,6 +24,13 @@ TABLE = {
 
 def categories() -> OutcomeCategories:
     return parse_outcome_categories(TABLE)
+
+
+def default_table() -> OutcomeCategories:
+    """The outcome category table of the shipped configuration file."""
+    table = load_config().outcome_categories
+    assert table is not None
+    return table
 
 
 class TestCategorize:
@@ -87,7 +90,7 @@ class TestCatchAll:
             parse_outcome_categories({"a": [], "b": ["x"], "c": []})
 
     def test_default_table_has_one(self):
-        table = load_outcome_categories()
+        table = default_table()
 
         assert table.catch_all == "other"
         assert table.names[-1] == "other"
@@ -102,7 +105,7 @@ class TestParse:
     @pytest.mark.parametrize(
         ("table", "message"),
         [
-            ([], "must be a JSON object"),
+            ([], "must be a mapping of category name to patterns"),
             ({}, "table is empty"),
             ({"a": "infinite mana"}, "must list its patterns"),
             ({"a": [1]}, "must list its patterns as strings"),
@@ -124,29 +127,9 @@ class TestParse:
             OutcomeCategories((OutcomeCategory("a", ("x",)), OutcomeCategory("a", ("y",))))
 
 
-class TestLoad:
-    def test_loads_a_file(self, tmp_path: Path):
-        path = tmp_path / "outcomes.json"
-        path.write_text(json.dumps(TABLE), encoding="utf-8")
-
-        table = load_outcome_categories(str(path))
-
-        assert table.names == ("mana", "damage", "lock")
-        assert table.categories[1].min_combos == 3
-
-    def test_missing_file(self, tmp_path: Path):
-        with pytest.raises(FileNotFoundError):
-            load_outcome_categories(str(tmp_path / "missing.json"))
-
-    def test_invalid_json(self, tmp_path: Path):
-        path = tmp_path / "outcomes.json"
-        path.write_text("{", encoding="utf-8")
-
-        with pytest.raises(OutcomeCategoryError, match="not valid JSON"):
-            load_outcome_categories(str(path))
-
+class TestDefaultTable:
     def test_default_table_excludes_damage_to_creatures_only(self):
-        table = load_outcome_categories()
+        table = default_table()
 
         assert table.categorize(["Infinite damage"]) == {"damage"}
         assert table.categorize(["Near-infinite damage to one opponent"]) == {"damage"}
@@ -155,9 +138,8 @@ class TestLoad:
         assert table.categorize(["Infinite damage to most creatures"]) == {"other"}
 
     def test_default_table_ships_with_the_repository(self):
-        table = load_outcome_categories()
+        table = default_table()
 
-        assert Path(DEFAULT_OUTCOME_CATEGORIES_PATH).exists()
         assert {"mana", "damage", "tokens", "draw", "mill", "lifegain", "counters"} <= set(
             table.names
         )
@@ -200,26 +182,7 @@ COMBOS = [
 ]
 
 
-class TestResolve:
-    """resolve_outcome_categories: the default table is optional when no rule needs it."""
-
-    def test_a_given_path_must_exist_even_when_not_required(self, tmp_path: Path):
-        with pytest.raises(FileNotFoundError):
-            resolve_outcome_categories(str(tmp_path / "missing.json"), required=False)
-
-    def test_missing_default_is_an_error_only_when_required(
-        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-    ):
-        monkeypatch.chdir(tmp_path)
-
-        assert resolve_outcome_categories(None, required=False) is None
-        with pytest.raises(FileNotFoundError):
-            resolve_outcome_categories(None, required=True)
-
-    def test_present_default_is_loaded_either_way(self):
-        assert resolve_outcome_categories(None, required=False) is not None
-        assert resolve_outcome_categories(None, required=True) is not None
-
+class TestRulesRequested:
     @pytest.mark.parametrize(
         ("minimum", "share", "requested"),
         [(0, 0, False), (0, 1, False), (0, 0.001, False), (1, 0, True), (0, 0.5, True)],

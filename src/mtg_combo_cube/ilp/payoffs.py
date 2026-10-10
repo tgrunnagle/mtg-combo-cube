@@ -4,14 +4,14 @@ Payoff cards: the outlets that turn an engine into a win.
 The outcome rules keep engines of every kind in the cube (infinite mana, an infinite storm
 count, infinite tokens, life or counters), but an engine is only as good as what the cube
 lets a drafter do with it. A payoff table names, per non-terminal outcome category, how to
-find its outlets:
+find its outlets. It is the `payoffs` section of the configuration file (see config.py):
 
-    {
-      "mana": {"queries": ["o:\\"{X}\\" o:\\"X damage\\" -t:land"],
-               "exclude": ["Chromatic Orrery"]},
-      "storm": {"cards": ["Grapeshot"]},
-      "tokens": {"cards": ["Impact Tremors"]}
-    }
+    payoffs:
+      mana:
+        queries: ['o:"{X}" o:"X damage" -t:land']
+        exclude: [Chromatic Orrery]
+      storm: {cards: [Grapeshot]}
+      tokens: {cards: [Impact Tremors]}
 
 Every category must be a category of the outcome table; the categories the payoff table
 leaves out (damage, draw, mill, ...) are terminal and are their own payoff. A category gives
@@ -28,19 +28,16 @@ blocklist (resolve_payoffs). The Phase 2 payoff floor asks for a minimum of them
 category; a payoff card in no combo is added to the candidate pool for that.
 """
 
-import json
 import logging
 from collections import Counter
 from collections.abc import Collection, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from mtg_combo_cube.ilp.ilp_models import ComboData, PayoffStats
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_PAYOFFS_PATH = "data/payoffs.json"
 # Bundled variants a card must be the outlet of before the inference counts it
 DEFAULT_INFERENCE_THRESHOLD = 2
 QUERY_CARD_LIMIT = 25  # cards kept per query, in EDHREC order
@@ -166,9 +163,11 @@ class PayoffDefinitions:
 
 
 def parse_payoff_table(table: object) -> PayoffDefinitions:
-    """Build the payoff definitions from the parsed JSON object (see the module docstring)."""
+    """Build the payoff definitions from the parsed configuration section (module docstring)."""
     if not isinstance(table, dict):
-        raise PayoffTableError("the payoff table must be a JSON object")
+        raise PayoffTableError(
+            "the payoff table must be a mapping of category name to its queries, cards and exclude"
+        )
     categories = []
     for name, entry in table.items():
         if not isinstance(name, str) or not name:
@@ -192,96 +191,6 @@ def parse_payoff_table(table: object) -> PayoffDefinitions:
             )
         )
     return PayoffDefinitions(tuple(categories))
-
-
-def load_payoff_table(path: str | None = None) -> PayoffDefinitions:
-    """
-    Load the payoff table from a JSON file (the default table when no path is given).
-
-    Raises FileNotFoundError when the file does not exist and PayoffTableError when the
-    table is invalid.
-    """
-    table_path = Path(path) if path else Path(DEFAULT_PAYOFFS_PATH)
-    if not table_path.exists():
-        raise FileNotFoundError(f"Payoff table not found: {table_path}")
-    with open(table_path, encoding="utf-8") as f:
-        try:
-            table = json.load(f)
-        except json.JSONDecodeError as e:
-            raise PayoffTableError(f"{table_path} is not valid JSON: {e}") from e
-    return parse_payoff_table(table)
-
-
-def resolve_payoff_table(path: str | None, *, required: bool = True) -> PayoffDefinitions | None:
-    """
-    The payoff table a run should use: the file at `path`, or the default table.
-
-    A path that was given must exist. Without one, the default table is read from the
-    working directory, as every `data/` path is; when it is missing there, that is an error
-    only when the table is `required` (the payoff floor is on), otherwise None and the run
-    goes on without payoffs.
-    """
-    if path is None and not required and not Path(DEFAULT_PAYOFFS_PATH).exists():
-        return None
-    return load_payoff_table(path)
-
-
-def resolve_payoff_definitions(
-    path: str | None,
-    outcome_categories: OutcomeCategories | None,
-    *,
-    required: bool,
-    log: bool = True,
-) -> PayoffDefinitions | None:
-    """
-    The payoff table a run uses, checked against the outcome table, or None when there is
-    none to use.
-
-    The table is `required` when the payoff floor is on: it must then exist (the default in
-    the working directory, or the given path) and name outcome categories only, and the
-    outcome table must be given; each failure raises (FileNotFoundError or
-    PayoffTableError). With the floor off the default table is used when it fits: when it
-    is missing, or names categories the outcome table does not have, or there is no outcome
-    table to place its categories in, payoffs are skipped. A table given by path must always
-    exist and fit. What happens is logged unless `log` is off (a check before the run).
-    """
-    definitions = resolve_payoff_table(path, required=required)
-    given = path is not None
-    if definitions is None:
-        if log:
-            logger.info(
-                f"No payoff table at {DEFAULT_PAYOFFS_PATH} (run from the repository root or "
-                "pass --payoffs); payoffs are skipped"
-            )
-        return None
-    if outcome_categories is None:
-        if required or given:
-            raise PayoffTableError(
-                "the payoff table needs the outcome category table to place its categories"
-            )
-        if log:
-            logger.warning(
-                "The default payoff table needs the outcome category table to place its "
-                "categories; payoffs are skipped"
-            )
-        return None
-    try:
-        definitions.check_categories(outcome_categories)
-    except PayoffTableError as e:
-        if required or given:
-            raise
-        if log:
-            logger.warning(
-                f"The default payoff table does not fit the outcome table ({e}); payoffs "
-                "are skipped"
-            )
-        return None
-    if log:
-        logger.info(
-            f"Loaded payoff table with {len(definitions)} categories: "
-            f"{', '.join(definitions.names)}"
-        )
-    return definitions
 
 
 def check_query_results(results: Mapping[str, Sequence[str]]) -> None:
