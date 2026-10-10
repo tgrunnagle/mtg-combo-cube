@@ -15,6 +15,12 @@
     "infinite lifeloss"
   ],
   "tokens": ["infinite creature tokens", "infinite tapped creature tokens"],
+  "triggers": [
+    "infinite creature etb",
+    "infinite creature ltb",
+    "infinite death triggers",
+    "infinite creature sacrifice triggers"
+  ],
   "draw": ["infinite card draw"],
   "mill": ["infinite mill", "infinite self-mill"],
   "lifegain": ["re:infinite lifegain(?! triggers)"],
@@ -22,5 +28,6 @@
   "turns": ["infinite turns"],
   "lock": ["re:^lock"],
   "storm": ["infinite storm count"],
-  "win": ["win the game", "loses the game"]
+  "win": ["win the game", "loses the game"],
+  "other": []
 }

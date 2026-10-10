@@ -76,6 +76,9 @@ class ComboData:
     features: frozenset[str] = frozenset()
     # Spellbook's bracket tag, a single letter (power level); "" when unknown
     bracket_tag: str = ""
+    # The Spellbook combo ids the variant includes: its own ('of') and, for a variant that
+    # bundles an engine with an outlet, the engine's. Empty when unknown.
+    includes: frozenset[int] = frozenset()
 
     def __post_init__(self) -> None:
         if not self.group_key:
@@ -270,6 +273,25 @@ class OutcomeStats:
 
 
 @dataclass
+class PayoffStats:
+    """Which payoff cards (outlets for the engines of each category) a cube holds."""
+
+    # Payoff cards of each category of the payoff table in the cube, in table order
+    cards_per_category: dict[str, int]
+    # category -> card -> the sources that named it ("inferred", "card", "query")
+    cards: dict[str, dict[str, list[str]]]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
+    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
+    # utilization is 0 by definition; the utilization statistics leave them out)
+    payoff_only: list[str]
+
+
+@dataclass
 class PopularityStats:
     """How popular (by Spellbook usage) the distinct combos a cube completes are."""
 
@@ -379,11 +401,20 @@ class OptimizationResult:
     # Popularity of the distinct combos of each phase's cube
     phase1_popularity_stats: PopularityStats | None = None
     phase2_popularity_stats: PopularityStats | None = None
+    # Payoff cards per category of each phase's cube (None without a payoff table)
+    phase1_payoff_stats: PayoffStats | None = None
+    phase2_payoff_stats: PayoffStats | None = None
     # Outcome rules applied in Phase 2, when enabled (None otherwise): the minimum completed
     # combos per category actually applied (the table's own minimum or the default), and the
     # largest share of the completed combos one category may hold
     phase2_outcome_minimums: dict[str, int] | None = None
     phase2_max_outcome_share: float | None = None
+    # Payoff floor applied in Phase 2, when enabled (None otherwise): the configured minimum
+    # payoff cards per category and the floor actually applied to each category (lowered to
+    # the payoff cards it has; a category whose outcome has no combo in the pool is left out)
+    phase2_min_payoffs: int | None = None
+    phase2_payoff_share: float | None = None  # the share of the cube the floors add up to
+    phase2_payoff_floors: dict[str, int] | None = None
     # Popularity weight: each combo's value is scaled by 1 + weight x its popularity relative
     # to the most popular combo (log scale). The combo score is the weighted combo count under
     # that scaling; it equals weighted_combo_count when the weight is 0.

@@ -9,11 +9,14 @@ so it can be edited without code changes:
 
     {
       "mana": ["infinite colored mana", "infinite colorless mana"],
-      "damage": {"patterns": ["infinite damage"], "min_combos": 40}
+      "damage": {"patterns": ["infinite damage"], "min_combos": 40},
+      "other": []
     }
 
 The long form gives a category its own minimum for the Phase 2 outcome rule, in place of the
-default minimum (--min-outcome-combos).
+default minimum (--min-outcome-combos). A category with no patterns is the catch-all: it
+holds every combo no other category matches, so the outcome rule keeps the combos outside
+the named categories in the cube too. A table may have one catch-all at most.
 """
 
 import json
@@ -34,7 +37,10 @@ class OutcomeCategoryError(ValueError):
 
 @dataclass(frozen=True)
 class OutcomeCategory:
-    """A category of combo outcomes: its name, its feature patterns and its own minimum."""
+    """
+    A category of combo outcomes: its name, its feature patterns and its own minimum. A
+    category without patterns is the catch-all for the combos no other category matches.
+    """
 
     name: str
     patterns: tuple[str, ...]
@@ -42,8 +48,6 @@ class OutcomeCategory:
     _matchers: tuple[re.Pattern[str], ...] = field(init=False, repr=False, compare=False)
 
     def __post_init__(self) -> None:
-        if not self.patterns:
-            raise OutcomeCategoryError(f"outcome category {self.name!r} has no patterns")
         if self.min_combos is not None and self.min_combos < 0:
             raise OutcomeCategoryError(
                 f"outcome category {self.name!r} has a negative minimum: {self.min_combos}"
@@ -70,8 +74,13 @@ class OutcomeCategory:
                 matchers.append(re.compile(re.escape(pattern), re.IGNORECASE))
         object.__setattr__(self, "_matchers", tuple(matchers))
 
+    @property
+    def is_catch_all(self) -> bool:
+        """Whether this category holds the combos no other category matches."""
+        return not self.patterns
+
     def matches(self, feature: str) -> bool:
-        """Whether the feature name belongs to this category."""
+        """Whether the feature name belongs to this category (never for the catch-all)."""
         return any(matcher.search(feature) for matcher in self._matchers)
 
 
@@ -87,10 +96,21 @@ class OutcomeCategories:
         names = [category.name for category in self.categories]
         if len(set(names)) != len(names):
             raise OutcomeCategoryError(f"duplicate outcome category names in {names}")
+        catch_alls = [category.name for category in self.categories if category.is_catch_all]
+        if len(catch_alls) > 1:
+            raise OutcomeCategoryError(
+                f"the outcome category table has more than one catch-all category (no "
+                f"patterns): {catch_alls}"
+            )
 
     @property
     def names(self) -> tuple[str, ...]:
         return tuple(category.name for category in self.categories)
+
+    @property
+    def catch_all(self) -> str | None:
+        """The name of the catch-all category (no patterns), if the table has one."""
+        return next((c.name for c in self.categories if c.is_catch_all), None)
 
     def __len__(self) -> int:
         return len(self.categories)
@@ -99,13 +119,19 @@ class OutcomeCategories:
         return iter(self.categories)
 
     def categorize(self, features: Iterable[str]) -> frozenset[str]:
-        """The names of every category one of the features matches."""
+        """
+        The names of every category one of the features matches; the catch-all alone when
+        no other category does and the table has one.
+        """
         features = list(features)
-        return frozenset(
+        matched = frozenset(
             category.name
             for category in self.categories
             if any(category.matches(feature) for feature in features)
         )
+        if not matched and (catch_all := self.catch_all) is not None:
+            return frozenset([catch_all])
+        return matched
 
     def minimums(self, default: int) -> dict[str, int]:
         """

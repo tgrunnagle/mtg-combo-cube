@@ -340,7 +340,7 @@ class TestViolations:
     def test_both_rules_are_cube_rules(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-2:] == ["outcome minimum", "outcome share cap"]
+        assert labels[-3:-1] == ["outcome minimum", "outcome share cap"]
         violations = make_optimizer(
             min_outcome_combos=1, max_outcome_share=0.8
         )._cube_rule_violations(HUB | {"Q1", "Q2"})

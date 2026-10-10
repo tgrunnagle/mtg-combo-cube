@@ -8,6 +8,7 @@ import pytest
 from mtg_combo_cube.ilp import evaluate_cube as module
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData
 from mtg_combo_cube.ilp.outcomes import parse_outcome_categories
+from mtg_combo_cube.ilp.payoffs import parse_payoff_table
 
 MANA = frozenset(["Infinite colored mana"])
 COMBOS = [
@@ -82,6 +83,56 @@ class TestEvaluateCube:
         assert evaluation.outcome_stats.combos_per_outcome == {"mana": 1}
         assert evaluation.outcome_stats.uncategorized == 1
         assert evaluation.outcome_stats.total == 2
+
+    async def test_payoff_table(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        received: dict[str, Any] = {}
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, dict(CARDS)
+
+        async def fake_fetch_payoff_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+            received["queries"] = list(queries)
+            received.update(kwargs)
+            return {"o:storm": ["Grapeshot"]}
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        monkeypatch.setattr(module, "fetch_payoff_queries", fake_fetch_payoff_queries)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP1\nGrapeshot\n", encoding="utf-8")
+        table = parse_outcome_categories({"mana": ["infinite colored mana"]})
+        payoffs = parse_payoff_table({"mana": {"queries": ["o:storm"], "cards": ["A"]}})
+
+        with caplog.at_level("WARNING"):
+            evaluation = await module.evaluate_cube(
+                str(cube_file), outcome_categories=table, payoff_definitions=payoffs
+            )
+
+        # The queries come from the cache only, and a payoff-only card in the cube is known
+        assert received == {"queries": ["o:storm"], "enable_cache_write": False, "read_cache": True}
+        assert "not in the instance" not in caplog.text
+        assert evaluation.payoffs is not None
+        assert evaluation.payoffs.cards("mana") == {"A", "Grapeshot"}
+        assert evaluation.payoff_stats is not None
+        assert evaluation.payoff_stats.cards == {"mana": {"Grapeshot": ["query"]}}
+        assert evaluation.payoff_stats.payoff_only == ["Grapeshot"]
+
+    async def test_payoffs_need_the_outcome_table(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, dict(CARDS)
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP1\n", encoding="utf-8")
+        payoffs = parse_payoff_table({"mana": {"cards": ["A"]}})
+
+        evaluation = await module.evaluate_cube(str(cube_file), payoff_definitions=payoffs)
+
+        assert evaluation.payoffs is None
+        assert evaluation.payoff_stats is None
 
     def test_read_cube_file_skips_blank_lines(self, tmp_path: Path):
         cube_file = tmp_path / "cube.txt"

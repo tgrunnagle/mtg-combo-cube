@@ -4,6 +4,7 @@ data/*
 !data/current_best_cube.txt
 !data/current_best_cube_stats.json
 !data/outcome_categories.json
+!data/payoffs.json
 .claude/settings.local.json
 
 # Byte-compiled / optimized / DLL files

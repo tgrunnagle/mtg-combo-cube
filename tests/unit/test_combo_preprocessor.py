@@ -25,6 +25,7 @@ def make_mock_variant(
     identity: str = "C",
     features: list[str] | None = None,
     bracket_tag: str = "E",
+    includes: list[int] | None = None,
 ):
     """Helper to create a mock Variant for testing.
 
@@ -37,6 +38,7 @@ def make_mock_variant(
         identity: Spellbook color identity (default: "C", colorless)
         features: Names of the features the variant produces (default: none)
         bracket_tag: Spellbook bracket tag (default: "E")
+        includes: Spellbook ids of the combos the variant includes (default: `of`)
     """
     variant = MagicMock()
     variant.id = variant_id
@@ -49,6 +51,9 @@ def make_mock_variant(
         produced.feature.name = name
         variant.produces.append(produced)
     variant.bracket_tag = bracket_tag
+    variant.includes = [
+        MagicMock(id=combo_id) for combo_id in (includes if includes is not None else (of or []))
+    ]
 
     # Create mock CardUse objects
     uses = []
@@ -69,6 +74,30 @@ def make_mock_variant(
     variant.requires = requires
 
     return variant
+
+
+class TestComboPreprocessorIncludes:
+    """The combos a variant includes come from its Spellbook 'includes' ids."""
+
+    @pytest.mark.asyncio
+    async def test_includes_are_the_included_combo_ids(self):
+        preprocessor = ComboPreprocessor()
+        # An engine-plus-outlet bundle includes the engine's combo beside its own
+        variants = [
+            make_mock_variant(
+                "bundle", ["Rock", "Untapper", "Ballista"], of=[20], includes=[20, 10]
+            ),
+            make_mock_variant("engine", ["Rock", "Untapper"], of=[10]),
+            make_mock_variant("none", ["Card A"], includes=[]),
+        ]
+
+        combos, _ = await preprocessor.preprocess_variants(variants)
+
+        assert [combo.includes for combo in combos] == [
+            frozenset({20, 10}),
+            frozenset({10}),
+            frozenset(),
+        ]
 
 
 class TestComboPreprocessorGroupKey:

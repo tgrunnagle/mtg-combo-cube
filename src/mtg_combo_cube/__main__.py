@@ -4,6 +4,7 @@ import argparse
 import asyncio
 import logging
 import math
+import sys
 
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -11,6 +12,12 @@ from mtg_combo_cube.ilp.outcomes import (
     OutcomeCategoryError,
     outcome_rules_requested,
     resolve_outcome_categories,
+)
+from mtg_combo_cube.ilp.payoffs import (
+    DEFAULT_INFERENCE_THRESHOLD,
+    PayoffFetchError,
+    PayoffTableError,
+    resolve_payoff_definitions,
 )
 from mtg_combo_cube.runner import run
 
@@ -256,6 +263,42 @@ if __name__ == "__main__":
         "on a log scale relative to the most popular combo, so with 1 the most popular combo "
         "is worth two obscure ones (default: 0, popularity is a tiebreak only). 0 or more.",
     )
+    argparser.add_argument(
+        "--min-payoffs",
+        type=int,
+        default=ILPOptimizer.DEFAULT_MIN_PAYOFFS,
+        help="Payoff support for phase 2: the cube must hold at least this many payoff cards "
+        "(outlets: storm spells, X spells, aristocrats, ...) of every category in the payoff "
+        "table whose engines the pool has (default: "
+        f"{ILPOptimizer.DEFAULT_MIN_PAYOFFS}). Payoff cards the pool lacks are added to the "
+        "candidate cards; they complete no combo. Set to 0 to disable the payoff floor.",
+    )
+    argparser.add_argument(
+        "--payoff-share",
+        type=float,
+        default=ILPOptimizer.DEFAULT_PAYOFF_SHARE,
+        help="Payoff support for phase 2: the share of the cube's cards the payoff floors add "
+        "up to, split among the payoff categories in proportion to their combos in the pool, "
+        "each at least --min-payoffs and at most twice the even split (a category's own "
+        "min_payoffs / max_payoffs in the table override) (default: "
+        f"{ILPOptimizer.DEFAULT_PAYOFF_SHARE}). 0 keeps the floor at --min-payoffs per "
+        "category. Below 1.",
+    )
+    argparser.add_argument(
+        "--payoffs",
+        type=str,
+        default=None,
+        help="Path to the payoff table, a JSON object of outcome category name to the Scryfall "
+        "queries, cards and exclusions that find its outlets (default: data/payoffs.json)",
+    )
+    argparser.add_argument(
+        "--payoff-inference-min",
+        type=int,
+        default=DEFAULT_INFERENCE_THRESHOLD,
+        help="Bundled Spellbook variants (an engine plus an outlet) a card must be the outlet "
+        "of before it counts as an inferred payoff of the engine's category (default: "
+        f"{DEFAULT_INFERENCE_THRESHOLD}). At least 1.",
+    )
     args = argparser.parse_args()
     if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
@@ -271,6 +314,12 @@ if __name__ == "__main__":
         argparser.error("--max-outcome-share must be between 0 and 1")
     if not math.isfinite(args.popularity_weight) or args.popularity_weight < 0:
         argparser.error("--popularity-weight must be 0 or more")
+    if args.min_payoffs < 0:
+        argparser.error("--min-payoffs must be 0 or more")
+    if not math.isfinite(args.payoff_share) or not 0 <= args.payoff_share < 1:
+        argparser.error("--payoff-share must be 0 or more and below 1")
+    if args.payoff_inference_min < 1:
+        argparser.error("--payoff-inference-min must be at least 1")
     # The card mix settings are validated once, by CardMixRules; the error names the field
     try:
         card_mix = CardMixRules(
@@ -285,45 +334,61 @@ if __name__ == "__main__":
     except CardMixRuleError as e:
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
     if args.method == "ilp":
-        # A missing or invalid outcome table is a usage error, not a traceback
+        # A missing or invalid outcome or payoff table is a usage error, not a traceback
         try:
-            resolve_outcome_categories(
+            outcome_categories = resolve_outcome_categories(
                 args.outcome_categories,
-                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share),
+                required=outcome_rules_requested(args.min_outcome_combos, args.max_outcome_share)
+                or args.min_payoffs > 0,
             )
-        except (FileNotFoundError, OutcomeCategoryError) as e:
+            resolve_payoff_definitions(
+                args.payoffs, outcome_categories, required=args.min_payoffs > 0, log=False
+            )
+        except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
             argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
-    asyncio.run(
-        run(
-            method=args.method,
-            cube_size=args.cube_size,
-            output_file=args.output_file,
-            golden_ratio=args.ratio,
-            time_limit_seconds=args.time_limit,
-            max_variants=args.max_variants,
-            use_multi_objective=not args.single_phase,
-            enable_cache_write=not args.skip_api_caching,
-            read_cache=args.read_api_cache,
-            combo_tolerance=args.combo_tolerance,
-            min_coverage_ratio=args.min_coverage_ratio,
-            blocklist_path=args.blocklist,
-            profile=args.profile,
-            gap_limit=args.gap_limit,
-            phase2_objective=args.phase2_objective,
-            min_utilization_floor=args.min_util_floor,
-            num_workers=args.workers,
-            util_cap=args.util_cap,
-            max_color_ratio=args.max_color_ratio,
-            variant_weight=args.variant_weight,
-            min_pair_combos=args.min_pair_combos,
-            min_mono_combos=args.min_mono_combos,
-            max_wide_combo_share=args.max_wide_combo_share,
-            card_mix=card_mix,
-            outcome_categories_path=args.outcome_categories,
-            min_outcome_combos=args.min_outcome_combos,
-            max_outcome_share=args.max_outcome_share,
-            popularity_weight=args.popularity_weight,
+    try:
+        asyncio.run(
+            run(
+                method=args.method,
+                cube_size=args.cube_size,
+                output_file=args.output_file,
+                golden_ratio=args.ratio,
+                time_limit_seconds=args.time_limit,
+                max_variants=args.max_variants,
+                use_multi_objective=not args.single_phase,
+                enable_cache_write=not args.skip_api_caching,
+                read_cache=args.read_api_cache,
+                combo_tolerance=args.combo_tolerance,
+                min_coverage_ratio=args.min_coverage_ratio,
+                blocklist_path=args.blocklist,
+                profile=args.profile,
+                gap_limit=args.gap_limit,
+                phase2_objective=args.phase2_objective,
+                min_utilization_floor=args.min_util_floor,
+                num_workers=args.workers,
+                util_cap=args.util_cap,
+                max_color_ratio=args.max_color_ratio,
+                variant_weight=args.variant_weight,
+                min_pair_combos=args.min_pair_combos,
+                min_mono_combos=args.min_mono_combos,
+                max_wide_combo_share=args.max_wide_combo_share,
+                card_mix=card_mix,
+                outcome_categories_path=args.outcome_categories,
+                min_outcome_combos=args.min_outcome_combos,
+                max_outcome_share=args.max_outcome_share,
+                popularity_weight=args.popularity_weight,
+                payoffs_path=args.payoffs,
+                min_payoffs=args.min_payoffs,
+                payoff_share=args.payoff_share,
+                payoff_inference_min=args.payoff_inference_min,
+            )
         )
-    )
+    except PayoffTableError as e:
+        # A payoff query that matches no card or that Scryfall rejects: a table error
+        argparser.error(str(e))
+    except PayoffFetchError as e:
+        # Scryfall could not be reached for a query the payoff floor needs: not a usage error
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
