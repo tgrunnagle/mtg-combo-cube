@@ -3,8 +3,9 @@ The blocked cards of a run: the configuration's blocklist and the cards matching
 queries (Scryfall searches, such as `t:stickers` for every sticker sheet).
 
 The queries are resolved before the instance is loaded, through the payoff query cache (one
-entry per search URL), so every place that applies the blocklist (the combos, the template
-searches, the payoff table) leaves their cards out too. A query is resolved to the first
+entry per search URL) over every paper card, Un-set cards included, so every place that
+applies the blocklist (the combos, the template searches, the payoff table) leaves their cards
+out too. A query is resolved to the first
 result page, PAGE_SIZE cards, with a warning when it may have more.
 """
 
@@ -99,6 +100,7 @@ async def fetch_blocklist(
         enable_read=read_cache,
         enable_write=enable_cache_write,
         label="Blocklist",
+        suffix=PayoffFetcher.PAPER_ONLY,
     )
     results = await query_fetcher.fetch_queries(queries)
     blocked = blocked_by_queries(queries, results, query_fetcher.rejected)

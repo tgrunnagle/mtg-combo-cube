@@ -15,7 +15,7 @@ from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
 from tests.unit.scryfall_fakes import FakeResponse, FakeSession, make_fetcher
 
 STICKERS = "t:stickers"
-STICKERS_URL = PayoffFetcher.search_url(STICKERS)
+STICKERS_URL = PayoffFetcher.search_url(STICKERS, PayoffFetcher.PAPER_ONLY)
 BLOCKLIST = frozenset({"Command Tower"})
 
 

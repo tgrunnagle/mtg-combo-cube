@@ -18,8 +18,9 @@ class PayoffFetcher:
     Fetches the cards matching the payoff table's Scryfall queries.
 
     Requests go through a ScryfallFetcher, which provides rate limiting and retries. Every
-    query runs in EDHREC order over paper cards; the raw ordered names of the first result
-    page are returned and cached, so the caller applies the blocklist and the card limit
+    query runs in EDHREC order over paper cards, leaving out the Un-set ("funny") cards; the
+    raw ordered names of the first result page are returned and cached, so the caller
+    applies the blocklist and the card limit
     (as for the template searches) and the cache stays valid when those change. A query is
     cached under its search URL, so editing a query in the table fetches the edited query
     and leaves the rest cached.
@@ -29,13 +30,16 @@ class PayoffFetcher:
     `warnings` naming the ignored terms, whose results would be a wider search). Both are
     recorded in `rejected` with the reason, left out of the results and not cached.
 
-    The blocklist queries are resolved the same way (with `label` "Blocklist" in the log).
+    The blocklist queries are resolved the same way (with `label` "Blocklist" in the log),
+    over every paper card (`suffix` PAPER_ONLY), so they can block Un-set cards.
     """
 
     CACHE_FILENAME = "scryfall_payoffs.json"
     CACHE_VERSION = 1
     SEARCH_URL = "https://api.scryfall.com/cards/search"
-    QUERY_SUFFIX = "game:paper"  # added to every query: no digital-only cards
+    # Added to every query: no digital-only cards, and no Un-set cards (silver border or acorn)
+    QUERY_SUFFIX = "game:paper -is:funny"
+    PAPER_ONLY = "game:paper"  # the blocklist queries' suffix: Un-set cards are what they block
 
     def __init__(
         self,
@@ -44,6 +48,7 @@ class PayoffFetcher:
         enable_read: bool = False,
         enable_write: bool = False,
         label: str = "Payoff",
+        suffix: str = QUERY_SUFFIX,
     ):
         """
         Initialize the payoff fetcher.
@@ -54,9 +59,11 @@ class PayoffFetcher:
             enable_read: Serve query results from the cache file when present
             enable_write: Write fetched results to the cache file
             label: What the queries are, for the log messages
+            suffix: Filters added to every query (default: QUERY_SUFFIX)
         """
         self._fetcher = fetcher
         self._label = label
+        self._suffix = suffix
         self.cache_path = cache_dir / self.CACHE_FILENAME
         self.enable_read = enable_read
         self.enable_write = enable_write
@@ -65,13 +72,13 @@ class PayoffFetcher:
         self.rejected: dict[str, str] = {}
 
     @classmethod
-    def search_url(cls, query: str) -> str:
+    def search_url(cls, query: str, suffix: str = QUERY_SUFFIX) -> str:
         """
-        The Scryfall search URL of a payoff query: EDHREC order, one entry per card. The
-        query is parenthesized before the paper filter is added, so a top-level `or` in the
-        table applies to the whole query (Scryfall's implicit AND binds tighter than `or`).
+        The Scryfall search URL of a query: EDHREC order, one entry per card. The query is
+        parenthesized before the suffix filters are added, so a top-level `or` in the table
+        applies to the whole query (Scryfall's implicit AND binds tighter than `or`).
         """
-        params = {"q": f"({query}) {cls.QUERY_SUFFIX}", "order": "edhrec", "unique": "cards"}
+        params = {"q": f"({query}) {suffix}", "order": "edhrec", "unique": "cards"}
         return f"{cls.SEARCH_URL}?{urlencode(params)}"
 
     async def fetch_queries(self, queries: Iterable[str]) -> dict[str, list[str]]:
@@ -86,7 +93,7 @@ class PayoffFetcher:
             table error for the caller to report, and may be fixed on Scryfall.
         """
         wanted = list(dict.fromkeys(queries))
-        urls = {query: self.search_url(query) for query in wanted}
+        urls = {query: self.search_url(query, self._suffix) for query in wanted}
         cached: dict[str, list[str]] = {}
         if self.enable_read:
             try:

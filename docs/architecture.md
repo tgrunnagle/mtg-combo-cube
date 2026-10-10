@@ -179,7 +179,7 @@ engines into a win, each with its sources:
   Punch) and is a supplement to the table.
 - **Cards**: names the table gives.
 - **Queries**: Scryfall searches the table gives, resolved by `PayoffFetcher` in EDHREC order
-  over paper cards (`unique=cards`); the first 25 unblocked cards of each count, so the cache
+  over paper cards without the Un-set ones (`game:paper -is:funny`, `unique=cards`); the first 25 unblocked cards of each count, so the cache
   holds the raw first page as the template cache does. A query that matches no card is a
   table error (`PayoffTableError`), reported and not cached. The cache is
   `data/cache/scryfall_payoffs.json`, keyed by the search URL with the time each was fetched,

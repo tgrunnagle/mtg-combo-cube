@@ -32,7 +32,7 @@ class TestSearchUrl:
 
         assert f"{parsed.scheme}://{parsed.netloc}{parsed.path}" == PayoffFetcher.SEARCH_URL
         assert parse_qs(parsed.query) == {
-            "q": [f"({STORM}) game:paper"],
+            "q": [f"({STORM}) game:paper -is:funny"],
             "order": ["edhrec"],
             "unique": ["cards"],
         }
@@ -41,7 +41,12 @@ class TestSearchUrl:
         # Scryfall's implicit AND binds tighter than "or", so the query is parenthesized
         query = parse_qs(urlparse(PayoffFetcher.search_url("keyword:storm or t:instant")).query)
 
-        assert query["q"] == ["(keyword:storm or t:instant) game:paper"]
+        assert query["q"] == ["(keyword:storm or t:instant) game:paper -is:funny"]
+
+    def test_suffix_replaces_the_default_filters(self):
+        query = parse_qs(urlparse(PayoffFetcher.search_url("t:stickers", "game:paper")).query)
+
+        assert query["q"] == ["(t:stickers) game:paper"]
 
     def test_different_queries_have_different_urls(self):
         assert STORM_URL != X_DAMAGE_URL

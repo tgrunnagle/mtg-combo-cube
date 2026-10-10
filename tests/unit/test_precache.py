@@ -320,7 +320,7 @@ class TestPrecache:
 
     @pytest.mark.asyncio
     async def test_blocklist_queries_are_resolved_and_block_their_cards(self, tmp_path):
-        stickers_url = PayoffFetcher.search_url("t:stickers")
+        stickers_url = PayoffFetcher.search_url("t:stickers", PayoffFetcher.PAPER_ONLY)
         session = FakeSession(
             {
                 stickers_url: [FakeResponse(200, card_names=["Card B"])],
@@ -342,7 +342,9 @@ class TestPrecache:
 
     @pytest.mark.asyncio
     async def test_rejected_blocklist_query_stops_the_run(self, tmp_path):
-        session = FakeSession({PayoffFetcher.search_url("t:nonsense"): [FakeResponse(400)]})
+        session = FakeSession(
+            {PayoffFetcher.search_url("t:nonsense", PayoffFetcher.PAPER_ONLY): [FakeResponse(400)]}
+        )
 
         with pytest.raises(BlocklistQueryError, match="t:nonsense"):
             await run_precache(
