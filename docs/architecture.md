@@ -13,19 +13,15 @@ than a few hub cards carrying everything. Combo data comes from the
 "a creature with persist" are resolved to concrete cards through the
 [Scryfall](https://scryfall.com/) API.
 
-Two builders exist:
-
-- **ILP** (default): an exact model solved with the OR-Tools CP-SAT solver, in two phases.
-- **Greedy**: the original heuristic. Fast, no optimality guarantee, kept for comparison.
+The cube is built by an exact model solved with the OR-Tools CP-SAT solver, in two phases.
 
 ## System overview
 
 ```mermaid
 flowchart TD
-    CLI["__main__.py<br/>argument parsing"] --> RUN["runner.py<br/>load config.yaml, pick method"]
+    CLI["__main__.py<br/>argument parsing"] --> RUN["runner.py<br/>load config.yaml"]
 
-    RUN -->|ilp| ILPR["ilp/ilp_runner.py"]
-    RUN -->|greedy| GR["greedy/greedy_runner.py"]
+    RUN --> ILPR["ilp/ilp_runner.py"]
 
     ILPR --> LOAD["load_instance"]
     LOAD --> SB["spellbook/<br/>CommanderSpellbook + SpellbookCache"]
@@ -45,11 +41,6 @@ flowchart TD
 
     ILPR --> OUT["cube .txt + _stats.json"]
 
-    GR --> SB
-    GR --> VT["greedy/variant_tracker.py"]
-    VT --> SF
-    GR --> OUTG["cube .txt"]
-
     SB -.-> API1[("Commander Spellbook API")]
     SF -.-> API2[("Scryfall API")]
     SB -.-> CACHE[("data/cache/")]
@@ -63,13 +54,13 @@ All code lives under `src/mtg_combo_cube/`.
 | Module | Responsibility |
 |--------|----------------|
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
-| `runner.py` | Loads the configuration and dispatches to the ILP or greedy runner. |
+| `runner.py` | Loads the configuration and calls the ILP runner. |
 | `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
 | `config.py` | Reads `config.yaml` into a `CubeConfig`: the `blocklist`, `outcome_categories` and `payoffs` sections, each optional, the payoff table checked against the outcome table on load; `require` names the sections the rules that are on need. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
-| `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
+| `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
-| `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
+| `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by the preprocessor and the payoff fetcher. |
 | `scryfall/card_attribute_fetcher.py` | `CardAttributeFetcher`: the `CardAttributes` of named cards, with its own disk cache. Used by the color balance and card mix rules and the color and card mix statistics. |
 | `scryfall/payoff_fetcher.py` | `PayoffFetcher`: the cards matching the payoff table's Scryfall queries, with its own disk cache. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
@@ -82,8 +73,6 @@ All code lives under `src/mtg_combo_cube/`.
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
-| `greedy/greedy_runner.py` | The greedy builder. |
-| `greedy/variant_tracker.py` | Card frequency and popularity tallies for the greedy builder. |
 
 ## Data pipeline
 
@@ -196,7 +185,6 @@ table that does not fit the outcome table is an error on load, whatever the sett
 
 All caches follow the same two flags. Reads happen only with `--read-api-cache`. Writes happen
 unless `--skip-api-caching` is given. With a warm cache, an ILP run makes no network requests.
-The greedy builder uses the Scryfall cache but always calls the Spellbook API live.
 
 ### Precaching
 
@@ -470,26 +458,12 @@ strategies based on the worker count, and with fewer than 8 it fails to prove Ph
 this problem. `--debug` turns on the solver's search log. `--profile` records variable and
 constraint counts, timings and solver statistics per phase.
 
-## The greedy builder
-
-`GreedyRunner` works in steps:
-
-1. Tally cards across the most popular variants with `VariantTracker`, resolving templates to
-   the top five Scryfall matches.
-2. Take the top `cube_size / ratio` cards by popularity (`--ratio`, default 1.2).
-3. Ask Spellbook which combos are almost complete given those cards, and add the most frequent
-   missing cards.
-4. Remove dead cards, meaning cards that appear in only one combo of the cube.
-5. Refill to the cube size from the almost-complete combos.
-
-It ignores the ILP-only flags, including `--max-variants`.
-
 ## Outputs
 
-| File | Written by | Contents |
-|------|------------|----------|
-| `<output>.txt` | Both builders | The cube, one card name per line. |
-| `<output>_stats.json` | ILP only | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category, popularity and payoff cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, the resolved payoff table, and profiling data when `--profile` is set. |
+| File | Contents |
+|------|----------|
+| `<output>.txt` | The cube, one card name per line. |
+| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category, popularity and payoff cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, the resolved payoff table, and profiling data when `--profile` is set. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and

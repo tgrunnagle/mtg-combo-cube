@@ -1,9 +1,8 @@
-"""Algorithm selection and execution for cube building."""
+"""Configuration loading and execution for cube building."""
 
 import logging
 
 from mtg_combo_cube.config import load_config
-from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.ilp_runner import run_ilp
@@ -13,10 +12,8 @@ logger = logging.getLogger(__name__)
 
 
 async def run(
-    method: str,
     cube_size: int,
     output_file: str,
-    golden_ratio: float | None = None,
     time_limit_seconds: int = 300,
     max_variants: int = 20000,
     use_multi_objective: bool = True,
@@ -45,13 +42,11 @@ async def run(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
 ):
     """
-    Run the cube building algorithm.
+    Build a cube with the ILP optimizer.
 
     Args:
-        method: "greedy" or "ilp"
         cube_size: Target number of cards in the cube
         output_file: Path to write the cube list
-        golden_ratio: Ratio for greedy method (default: 1.2)
         time_limit_seconds: Time limit for ILP solver
         max_variants: Maximum combo variants to fetch
         use_multi_objective: Use two-phase ILP optimization
@@ -95,45 +90,33 @@ async def run(
     """
     config = load_config(config_path)
 
-    if method == "ilp":
-        await run_ilp(
-            cube_size=cube_size,
-            output_file=output_file,
-            time_limit_seconds=time_limit_seconds,
-            max_variants=max_variants,
-            use_multi_objective=use_multi_objective,
-            enable_cache_write=enable_cache_write,
-            read_cache=read_cache,
-            combo_tolerance=combo_tolerance,
-            min_coverage_ratio=min_coverage_ratio,
-            config=config,
-            profile=profile,
-            gap_limit=gap_limit,
-            phase2_objective=phase2_objective,
-            min_utilization_floor=min_utilization_floor,
-            num_workers=num_workers,
-            util_cap=util_cap,
-            max_color_ratio=max_color_ratio,
-            variant_weight=variant_weight,
-            min_pair_combos=min_pair_combos,
-            min_mono_combos=min_mono_combos,
-            max_wide_combo_share=max_wide_combo_share,
-            card_mix=card_mix,
-            min_outcome_combos=min_outcome_combos,
-            max_outcome_share=max_outcome_share,
-            popularity_weight=popularity_weight,
-            min_payoffs=min_payoffs,
-            payoff_share=payoff_share,
-            payoff_inference_min=payoff_inference_min,
-        )
-    elif method == "greedy":
-        await run_greedy(
-            cube_size=cube_size,
-            output_file=output_file,
-            golden_ratio=golden_ratio,
-            blocklist=config.blocklist,
-            enable_cache_write=enable_cache_write,
-            read_cache=read_cache,
-        )
-    else:
-        raise ValueError(f"Unknown method: {method}")
+    await run_ilp(
+        cube_size=cube_size,
+        output_file=output_file,
+        time_limit_seconds=time_limit_seconds,
+        max_variants=max_variants,
+        use_multi_objective=use_multi_objective,
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+        combo_tolerance=combo_tolerance,
+        min_coverage_ratio=min_coverage_ratio,
+        config=config,
+        profile=profile,
+        gap_limit=gap_limit,
+        phase2_objective=phase2_objective,
+        min_utilization_floor=min_utilization_floor,
+        num_workers=num_workers,
+        util_cap=util_cap,
+        max_color_ratio=max_color_ratio,
+        variant_weight=variant_weight,
+        min_pair_combos=min_pair_combos,
+        min_mono_combos=min_mono_combos,
+        max_wide_combo_share=max_wide_combo_share,
+        card_mix=card_mix,
+        min_outcome_combos=min_outcome_combos,
+        max_outcome_share=max_outcome_share,
+        popularity_weight=popularity_weight,
+        min_payoffs=min_payoffs,
+        payoff_share=payoff_share,
+        payoff_inference_min=payoff_inference_min,
+    )

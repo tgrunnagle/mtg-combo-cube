@@ -288,12 +288,11 @@ class TestCliPlumbing:
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *args)
 
-    @pytest.mark.parametrize("method", ["ilp", "greedy"])
     def test_missing_config_is_a_usage_error(
-        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str], method: str
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
     ):
         with pytest.raises(SystemExit):
-            run_cli(monkeypatch, "--method", method, "--config", "missing.yaml")
+            run_cli(monkeypatch, "--config", "missing.yaml")
 
         assert "Configuration file not found: missing.yaml" in capsys.readouterr().err
 
@@ -321,21 +320,18 @@ class TestCliPlumbing:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):
         config = write_config(tmp_path, outcome_categories={"mana": ["infinite mana"]})
-        common = ("--method", "ilp", "--config", config)
+        common = ("--config", config)
 
         assert run_cli(monkeypatch, *common, "--min-payoffs", "0")
         with pytest.raises(SystemExit):
             run_cli(monkeypatch, *common)
         assert "the configuration has no payoffs section" in capsys.readouterr().err
 
-        # The greedy method uses the blocklist only
-        assert run_cli(monkeypatch, "--method", "greedy", "--config", config)
-
     def test_missing_outcome_table_is_a_usage_error_only_with_a_rule_on(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):
         config = write_config(tmp_path, blocklist=["Sol Ring"])
-        common = ("--method", "ilp", "--config", config, "--min-payoffs", "0")
+        common = ("--config", config, "--min-payoffs", "0")
 
         assert run_cli(monkeypatch, *common, "--min-outcome-combos", "0")
         with pytest.raises(SystemExit):
@@ -439,18 +435,17 @@ class TestRunnerPlumbing:
 
         monkeypatch.setattr(runner, "run_ilp", fake_run_ilp)
 
-        await runner.run(method="ilp", cube_size=10, output_file="unused.txt", util_cap=25)
+        await runner.run(cube_size=10, output_file="unused.txt", util_cap=25)
         assert received["util_cap"] == 25
 
-        await runner.run(method="ilp", cube_size=10, output_file="unused.txt")
+        await runner.run(cube_size=10, output_file="unused.txt")
         assert received["util_cap"] is None
         assert received["variant_weight"] == 0.1
 
-        await runner.run(method="ilp", cube_size=10, output_file="unused.txt", variant_weight=0.25)
+        await runner.run(cube_size=10, output_file="unused.txt", variant_weight=0.25)
         assert received["variant_weight"] == 0.25
 
         await runner.run(
-            method="ilp",
             cube_size=10,
             output_file="unused.txt",
             min_pair_combos=25,
@@ -463,7 +458,7 @@ class TestRunnerPlumbing:
         assert received["card_mix"] == CardMixRules()
 
         card_mix = CardMixRules(max_creature_share=0.5)
-        await runner.run(method="ilp", cube_size=10, output_file="unused.txt", card_mix=card_mix)
+        await runner.run(cube_size=10, output_file="unused.txt", card_mix=card_mix)
         assert received["card_mix"] == card_mix
         assert received["min_outcome_combos"] == 40
         assert received["max_outcome_share"] == 0
@@ -474,7 +469,6 @@ class TestRunnerPlumbing:
         assert received["payoff_inference_min"] == 2
 
         await runner.run(
-            method="ilp",
             cube_size=10,
             output_file="unused.txt",
             min_payoffs=2,
@@ -486,7 +480,6 @@ class TestRunnerPlumbing:
         assert received["payoff_inference_min"] == 3
 
         await runner.run(
-            method="ilp",
             cube_size=10,
             output_file="unused.txt",
             config_path=write_config(
