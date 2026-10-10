@@ -1,0 +1,12 @@
+# data/current_best_cube.txt and data/current_best_cube_stats.json: copied from the
+# data/cube_310.txt and data/cube_310_stats.json this command wrote on 10 October 2026 at
+# commit b421473 (branch payoff-support). 310 combo cards for a 400-card cube with 90 slots
+# reserved for lands, ramp and interaction. All settings at their defaults (payoff share 0.15,
+# --min-payoffs 2, the triggers and other outcome categories), warm Scryfall and
+# Spellbook caches from `task precache`.
+
+task build:ilp CUBE_SIZE=310 OUTPUT=data/cube_310.txt
+
+# which ran:
+
+uv run python -m src.mtg_combo_cube -c 310 --method ilp -o data/cube_310.txt -t 360 -n 20000 --profile --read-api-cache --workers 8

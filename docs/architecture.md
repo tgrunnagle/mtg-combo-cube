@@ -522,8 +522,9 @@ the popularity-weighted `combo_score` (the `phase2` block also `reference_combo_
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
 settings (`--variant-weight 0.1`, the archetype minimums, the card mix rules, the outcome
-minimum of 40 and the payoff floor of 2) at 300 cards and 20,000 variants with 360 s per phase. Everything else under
-`data/` is ignored by git, including `data/cache/`.
+minimum of 40 and the payoff share of 0.15) at 310 cards and 20,000 variants with 360 s per
+phase; `data/current_best_cube_command.txt` is the command that built it. Everything else
+under `data/` is ignored by git, including `data/cache/`.
 
 ## Testing
 
