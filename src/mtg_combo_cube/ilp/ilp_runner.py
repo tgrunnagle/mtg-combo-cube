@@ -2,7 +2,8 @@
 
 import json
 import logging
-from collections.abc import Iterable, Mapping, Sequence
+from collections import Counter
+from collections.abc import Collection, Iterable, Mapping, Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
@@ -20,8 +21,10 @@ from mtg_combo_cube.ilp.cube_evaluation import (
 )
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
+    INCLUSION_REASONS,
     ArchetypeStats,
     CandidateCard,
+    CardInclusionStats,
     CardMixRules,
     CardMixStats,
     ColorStats,
@@ -366,6 +369,82 @@ def format_archetype_stats(stats: ArchetypeStats) -> str:
     )
 
 
+def card_inclusion_summary(cards: list[CardInclusionStats]) -> dict:
+    """How many of a cube's cards are in it for each reason, and how many are in one combo."""
+    reasons = Counter(card.reason for card in cards)
+    return {
+        "cards_per_reason": {reason: reasons[reason] for reason in INCLUSION_REASONS},
+        "cards_in_one_combo": sum(1 for card in cards if card.distinct_combo_count == 1),
+    }
+
+
+def card_inclusion_entries(
+    cards: list[CardInclusionStats], phase1_cards: Collection[str] | None = None
+) -> list[dict]:
+    """
+    The per-card entries of the card data file. With `phase1_cards` (the Phase 1 cube, when
+    Phase 2 ran) each card also says whether Phase 2 added it: a card Phase 1 left out, so
+    there for a Phase 2 rule or the utilization balance.
+    """
+    phase1 = set(phase1_cards) if phase1_cards is not None else None
+    return [
+        {
+            "card": card.card,
+            "reason": card.reason,
+            "combo_count": card.combo_count,
+            "distinct_combo_count": card.distinct_combo_count,
+            "essential_combo_count": card.essential_combo_count,
+            "piece_combo_count": card.piece_combo_count,
+            "template_combo_count": card.template_combo_count,
+            "templates": card.templates,
+            "outcomes": card.outcomes,
+            "payoff_categories": card.payoff_categories,
+            **({"added_in_phase2": card.card not in phase1} if phase1 is not None else {}),
+            "essential_combos": card.essential_combos,
+        }
+        for card in cards
+    ]
+
+
+def card_data_path(output_file: str) -> Path:
+    """The card data file of a cube list: data/cube.txt -> data/cube_card_data.json."""
+    output_path = Path(output_file)
+    return output_path.with_stem(f"{output_path.stem}_card_data").with_suffix(".json")
+
+
+def write_card_data(
+    cards: list[CardInclusionStats],
+    output_file: str,
+    phase1_cards: Collection[str] | None = None,
+) -> Path:
+    """Write why each card of the cube is in it to the cube's card data file."""
+    path = card_data_path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    data = {
+        "summary": card_inclusion_summary(cards),
+        "cards": card_inclusion_entries(cards, phase1_cards),
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    logger.info(f"Per-card data written to {path}")
+    return path
+
+
+def _phase1_card_names(result: OptimizationResult) -> list[str] | None:
+    """The Phase 1 cube's card names when Phase 2 ran and changed the cube, else None."""
+    if not result.is_multi_objective or result.phase1_selected_cards is None:
+        return None
+    return [card.name for card in result.phase1_selected_cards]
+
+
+def format_card_inclusion(cards: list[CardInclusionStats]) -> str:
+    """One line on why the cube's cards are in it: the cards per reason."""
+    reasons = Counter(card.reason for card in cards)
+    counts = ", ".join(f"{reason} {reasons[reason]}" for reason in INCLUSION_REASONS)
+    one_combo = sum(1 for card in cards if card.distinct_combo_count == 1)
+    return f"{counts}; {one_combo} cards in a single combo"
+
+
 def log_phase_summary(
     result: OptimizationResult, attributes: Mapping[str, CardAttributes] | None
 ) -> None:
@@ -439,6 +518,9 @@ def log_phase_summary(
         phase2_mix = _card_mix_stats(result.selected_cards, attributes)
         if phase2_mix is not None:
             logger.info(f"Card mix, Phase 2: {format_card_mix_stats(phase2_mix)}")
+
+    if result.card_inclusion is not None:
+        logger.info(f"Cards by reason: {format_card_inclusion(result.card_inclusion)}")
 
 
 def write_stats(
@@ -595,6 +677,9 @@ def write_stats(
         stats["bottom_utilized_cards"] = [
             {"card": card, "utilization": util} for card, util in sorted_cards[-10:]
         ]
+
+    if result.card_inclusion is not None:
+        stats["cards"] = card_inclusion_summary(result.card_inclusion)
 
     # The combo groups with the most completed variants in the final cube
     if result.largest_combo_groups is not None:
@@ -1102,3 +1187,5 @@ async def run_ilp(
 
     # Write utilization stats
     write_stats(result, output_file, cube_size, card_attributes, payoffs)
+    if result.card_inclusion is not None:
+        write_card_data(result.card_inclusion, output_file, _phase1_card_names(result))

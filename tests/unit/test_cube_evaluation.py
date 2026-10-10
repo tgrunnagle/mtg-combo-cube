@@ -5,6 +5,7 @@ import pytest
 from mtg_combo_cube.ilp.cube_evaluation import (
     ARCHETYPES,
     COLOR_PAIRS,
+    card_inclusion,
     card_utilization,
     combos_by_color_count,
     combos_per_archetype,
@@ -19,7 +20,14 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     largest_combo_groups,
     weighted_combo_count,
 )
-from mtg_combo_cube.ilp.ilp_models import ComboData, RequirementOption
+from mtg_combo_cube.ilp.ilp_models import (
+    ESSENTIAL,
+    NO_COMBO,
+    PAYOFF_ONLY,
+    REDUNDANT,
+    ComboData,
+    RequirementOption,
+)
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.models import CardAttributes
 from tests.unit.test_ilp_optimizer import build_candidate_cards
@@ -290,6 +298,78 @@ class TestCardUtilization:
         assert completed == ["c1", "c2", "c3"]
         assert card_utilization(selected, combos) == optimizer._calculate_utilization(
             selected, completed
+        )
+
+
+class TestCardInclusion:
+    """Test card_inclusion: why each card is in a cube."""
+
+    COMBOS = [
+        # Group "big": two variants; H is in both, P1 and S1/S2 only in one each
+        make_combo("h1", ["H", "P1"], group="big"),
+        make_combo("h2", ["H"], [["S1", "S2"]], group="big"),
+        make_combo("ab", ["A", "B"]),
+        make_combo("x", ["A", "Z"]),  # not completed: Z is not in the cube
+    ]
+    CUBE = ["H", "P1", "S1", "S2", "A", "B", "F", "Pay"]
+
+    def by_card(self, **kwargs):
+        stats = card_inclusion(self.CUBE, self.COMBOS, **kwargs)
+        return {card.card: card for card in stats}
+
+    def test_counts_match_utilization(self):
+        stats = self.by_card()
+        utilization = card_utilization(self.CUBE, self.COMBOS)
+        assert {card: s.combo_count for card, s in stats.items()} == utilization
+
+    def test_piece_and_template_counts(self):
+        stats = self.by_card()
+        assert (stats["H"].piece_combo_count, stats["H"].template_combo_count) == (2, 0)
+        assert (stats["S1"].piece_combo_count, stats["S1"].template_combo_count) == (0, 1)
+        assert stats["S1"].templates == ["Template 0"]
+        assert stats["H"].templates == []
+        assert stats["H"].distinct_combo_count == 1
+
+    def test_essential_combos(self):
+        stats = self.by_card()
+        # Every variant of "big" needs H; P1 and the S cards each have a variant without them
+        assert stats["H"].essential_combos == ["big"]
+        assert stats["P1"].essential_combos == []
+        assert stats["S1"].essential_combos == []
+        assert stats["A"].essential_combos == ["ab"]
+
+    def test_template_card_is_essential_when_it_is_the_only_filler(self):
+        combos = [make_combo("t", ["H"], [["S1", "S2"]])]
+        stats = {s.card: s for s in card_inclusion(["H", "S1"], combos)}
+        assert stats["S1"].essential_combos == ["t"]
+
+    def test_reasons(self):
+        stats = self.by_card(payoff_cards={"mana": ["Pay", "A", "Elsewhere"]})
+        assert stats["H"].reason == ESSENTIAL
+        assert stats["P1"].reason == REDUNDANT
+        assert stats["Pay"].reason == PAYOFF_ONLY
+        assert stats["F"].reason == NO_COMBO
+        assert stats["A"].payoff_categories == ["mana"]
+        assert stats["F"].payoff_categories == []
+
+    def test_outcomes_count_distinct_combos(self):
+        categories = {"big": frozenset({"mana", "damage"}), "ab": frozenset({"mana"})}
+        stats = self.by_card(group_categories=categories)
+        assert stats["H"].outcomes == {"damage": 1, "mana": 1}
+        assert stats["A"].outcomes == {"mana": 1}
+        assert stats["F"].outcomes == {}
+
+    def test_most_used_first(self):
+        stats = card_inclusion(self.CUBE, self.COMBOS)
+        assert [s.card for s in stats][:1] == ["H"]
+        assert [s.combo_count for s in stats] == sorted(
+            (s.combo_count for s in stats), reverse=True
+        )
+
+    def test_accepts_completed_ids(self):
+        completed = completable_combo_ids(self.CUBE, self.COMBOS)
+        assert card_inclusion(self.CUBE, self.COMBOS, completed) == card_inclusion(
+            self.CUBE, self.COMBOS
         )
 
 

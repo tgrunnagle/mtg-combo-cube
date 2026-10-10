@@ -39,7 +39,7 @@ flowchart TD
     P1 --> P2["Phase 2<br/>balance utilization<br/>under the cube rules"]
     OPT --> EVAL["ilp/cube_evaluation.py<br/>ground-truth scoring"]
 
-    ILPR --> OUT["cube .txt + _stats.json"]
+    ILPR --> OUT["cube .txt + _stats.json<br/>+ _card_data.json"]
 
     SB -.-> API1[("Commander Spellbook API")]
     SF -.-> API2[("Scryfall API")]
@@ -464,7 +464,8 @@ constraint counts, timings and solver statistics per phase.
 | File | Contents |
 |------|----------|
 | `<output>.txt` | The cube, one card name per line. |
-| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category, popularity and payoff cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, per-template coverage, cross-template overlap, the resolved payoff table, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category, popularity and payoff cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, the number of cards per inclusion reason, per-template coverage, cross-template overlap, the resolved payoff table, and profiling data when `--profile` is set. |
+| `<output>_card_data.json` | Why each card is in the final cube (`cube_evaluation.card_inclusion`), most-used first: its reason (`essential`, `redundant`, `payoff_only` or `no_combo`), completed variants and distinct combos it takes part in, split into named-piece and template-filler variants, the combos the cube would lose without it, the templates it fills, its combos per outcome category, its payoff categories and, after Phase 2, whether Phase 2 added it. `evaluate_cube --card-data` writes the same file for an existing cube. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and
