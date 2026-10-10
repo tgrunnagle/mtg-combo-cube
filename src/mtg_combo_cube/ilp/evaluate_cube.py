@@ -13,7 +13,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from mtg_combo_cube.blocklist import load_blocklist
+from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_utilization,
     combos_per_outcome,
@@ -50,17 +50,12 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_popularity_stats,
     load_instance,
 )
-from mtg_combo_cube.ilp.outcomes import (
-    OutcomeCategories,
-    OutcomeCategoryError,
-    resolve_outcome_categories,
-)
+from mtg_combo_cube.ilp.outcomes import OutcomeCategories, OutcomeCategoryError
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
     PayoffDefinitions,
     PayoffTable,
     PayoffTableError,
-    resolve_payoff_definitions,
 )
 
 logger = logging.getLogger(__name__)
@@ -175,10 +170,11 @@ if __name__ == "__main__":
         help="Maximum number of combo variants, as used for the build (default: 20000)",
     )
     argparser.add_argument(
-        "--blocklist",
+        "--config",
         type=str,
         default=None,
-        help="Path to blocklist file (default: data/blocklist.txt)",
+        help="Path to the configuration file with the blocklist, the outcome category table "
+        "and the payoff table, as used for the build (default: config.yaml)",
     )
     argparser.add_argument(
         "--variant-weight",
@@ -186,18 +182,6 @@ if __name__ == "__main__":
         default=0.1,
         help="Value of each further completed variant of a combo, as used for the build "
         "(default: 0.1); sets the weighted combo count",
-    )
-    argparser.add_argument(
-        "--outcome-categories",
-        type=str,
-        default=None,
-        help="Path to the outcome category table (default: data/outcome_categories.json)",
-    )
-    argparser.add_argument(
-        "--payoffs",
-        type=str,
-        default=None,
-        help="Path to the payoff table (default: data/payoffs.json)",
     )
     argparser.add_argument(
         "--payoff-inference-min",
@@ -209,14 +193,11 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     if args.payoff_inference_min < 1:
         argparser.error("--payoff-inference-min must be at least 1")
-    # A missing or invalid table is a usage error; without the default tables the outcome
-    # and payoff counts are left out
+    # A missing or invalid configuration is a usage error; without an outcome or payoff
+    # table the outcome and payoff counts are left out
     try:
-        outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
-        payoff_definitions = resolve_payoff_definitions(
-            args.payoffs, outcome_categories, required=False
-        )
-    except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
+        config = load_config(args.config)
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
         argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
@@ -225,10 +206,10 @@ if __name__ == "__main__":
             evaluate_cube(
                 cube_file=args.cube_file,
                 max_variants=args.max_variants,
-                blocklist=load_blocklist(args.blocklist),
+                blocklist=config.blocklist,
                 variant_weight=args.variant_weight,
-                outcome_categories=outcome_categories,
-                payoff_definitions=payoff_definitions,
+                outcome_categories=config.outcome_categories,
+                payoff_definitions=config.payoffs,
                 payoff_inference_min=args.payoff_inference_min,
             )
         )

@@ -79,28 +79,28 @@ tasks:
   build:greedy:
     desc: Build a cube using the greedy method
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method greedy -o {{.OUTPUT | default "data/cube_greedy.txt"}} -n {{.MAX_VARIANTS}} --read-api-cache
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method greedy -o {{.OUTPUT | default "data/cube_greedy.txt"}} -n {{.MAX_VARIANTS}} --read-api-cache {{if .CONFIG}}--config "{{.CONFIG}}"{{end}}
     deps:
       - install
 
   build:ilp:
     desc: Build a cube using ILP two-phase optimization (default)
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT}} -n {{.MAX_VARIANTS}} --profile --read-api-cache --workers {{.WORKERS}} {{if .PAYOFFS}}--payoffs "{{.PAYOFFS}}"{{end}} {{.CLI_ARGS}}
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method ilp -o {{.OUTPUT | default "data/cube.txt"}} -t {{.TIME_LIMIT}} -n {{.MAX_VARIANTS}} --profile --read-api-cache --workers {{.WORKERS}} {{if .CONFIG}}--config "{{.CONFIG}}"{{end}} {{.CLI_ARGS}}
     deps:
       - install
 
   build:ilp-single:
     desc: Build a cube using single-phase ILP (max combos only)
     cmds:
-      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method ilp --single-phase -o {{.OUTPUT | default "data/cube_ilp_single.txt"}} -t {{.TIME_LIMIT}} -n {{.MAX_VARIANTS}} --profile --read-api-cache --workers {{.WORKERS}} {{if .PAYOFFS}}--payoffs "{{.PAYOFFS}}"{{end}} {{.CLI_ARGS}}
+      - uv run python -m src.mtg_combo_cube -c {{.CUBE_SIZE}} --method ilp --single-phase -o {{.OUTPUT | default "data/cube_ilp_single.txt"}} -t {{.TIME_LIMIT}} -n {{.MAX_VARIANTS}} --profile --read-api-cache --workers {{.WORKERS}} {{if .CONFIG}}--config "{{.CONFIG}}"{{end}} {{.CLI_ARGS}}
     deps:
       - install
 
   precache:
     desc: Download the Commander Spellbook and Scryfall data for a build into data/cache
     cmds:
-      - uv run python -m src.mtg_combo_cube.precache -n {{.MAX_VARIANTS}} --max-cards-in-combo {{.MAX_CARDS_IN_COMBO}} {{if .BLOCKLIST}}--blocklist "{{.BLOCKLIST}}"{{end}} {{if .PAYOFFS}}--payoffs "{{.PAYOFFS}}"{{end}} {{.CLI_ARGS}}
+      - uv run python -m src.mtg_combo_cube.precache -n {{.MAX_VARIANTS}} --max-cards-in-combo {{.MAX_CARDS_IN_COMBO}} {{if .CONFIG}}--config "{{.CONFIG}}"{{end}} {{.CLI_ARGS}}
     deps:
       - install
 

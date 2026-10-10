@@ -7,6 +7,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtg_combo_cube.config import CubeConfig, load_config
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.ilp.cube_evaluation import (
     COLOR_PAIRS,
@@ -30,12 +31,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     PopularityStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
-from mtg_combo_cube.ilp.outcomes import (
-    DEFAULT_OUTCOME_CATEGORIES_PATH,
-    OutcomeCategories,
-    outcome_rules_requested,
-    resolve_outcome_categories,
-)
+from mtg_combo_cube.ilp.outcomes import OutcomeCategories, outcome_rules_requested
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
     PayoffDefinitions,
@@ -44,7 +40,6 @@ from mtg_combo_cube.ilp.payoffs import (
     PayoffTableError,
     check_query_results,
     infer_payoffs,
-    resolve_payoff_definitions,
     resolve_payoffs,
 )
 from mtg_combo_cube.models import CardAttributes, Variant
@@ -840,7 +835,7 @@ async def build_cube_ilp(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
-    blocklist: frozenset[str] = frozenset(),
+    config: CubeConfig | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
     phase2_objective: str = "tiered",
@@ -853,11 +848,9 @@ async def build_cube_ilp(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
-    outcome_categories_path: str | None = None,
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
-    payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
@@ -867,15 +860,14 @@ async def build_cube_ilp(
     """
     Build cube using ILP optimization with optional API caching.
 
-    outcome_categories_path is the outcome category table (data/outcome_categories.json by
-    default), behind the outcome statistics and the Phase 2 outcome rules. The default
-    table is read from the working directory; when it is missing there and no rule is
-    on, the build goes on without the outcome statistics. payoffs_path is the payoff table
-    (data/payoffs.json by default), behind the payoff statistics and the Phase 2 payoff
-    floor (min_payoffs per category, payoff_share of the cube in all); its Scryfall queries
-    are resolved through the payoff cache, and the payoff cards the pool lacks are added to
-    the candidate cards. Both tables are read
-    before the instance is loaded, so a bad table fails fast.
+    config holds the blocklist, the outcome category table and the payoff table (the
+    default configuration file when None, see config.py). The outcome table is behind the
+    outcome statistics and the Phase 2 outcome rules; without it and with no rule on, the
+    build goes on without the outcome statistics. The payoff table is behind the payoff
+    statistics and the Phase 2 payoff floor (min_payoffs per category, payoff_share of the
+    cube in all); its Scryfall queries are resolved through the payoff cache, and the payoff
+    cards the pool lacks are added to the candidate cards. The configuration is read and
+    checked before the instance is loaded, so a bad or incomplete one fails fast.
 
     Returns:
         - List of card names in cube
@@ -886,24 +878,34 @@ async def build_cube_ilp(
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
-    # Read the tables first: a bad path or table should fail before the instance is loaded
-    outcome_categories = resolve_outcome_categories(
-        outcome_categories_path,
-        required=outcome_rules_requested(min_outcome_combos, max_outcome_share) or min_payoffs > 0,
+    # Read the configuration first: a bad or incomplete one should fail before the instance
+    # is loaded
+    if config is None:
+        config = load_config()
+    config.require(
+        outcome_categories=outcome_rules_requested(min_outcome_combos, max_outcome_share)
+        or min_payoffs > 0,
+        payoffs=min_payoffs > 0,
     )
+    blocklist = config.blocklist
+    outcome_categories = config.outcome_categories
+    payoff_definitions = config.payoffs
     if outcome_categories is None:
         logger.warning(
-            f"No outcome category table at {DEFAULT_OUTCOME_CATEGORIES_PATH} (run from the "
-            "repository root or pass --outcome-categories); the outcome statistics are skipped"
+            "The configuration has no outcome category table; the outcome statistics are skipped"
         )
     else:
         logger.info(
             f"Loaded {len(outcome_categories)} outcome categories: "
             f"{', '.join(outcome_categories.names)}"
         )
-    payoff_definitions = resolve_payoff_definitions(
-        payoffs_path, outcome_categories, required=min_payoffs > 0
-    )
+    if payoff_definitions is None:
+        logger.info("The configuration has no payoff table; payoffs are skipped")
+    else:
+        logger.info(
+            f"Loaded payoff table with {len(payoff_definitions)} categories: "
+            f"{', '.join(payoff_definitions.names)}"
+        )
     query_results: dict[str, list[str]] = {}
     if payoff_definitions is not None:
         query_results = await fetch_payoff_queries(
@@ -1028,7 +1030,7 @@ async def run_ilp(
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
     min_combo_threshold: int = 10,
-    blocklist: frozenset[str] = frozenset(),
+    config: CubeConfig | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
     phase2_objective: str = "tiered",
@@ -1041,11 +1043,9 @@ async def run_ilp(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
-    outcome_categories_path: str | None = None,
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
-    payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
@@ -1061,7 +1061,7 @@ async def run_ilp(
         combo_tolerance=combo_tolerance,
         min_coverage_ratio=min_coverage_ratio,
         min_combo_threshold=min_combo_threshold,
-        blocklist=blocklist,
+        config=config,
         profile=profile,
         gap_limit=gap_limit,
         phase2_objective=phase2_objective,
@@ -1074,11 +1074,9 @@ async def run_ilp(
         min_mono_combos=min_mono_combos,
         max_wide_combo_share=max_wide_combo_share,
         card_mix=card_mix,
-        outcome_categories_path=outcome_categories_path,
         min_outcome_combos=min_outcome_combos,
         max_outcome_share=max_outcome_share,
         popularity_weight=popularity_weight,
-        payoffs_path=payoffs_path,
         min_payoffs=min_payoffs,
         payoff_share=payoff_share,
         payoff_inference_min=payoff_inference_min,

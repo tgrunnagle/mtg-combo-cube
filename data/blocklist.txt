@@ -1,8 +1,0 @@
-# Cards to always exclude from the cube
-Command Tower
-Arcane Signet
-Path of Ancestry
-Commander's Sphere
-War Room
-Command Beacon
-Jeweled Lotus

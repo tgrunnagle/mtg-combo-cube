@@ -24,15 +24,10 @@ from pathlib import Path
 
 import aiohttp
 
-from mtg_combo_cube.blocklist import load_blocklist
+from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
-from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, resolve_outcome_categories
-from mtg_combo_cube.ilp.payoffs import (
-    PayoffDefinitions,
-    PayoffTableError,
-    resolve_payoff_definitions,
-    resolve_payoffs,
-)
+from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError
+from mtg_combo_cube.ilp.payoffs import PayoffDefinitions, PayoffTableError, resolve_payoffs
 from mtg_combo_cube.models import Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
@@ -357,7 +352,7 @@ async def precache(
 if __name__ == "__main__":
     argparser = argparse.ArgumentParser(
         description="Download the Commander Spellbook and Scryfall data a build reads from "
-        "its cache. Use the same -n, --max-cards-in-combo and --blocklist as the build."
+        "its cache. Use the same -n, --max-cards-in-combo and --config as the build."
     )
     argparser.add_argument(
         "-n",
@@ -373,24 +368,11 @@ if __name__ == "__main__":
         help="Largest combo size to fetch (default: 4, the size a build uses)",
     )
     argparser.add_argument(
-        "--blocklist",
+        "--config",
         type=str,
         default=None,
-        help="Path to blocklist file (default: data/blocklist.txt)",
-    )
-    argparser.add_argument(
-        "--payoffs",
-        type=str,
-        default=None,
-        help="Path to the payoff table whose Scryfall queries to resolve (default: "
-        "data/payoffs.json; skipped when that is missing or does not fit the outcome table)",
-    )
-    argparser.add_argument(
-        "--outcome-categories",
-        type=str,
-        default=None,
-        help="Path to the outcome category table the payoff table is checked against "
-        "(default: data/outcome_categories.json)",
+        help="Path to the configuration file: its blocklist decides what is fetched, and its "
+        "payoff table's Scryfall queries are resolved (default: config.yaml)",
     )
     argparser.add_argument(
         "--cache-dir",
@@ -422,19 +404,19 @@ if __name__ == "__main__":
     if args.max_variants < 1 or args.max_cards_in_combo < 1 or args.max_passes < 1:
         argparser.error("--max-variants, --max-cards-in-combo and --max-passes must be at least 1")
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
-    # The payoff table is checked against the outcome table as a build checks it, so the
-    # cache this fills is one a build accepts
+    # The configuration is checked as a build checks it (the payoff table against the
+    # outcome table), so the cache this fills is one a build accepts
     try:
-        outcome_categories = resolve_outcome_categories(args.outcome_categories, required=False)
-        payoffs = resolve_payoff_definitions(args.payoffs, outcome_categories, required=False)
-    except (FileNotFoundError, OutcomeCategoryError, PayoffTableError) as e:
+        config = load_config(args.config)
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
         argparser.error(str(e))
+    payoffs = config.payoffs
 
     result = asyncio.run(
         precache(
             max_cards_in_combo=args.max_cards_in_combo,
             max_variants=args.max_variants,
-            blocklist=load_blocklist(args.blocklist),
+            blocklist=config.blocklist,
             cache_dir=args.cache_dir,
             keep_existing=args.keep_existing,
             max_passes=args.max_passes,

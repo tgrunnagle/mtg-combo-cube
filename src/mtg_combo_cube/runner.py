@@ -2,7 +2,7 @@
 
 import logging
 
-from mtg_combo_cube.blocklist import load_blocklist
+from mtg_combo_cube.config import load_config
 from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -24,7 +24,7 @@ async def run(
     read_cache: bool = False,
     combo_tolerance: float = 0.1,
     min_coverage_ratio: float = 0.1,
-    blocklist_path: str | None = None,
+    config_path: str | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
     phase2_objective: str = "tiered",
@@ -37,11 +37,9 @@ async def run(
     min_mono_combos: int = 150,
     max_wide_combo_share: float = 0.25,
     card_mix: CardMixRules = DEFAULT_CARD_MIX,
-    outcome_categories_path: str | None = None,
     min_outcome_combos: int = ILPOptimizer.DEFAULT_MIN_OUTCOME_COMBOS,
     max_outcome_share: float = 0,
     popularity_weight: float = 0,
-    payoffs_path: str | None = None,
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
@@ -62,7 +60,8 @@ async def run(
         combo_tolerance: Tolerance of the phase 2 combo window, on the combo score (weighted
             combos when variant_weight is below 1)
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
-        blocklist_path: Path to blocklist file (default: data/blocklist.txt)
+        config_path: The configuration file with the blocklist, the outcome category table
+            and the payoff table (default: config.yaml)
         profile: Enable detailed profiling of ILP optimization
         gap_limit: Relative gap limit for Phase 2 early termination (0.05 = 5%)
         phase2_objective: Phase 2 objective: "minmax", "mad", "maxutil", "softcap" or "tiered"
@@ -81,16 +80,12 @@ async def run(
             or more colors (0 or 1 disables)
         card_mix: Phase 2 limits on the cube's make-up by color count, mana value and card
             type, as shares of the cube size (see CardMixRules)
-        outcome_categories_path: The outcome category table (default:
-            data/outcome_categories.json)
         min_outcome_combos: Phase 2 minimum number of distinct combos of every outcome
             category, unless the table gives the category its own (0 disables)
         max_outcome_share: Phase 2 cap on the share of completed combos in any one outcome
             category (0 or 1 disables)
         popularity_weight: How much a combo's popularity adds to its value in the Phase 1
             objective and the Phase 2 combo window (0: a tiebreak only)
-        payoffs_path: The payoff table (default: data/payoffs.json): per outcome category,
-            the Scryfall queries, cards and exclusions that find its outlets
         min_payoffs: Phase 2 minimum number of payoff cards of every category in the payoff
             table (0 disables)
         payoff_share: Share of the cube's cards the Phase 2 payoff floors add up to, split
@@ -98,7 +93,7 @@ async def run(
         payoff_inference_min: Bundled Spellbook variants a card must be the outlet of before
             the inference counts it as a payoff
     """
-    blocklist = load_blocklist(blocklist_path)
+    config = load_config(config_path)
 
     if method == "ilp":
         await run_ilp(
@@ -111,7 +106,7 @@ async def run(
             read_cache=read_cache,
             combo_tolerance=combo_tolerance,
             min_coverage_ratio=min_coverage_ratio,
-            blocklist=blocklist,
+            config=config,
             profile=profile,
             gap_limit=gap_limit,
             phase2_objective=phase2_objective,
@@ -124,11 +119,9 @@ async def run(
             min_mono_combos=min_mono_combos,
             max_wide_combo_share=max_wide_combo_share,
             card_mix=card_mix,
-            outcome_categories_path=outcome_categories_path,
             min_outcome_combos=min_outcome_combos,
             max_outcome_share=max_outcome_share,
             popularity_weight=popularity_weight,
-            payoffs_path=payoffs_path,
             min_payoffs=min_payoffs,
             payoff_share=payoff_share,
             payoff_inference_min=payoff_inference_min,
@@ -138,7 +131,7 @@ async def run(
             cube_size=cube_size,
             output_file=output_file,
             golden_ratio=golden_ratio,
-            blocklist=blocklist,
+            blocklist=config.blocklist,
             enable_cache_write=enable_cache_write,
             read_cache=read_cache,
         )

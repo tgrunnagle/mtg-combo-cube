@@ -4,14 +4,14 @@ Outcome categories: what a combo does, from the features it produces on Spellboo
 A category is a name with a list of patterns; a combo belongs to every category one of its
 feature names matches. Patterns are case-insensitive substrings ("infinite damage" matches
 "Near-infinite damage to one opponent"), or regular expressions when prefixed with "re:"
-("re:^lock" matches "Lock" but not "Creatures can't block"). The table lives in a JSON file
-so it can be edited without code changes:
+("re:^lock" matches "Lock" but not "Creatures can't block"). The table is the
+`outcome_categories` section of the configuration file (see config.py), so it can be edited
+without code changes:
 
-    {
-      "mana": ["infinite colored mana", "infinite colorless mana"],
-      "damage": {"patterns": ["infinite damage"], "min_combos": 40},
-      "other": []
-    }
+    outcome_categories:
+      mana: ["infinite colored mana", "infinite colorless mana"]
+      damage: {patterns: ["infinite damage"], min_combos: 40}
+      other: []
 
 The long form gives a category its own minimum for the Phase 2 outcome rule, in place of the
 default minimum (--min-outcome-combos). A category with no patterns is the catch-all: it
@@ -19,15 +19,12 @@ holds every combo no other category matches, so the outcome rule keeps the combo
 the named categories in the cube too. A table may have one catch-all at most.
 """
 
-import json
 import re
 from collections.abc import Iterable, Iterator
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from mtg_combo_cube.ilp.ilp_models import hundredths
 
-DEFAULT_OUTCOME_CATEGORIES_PATH = "data/outcome_categories.json"
 REGEX_PREFIX = "re:"
 
 
@@ -86,7 +83,7 @@ class OutcomeCategory:
 
 @dataclass(frozen=True)
 class OutcomeCategories:
-    """The outcome category table, in file order."""
+    """The outcome category table, in configuration order."""
 
     categories: tuple[OutcomeCategory, ...]
 
@@ -148,9 +145,11 @@ class OutcomeCategories:
 
 
 def parse_outcome_categories(table: object) -> OutcomeCategories:
-    """Build the category table from the parsed JSON object (see the module docstring)."""
+    """Build the category table from the parsed configuration section (module docstring)."""
     if not isinstance(table, dict):
-        raise OutcomeCategoryError("the outcome category table must be a JSON object")
+        raise OutcomeCategoryError(
+            "the outcome category table must be a mapping of category name to patterns"
+        )
     categories = []
     for name, entry in table.items():
         if not isinstance(name, str):
@@ -181,40 +180,6 @@ def parse_outcome_categories(table: object) -> OutcomeCategories:
     return OutcomeCategories(tuple(categories))
 
 
-def load_outcome_categories(path: str | None = None) -> OutcomeCategories:
-    """
-    Load the category table from a JSON file (the default table when no path is given).
-
-    Raises FileNotFoundError when the file does not exist and OutcomeCategoryError when the
-    table is invalid.
-    """
-    table_path = Path(path) if path else Path(DEFAULT_OUTCOME_CATEGORIES_PATH)
-    if not table_path.exists():
-        raise FileNotFoundError(f"Outcome categories file not found: {table_path}")
-    with open(table_path, encoding="utf-8") as f:
-        try:
-            table = json.load(f)
-        except json.JSONDecodeError as e:
-            raise OutcomeCategoryError(f"{table_path} is not valid JSON: {e}") from e
-    return parse_outcome_categories(table)
-
-
 def outcome_rules_requested(min_outcome_combos: int, max_outcome_share: float) -> bool:
     """Whether the settings ask for an outcome rule: a minimum above 0 or a cap in (0, 1)."""
     return min_outcome_combos > 0 or 0 < hundredths(max_outcome_share) < 1
-
-
-def resolve_outcome_categories(
-    path: str | None, *, required: bool = True
-) -> OutcomeCategories | None:
-    """
-    The category table a run should use: the file at `path`, or the default table.
-
-    A path that was given must exist. Without one, the default table is read from the
-    working directory, which is the repository root for every `data/` path. When it is
-    missing there, that is an error only when the table is `required` (an outcome rule is
-    on); otherwise the result is None and the run goes on without the outcome statistics.
-    """
-    if path is None and not required and not Path(DEFAULT_OUTCOME_CATEGORIES_PATH).exists():
-        return None
-    return load_outcome_categories(path)
