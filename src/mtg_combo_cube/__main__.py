@@ -6,6 +6,7 @@ import logging
 import math
 import sys
 
+from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError
 from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
@@ -366,10 +367,12 @@ if __name__ == "__main__":
                 payoff_inference_min=args.payoff_inference_min,
             )
         )
-    except PayoffTableError as e:
-        # A payoff query that matches no card or that Scryfall rejects: a table error
+    except (PayoffTableError, BlocklistQueryError) as e:
+        # A payoff query that matches no card or that Scryfall rejects, or a blocklist query
+        # Scryfall rejects: a configuration error
         argparser.error(str(e))
-    except PayoffFetchError as e:
-        # Scryfall could not be reached for a query the payoff floor needs: not a usage error
+    except (PayoffFetchError, BlocklistFetchError) as e:
+        # Scryfall could not be reached for a query the payoff floor or the blocklist needs:
+        # not a usage error
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)

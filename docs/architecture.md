@@ -65,13 +65,14 @@ All code lives under `src/mtg_combo_cube/`.
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
 | `runner.py` | Loads the configuration and dispatches to the ILP or greedy runner. |
 | `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
-| `config.py` | Reads `config.yaml` into a `CubeConfig`: the `blocklist`, `outcome_categories` and `payoffs` sections, each optional, the payoff table checked against the outcome table on load; `require` names the sections the rules that are on need. |
+| `config.py` | Reads `config.yaml` into a `CubeConfig`: the `blocklist`, `blocklist_queries`, `outcome_categories` and `payoffs` sections, each optional, the payoff table checked against the outcome table on load; `require` names the sections the rules that are on need. |
+| `blocklist.py` | `fetch_blocklist`: the blocked cards of a run, the `blocklist` names and the cards matching the `blocklist_queries` (Scryfall searches such as `t:stickers`), resolved through the payoff query cache before the instance is loaded. A rejected query is a configuration error, one that could not be fetched stops the run. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing and the "find my combos" endpoint. |
 | `spellbook/api_cache.py` | `SpellbookCache`: file cache for the variant listing. |
 | `scryfall/scryfall_fetcher.py` | `ScryfallFetcher`: template lookups with disk cache, rate limiting and retries. Shared by both builders. |
 | `scryfall/card_attribute_fetcher.py` | `CardAttributeFetcher`: the `CardAttributes` of named cards, with its own disk cache. Used by the color balance and card mix rules and the color and card mix statistics. |
-| `scryfall/payoff_fetcher.py` | `PayoffFetcher`: the cards matching the payoff table's Scryfall queries, with its own disk cache. |
+| `scryfall/payoff_fetcher.py` | `PayoffFetcher`: the cards matching the payoff table's (and the blocklist's) Scryfall queries, with its own disk cache. |
 | `ilp/requirement_normalizer.py` | Canonical keys for template requirements and URL preparation for Scryfall. |
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
@@ -178,7 +179,7 @@ engines into a win, each with its sources:
   Punch) and is a supplement to the table.
 - **Cards**: names the table gives.
 - **Queries**: Scryfall searches the table gives, resolved by `PayoffFetcher` in EDHREC order
-  over paper cards (`unique=cards`); the first 25 unblocked cards of each count, so the cache
+  over paper cards without the Un-set ones (`game:paper -is:funny`, `unique=cards`); the first 25 unblocked cards of each count, so the cache
   holds the raw first page as the template cache does. A query that matches no card is a
   table error (`PayoffTableError`), reported and not cached. The cache is
   `data/cache/scryfall_payoffs.json`, keyed by the search URL with the time each was fetched,
@@ -201,8 +202,8 @@ The greedy builder uses the Scryfall cache but always calls the Spellbook API li
 ### Precaching
 
 `precache.py` (`task precache`) fills all four caches for one configuration without solving
-anything. It runs the same steps as a build: fetch the variants, preprocess them with the
-blocklist, resolve the payoff table's queries, look up the attributes of the candidate and
+anything. It runs the same steps as a build: fetch the variants, resolve the blocklist
+queries, preprocess the variants with the blocklist, resolve the payoff table's queries, look up the attributes of the candidate and
 payoff cards. Its arguments are the values that decide what a build reads: `--max-variants`
 and `--max-cards-in-combo` name the variants file, and `--config` decides through its
 blocklist which templates and cards are looked up and through its payoff table which queries. A payoff query that matches no card is

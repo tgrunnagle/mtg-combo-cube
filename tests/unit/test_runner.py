@@ -69,6 +69,20 @@ def fake_payoff_queries(
     return calls
 
 
+@pytest.fixture(autouse=True)
+def no_live_blocklist_queries(monkeypatch: pytest.MonkeyPatch) -> None:
+    """
+    Replace the Scryfall lookup of the blocklist queries (the default configuration has
+    some): the blocklist is the configured names alone, and nothing is fetched or cached.
+    """
+
+    async def fake_fetch(blocklist: frozenset[str], queries: Any, **kwargs: Any) -> frozenset[str]:
+        return blocklist
+
+    monkeypatch.setattr(ilp_runner, "fetch_blocklist", fake_fetch)
+    monkeypatch.setattr(runner, "fetch_blocklist", fake_fetch)
+
+
 class TestCliPlumbing:
     """Phase 2 objective options on the command line."""
 

@@ -4,8 +4,8 @@ Usage:
     uv run python -m mtg_combo_cube.precache -n 20000
 
 Downloads what an ILP build with the same settings reads: the Commander Spellbook variants,
-the Scryfall template searches, the payoff table's Scryfall queries and the Scryfall card
-attributes (color identity, type line, mana value) of the candidate and payoff cards.
+the blocklist's and the payoff table's Scryfall queries, the Scryfall template searches and the
+Scryfall card attributes (color identity, type line, mana value) of the candidate and payoff cards.
 
 Everything is fetched again and written over what the cache holds: the variants file is
 replaced, and so is every template, payoff query and card attribute entry of this
@@ -18,12 +18,13 @@ import argparse
 import asyncio
 import logging
 import sys
-from collections.abc import Awaitable, Callable
+from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
 import aiohttp
 
+from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
 from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError
@@ -271,6 +272,7 @@ async def precache(
     session: aiohttp.ClientSession | None = None,
     sleep: Sleep = asyncio.sleep,
     payoffs: PayoffDefinitions | None = None,
+    blocklist_queries: Sequence[str] = (),
 ) -> PrecacheResult:
     """
     Fill the variants, Scryfall template, payoff query and card attribute caches for one
@@ -290,6 +292,11 @@ async def precache(
         sleep: Awaitable sleep function (replaceable in tests)
         payoffs: The payoff table whose queries to resolve, and whose cards to look up the
             attributes of beside the candidate cards (None: no payoff stage)
+        blocklist_queries: Scryfall queries whose cards are blocked too; resolved first,
+            which fills their cache entries
+
+    Raises BlocklistQueryError for a blocklist query Scryfall rejects, BlocklistFetchError
+    for one that could not be fetched (the templates a build needs depend on it).
     """
     result = PrecacheResult()
 
@@ -307,6 +314,17 @@ async def precache(
         return result
     variants, result.variants_cached = fetched
     result.variants = len(variants)
+
+    if blocklist_queries:
+        async with ScryfallFetcher(session=session, sleep=sleep) as fetcher:
+            blocklist = await fetch_blocklist(
+                blocklist,
+                blocklist_queries,
+                enable_cache_write=True,
+                read_cache=keep_existing,
+                cache_dir=cache_dir,
+                fetcher=fetcher,
+            )
 
     template_fetcher = ScryfallFetcher(
         cache_dir=cache_dir,
@@ -371,8 +389,9 @@ if __name__ == "__main__":
         "--config",
         type=str,
         default=None,
-        help="Path to the configuration file: its blocklist decides what is fetched, and its "
-        "payoff table's Scryfall queries are resolved (default: config.yaml)",
+        help="Path to the configuration file: its blocklist and blocklist queries decide what "
+        "is fetched, and its blocklist and payoff table's Scryfall queries are resolved "
+        "(default: config.yaml)",
     )
     argparser.add_argument(
         "--cache-dir",
@@ -412,18 +431,25 @@ if __name__ == "__main__":
         argparser.error(str(e))
     payoffs = config.payoffs
 
-    result = asyncio.run(
-        precache(
-            max_cards_in_combo=args.max_cards_in_combo,
-            max_variants=args.max_variants,
-            blocklist=config.blocklist,
-            cache_dir=args.cache_dir,
-            keep_existing=args.keep_existing,
-            max_passes=args.max_passes,
-            retry_wait_seconds=args.retry_wait,
-            payoffs=payoffs,
+    try:
+        result = asyncio.run(
+            precache(
+                max_cards_in_combo=args.max_cards_in_combo,
+                max_variants=args.max_variants,
+                blocklist=config.blocklist,
+                cache_dir=args.cache_dir,
+                keep_existing=args.keep_existing,
+                max_passes=args.max_passes,
+                retry_wait_seconds=args.retry_wait,
+                payoffs=payoffs,
+                blocklist_queries=config.blocklist_queries,
+            )
         )
-    )
+    except BlocklistQueryError as e:
+        argparser.error(str(e))
+    except BlocklistFetchError as e:
+        print(f"error: {e}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"Cache directory: {args.cache_dir}")
     print(f"Variants: {result.variants}" + ("" if result.variants_cached else " (NOT cached)"))
