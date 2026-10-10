@@ -41,21 +41,14 @@ uv sync --dev
 # Build a 300-card cube using ILP (two-phase optimization, default)
 task build:ilp CUBE_SIZE=300
 # or
-uv run python -m src.mtg_combo_cube -c 300 --method ilp
-
-# Build using greedy method
-task build:greedy CUBE_SIZE=300
-# or
-uv run python -m src.mtg_combo_cube -c 300 --method greedy
+uv run python -m src.mtg_combo_cube -c 300
 ```
 
 ### Command-Line Options
 
 ```
 -c, --cube-size        Cube size (default: 300)
--m, --method           Optimization method: greedy or ilp (default: ilp)
 -o, --output-file      Output file path (default: data/cube.txt)
--r, --ratio            Golden ratio for greedy method (default: 1.2)
 -t, --time-limit       ILP solver time limit in seconds (default: 300)
 -n, --max-variants     Max combo variants to fetch (default: 20000)
 --single-phase         Use single-phase ILP (disables utilization balancing)
@@ -91,7 +84,7 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 -d, --debug            Enable debug logging (includes the CP-SAT search log)
 ```
 
-`-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
+`-t` is applied to each phase separately.
 
 The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS`, `WORKERS` and `CONFIG` (a configuration file other than `config.yaml`) variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Any other flag goes after `--`, e.g. `task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0` (the archetype and outcome minimums and the payoff floor are sized for the default build; see "Phase 2 Options"). Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
 
@@ -101,36 +94,33 @@ The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE
 uv run python -m src.mtg_combo_cube --help
 
 # Two-phase ILP (balanced card utilization)
-uv run python -m src.mtg_combo_cube -c 300 --method ilp
+uv run python -m src.mtg_combo_cube -c 300
 
 # Single-phase ILP (max combos only)
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --single-phase
+uv run python -m src.mtg_combo_cube -c 300 --single-phase
 
 # Two-phase with 20% combo tolerance (trades more combos for a flatter cube)
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --combo-tolerance 0.2
+uv run python -m src.mtg_combo_cube -c 300 --combo-tolerance 0.2
 
 # Push the single most-used card down instead of the overall spread
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --phase2-objective maxutil
+uv run python -m src.mtg_combo_cube -c 300 --phase2-objective maxutil
 
 # Penalize every card used in more than 40 combos
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --util-cap 40
+uv run python -m src.mtg_combo_cube -c 300 --util-cap 40
 
 # Small, fast configuration for trying things out (about 1 minute with a warm cache);
 # the archetype and outcome minimums and the payoff floor are sized for a full build, so
 # they are switched off here
-uv run python -m src.mtg_combo_cube -c 100 --method ilp -t 30 -n 1000 --read-api-cache --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0
-
-# Greedy with custom ratio
-uv run python -m src.mtg_combo_cube -c 360 --method greedy -r 1.5
+uv run python -m src.mtg_combo_cube -c 100 -t 30 -n 1000 --read-api-cache --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0
 
 # Custom output file and time limit
-uv run python -m src.mtg_combo_cube -c 450 --method ilp -o my_cube.txt -t 1800
+uv run python -m src.mtg_combo_cube -c 450 -o my_cube.txt -t 1800
 ```
 
 ### Output Files
 
 - **data/cube.txt**: List of selected cards (one per line)
-- **data/cube_stats.json**: Utilization statistics and optimization metrics (ILP only)
+- **data/cube_stats.json**: Utilization statistics and optimization metrics
 
 The stats file contains:
 
@@ -197,7 +187,7 @@ Four kinds of API responses are cached in `data/cache/`:
 | Data | File | Used by |
 |------|------|---------|
 | Commander Spellbook combo variants | `variants_cards{max}_max{variants}.json` | ILP |
-| Scryfall template searches (the cards that satisfy a requirement such as "Persist Creature") | `scryfall_templates.json` | ILP and greedy |
+| Scryfall template searches (the cards that satisfy a requirement such as "Persist Creature") | `scryfall_templates.json` | ILP |
 | Scryfall card attributes of the candidate cards (color identity, type line, mana value) | `scryfall_card_attributes.json` | ILP (color balance, card mix, statistics) |
 | Scryfall searches of the payoff table (the outlets of each outcome category), with the time each was fetched | `scryfall_payoffs.json` | ILP (payoff floor, statistics) |
 
@@ -208,7 +198,6 @@ Four kinds of API responses are cached in `data/cache/`:
 - Both flags cover all four caches. `scryfall_card_colors.json`, written by earlier versions, is no longer read and can be deleted. With a warm cache, an ILP run with `--read-api-cache` makes no network requests.
 - A payoff query is cached under its search URL, so editing a query in the table fetches the edited query and leaves the rest cached; with `--read-api-cache` (which the `task build:ilp*` targets pass) the resolved table is the same between the runs being compared, while a plain run resolves every query live and may see Scryfall's ordering change. A query that matches no card, or that Scryfall rejects or only partly understands, is a table error, reported and not cached.
 - Scryfall requests are rate-limited (about 10 per second) and retried on HTTP 429 / 5xx and network errors. Failed requests are not cached, so a later run retries them. A failed template or card attribute request degrades the instance or the statistics with a warning; a failed payoff query is an error when the payoff floor is on, so the floor never runs against a different table than intended.
-- The greedy method always queries Commander Spellbook live; only its Scryfall lookups are cached.
 
 After preprocessing, the ILP method logs how many combos were left out and why, and how the Scryfall data was obtained:
 
@@ -223,13 +212,13 @@ Dropped 78 of 10000 combos (blocked_card=5, no_scryfall_api=73, scryfall_failure
 
 ```bash
 # First run: fetches from API and caches results
-uv run python -m src.mtg_combo_cube -c 300 --method ilp
+uv run python -m src.mtg_combo_cube -c 300
 
 # Subsequent runs: use cached data for faster iteration
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --read-api-cache
+uv run python -m src.mtg_combo_cube -c 300 --read-api-cache
 
 # Force fresh API fetch without caching
-uv run python -m src.mtg_combo_cube -c 300 --method ilp --skip-api-caching
+uv run python -m src.mtg_combo_cube -c 300 --skip-api-caching
 ```
 
 #### Precaching
@@ -252,12 +241,9 @@ It fills the variants file, the Scryfall template searches, the payoff table's s
 - The script prints a summary and exits with status 1 when the cache is incomplete. Cards that Scryfall does not know are reported but do not count as a failure.
 - `--cache-dir` writes somewhere other than `data/cache/`; a build only reads `data/cache/`.
 
-## Optimization Methods
+## Optimization Method
 
-### Greedy
-Fast heuristic approach that iteratively selects high-impact cards. Good for quick iterations.
-
-### ILP (Recommended, default)
+### ILP
 Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to proven optimality at the tested sizes when every variant counts (`--variant-weight 1`); with the default weight it runs to its time limit at full size and returns the best cube found. Phase 2 returns the best cube found within the gap or time limit. Two operational modes:
 
 **Two-Phase (Default)**
@@ -388,7 +374,6 @@ task security
 # Build a cube (see Quick Start)
 task build:ilp
 task build:ilp-single
-task build:greedy
 
 # Download the API data for a build into data/cache (see API Caching)
 task precache
@@ -436,13 +421,6 @@ The unit tests make no network requests.
 Run `task test:cov` to generate an HTML coverage report in `htmlcov/`.
 
 ## How It Works
-
-### Greedy Method
-1. Fetch top combos by popularity from Commander Spellbook API
-2. Select core cards that appear most frequently across combos
-3. Fill remaining slots with cards from "almost included" combos
-4. Remove dead cards (cards not in any completable combo)
-5. Iterate until cube reaches target size
 
 ### ILP Method
 1. Fetch and preprocess combo variants
