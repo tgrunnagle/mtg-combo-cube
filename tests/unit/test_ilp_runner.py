@@ -12,6 +12,7 @@ from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES, compute_card_mix_stat
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CandidateCard,
+    CardInclusionStats,
     CardMixRules,
     ComboGroupStats,
     OptimizationResult,
@@ -21,13 +22,16 @@ from mtg_combo_cube.ilp.ilp_models import (
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
+    card_data_path,
     format_archetype_stats,
+    format_card_inclusion,
     format_card_mix_stats,
     format_combo_count,
     format_outcome_stats,
     format_payoff_stats,
     format_payoff_table,
     log_phase_summary,
+    write_card_data,
     write_stats,
 )
 from mtg_combo_cube.ilp.payoffs import PayoffTable
@@ -40,6 +44,83 @@ def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
         CandidateCard(name=name, combo_ids=frozenset(), requirement_group_keys=frozenset())
         for name in names
     ]
+
+
+def make_inclusion(
+    card: str, reason: str, combos: int = 0, distinct: int = 0, essential: list[str] | None = None
+) -> CardInclusionStats:
+    return CardInclusionStats(
+        card=card,
+        combo_count=combos,
+        distinct_combo_count=distinct,
+        piece_combo_count=combos,
+        template_combo_count=0,
+        templates=[],
+        essential_combos=essential or [],
+        outcomes={},
+        payoff_categories=["mana"] if reason == "payoff_only" else [],
+        reason=reason,
+    )
+
+
+INCLUSION = [
+    make_inclusion("Card A", "essential", 3, 2, ["c1"]),
+    make_inclusion("Card B", "redundant", 1, 1),
+    make_inclusion("Card C", "payoff_only"),
+]
+
+
+class TestCardData:
+    """Test the per-card data file and its summary."""
+
+    def test_card_data_path(self):
+        assert card_data_path("data/current_best_cube.txt") == Path(
+            "data/current_best_cube_card_data.json"
+        )
+
+    def test_write_card_data(self, tmp_path):
+        path = write_card_data(INCLUSION, str(tmp_path / "out/cube.txt"))
+
+        assert path == tmp_path / "out/cube_card_data.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data["summary"] == {
+            "cards_per_reason": {"essential": 1, "redundant": 1, "payoff_only": 1, "no_combo": 0},
+            "cards_in_one_combo": 1,
+        }
+        assert [entry["card"] for entry in data["cards"]] == ["Card A", "Card B", "Card C"]
+        first = data["cards"][0]
+        assert first["reason"] == "essential"
+        assert first["combo_count"] == 3
+        assert first["essential_combo_count"] == 1
+        assert first["essential_combos"] == ["c1"]
+        assert "added_in_phase2" not in first
+
+    def test_write_card_data_marks_phase2_additions(self, tmp_path):
+        path = write_card_data(INCLUSION, str(tmp_path / "cube.txt"), ["Card A", "Card X"])
+
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert [entry["added_in_phase2"] for entry in data["cards"]] == [False, True, True]
+
+    def test_write_stats_has_summary_not_cards(self, tmp_path):
+        result = OptimizationResult(
+            selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+            completable_combo_ids=["c1"],
+            combo_count=1,
+            objective_value=1.0,
+            solve_time_seconds=1.0,
+            phase1_status="OPTIMAL",
+            card_inclusion=INCLUSION,
+        )
+        write_stats(result, str(tmp_path / "cube.txt"), 3)
+
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["cards"]["cards_per_reason"]["essential"] == 1
+        assert "by_card" not in stats["cards"]
+
+    def test_format_card_inclusion(self):
+        assert format_card_inclusion(INCLUSION) == (
+            "essential 1, redundant 1, payoff_only 1, no_combo 0; 1 cards in a single combo"
+        )
 
 
 class TestWriteUtilizationStats:

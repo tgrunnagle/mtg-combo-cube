@@ -17,6 +17,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     COLOR_PAIRS,
     COLORS,
     MONO_COLORS,
+    card_inclusion,
     card_utilization,
     color_identities_known,
     combos_per_outcome,
@@ -33,12 +34,14 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     known_color_identity,
     largest_combo_groups,
     popularity_stats,
+    template_display_name,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
     ArchetypeStats,
     CandidateCard,
+    CardInclusionStats,
     CardMixRules,
     ComboData,
     ComboGroupStats,
@@ -126,6 +129,7 @@ class _Solution:
     weighted_combo_count: float
     largest_combo_groups: list[ComboGroupStats]
     utilization_per_card: dict[str, int]
+    card_inclusion: list[CardInclusionStats]
     utilization_stats: UtilizationStats
     archetype_stats: ArchetypeStats | None  # None when the combos carry no color identities
     outcome_stats: OutcomeStats | None  # None without an outcome category table
@@ -599,7 +603,7 @@ class ILPOptimizer:
         Strategy: Pick the shortest name (usually the most general).
         If tied, pick alphabetically first for determinism.
         """
-        return min(names, key=lambda n: (len(n), n))
+        return template_display_name(names)
 
     def _compute_coverage_stats(
         self,
@@ -2622,6 +2626,17 @@ class ILPOptimizer:
             weighted_combo_count=weighted_combo_count(group_sizes, self.variant_weight),
             largest_combo_groups=combo_groups,
             utilization_per_card=utilization,
+            card_inclusion=card_inclusion(
+                selected_name_set,
+                self.combos,
+                completed_set,
+                group_categories=self.group_categories,
+                payoff_cards=(
+                    {name: self.payoffs.cards(name) for name in self.payoffs.names}
+                    if self.payoffs is not None
+                    else None
+                ),
+            ),
             utilization_stats=utilization_stats,
             archetype_stats=archetype_stats,
             outcome_stats=outcome_stats,
@@ -2740,6 +2755,7 @@ class ILPOptimizer:
             combo_score=solution.combo_score,
             phase1_combo_score=solution.combo_score,
             utilization_per_card=solution.utilization_per_card,
+            card_inclusion=solution.card_inclusion,
             phase1_utilization_stats=utilization_stats,
             phase1_archetype_stats=solution.archetype_stats,
             phase1_outcome_stats=solution.outcome_stats,
@@ -2967,6 +2983,7 @@ class ILPOptimizer:
             combo_score=solution.combo_score,
             phase1_combo_score=phase1_result.phase1_combo_score,
             utilization_per_card=solution.utilization_per_card,
+            card_inclusion=solution.card_inclusion,
             phase1_utilization_stats=p1,
             phase2_utilization_stats=phase2_stats,
             phase1_archetype_stats=phase1_result.phase1_archetype_stats,

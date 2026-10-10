@@ -423,6 +423,13 @@ class TestILPOptimizerSolve:
         assert result.utilization_per_card["Card A"] == 1
         assert result.utilization_per_card["Card B"] == 1
 
+        # Each card is the only one of its kind, so the cube needs both for its combo
+        assert result.card_inclusion is not None
+        assert sorted((c.card, c.reason, c.essential_combos) for c in result.card_inclusion) == [
+            ("Card A", "essential", ["combo1"]),
+            ("Card B", "essential", ["combo1"]),
+        ]
+
 
 class TestILPOptimizerTwoPhase:
     """Test two-phase optimization."""

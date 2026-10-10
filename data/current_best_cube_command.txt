@@ -12,3 +12,9 @@ task build:ilp CUBE_SIZE=310 OUTPUT=data/cube_310_v3.txt
 # builder; ILP is the only method):
 
 uv run python -m src.mtg_combo_cube -c 310 -o data/cube_310_v3.txt -t 360 -n 20000 --profile --read-api-cache --workers 8
+
+# data/current_best_cube_card_data.json (why each card is in the cube) was written later, on
+# 10 October 2026, by scoring the same cube with the same caches; it has no added_in_phase2
+# field, which only a build records. A fresh `task build:ilp` writes it alongside the stats.
+
+uv run python -m mtg_combo_cube.ilp.evaluate_cube data/current_best_cube.txt -n 20000 --card-data

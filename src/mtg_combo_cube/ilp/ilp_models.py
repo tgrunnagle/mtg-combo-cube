@@ -283,12 +283,40 @@ class PayoffStats:
     # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
     # utilization is 0 by definition; the utilization statistics leave them out)
     payoff_only: list[str]
-    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
-    # utilization is 0 by definition; the utilization statistics leave them out)
-    payoff_only: list[str]
-    # The cube's payoff-only cards: payoff cards that complete no combo of the pool (their
-    # utilization is 0 by definition; the utilization statistics leave them out)
-    payoff_only: list[str]
+
+
+# Why a card is in a cube (CardInclusionStats.reason)
+ESSENTIAL = "essential"  # a completed combo would be lost without it
+REDUNDANT = "redundant"  # in completed combos, all of which other cards complete as well
+PAYOFF_ONLY = "payoff_only"  # in no completed combo; a payoff card, there for the payoff floor
+NO_COMBO = "no_combo"  # in no completed combo and no payoff: there for a cube rule
+INCLUSION_REASONS = (ESSENTIAL, REDUNDANT, PAYOFF_ONLY, NO_COMBO)
+
+
+@dataclass
+class CardInclusionStats:
+    """Why a card is in a cube: the completed combos it takes part in and its other roles."""
+
+    card: str
+    # Completed variants the card takes part in, as a named piece or by filling a template
+    # requirement (its utilization)
+    combo_count: int
+    distinct_combo_count: int  # completed combos (groups) it takes part in
+    piece_combo_count: int  # completed variants that name it as a piece
+    template_combo_count: int  # completed variants where it fills a template requirement
+    templates: list[str]  # the requirement templates it fills in completed variants
+    # The completed combos (group keys) the cube would lose without the card: no completed
+    # variant of them is left once it is gone
+    essential_combos: list[str]
+    # Completed combos it takes part in per outcome category (categories with none left
+    # out; empty without an outcome table)
+    outcomes: dict[str, int]
+    payoff_categories: list[str]  # the payoff table categories it is a payoff of
+    reason: str  # one of INCLUSION_REASONS
+
+    @property
+    def essential_combo_count(self) -> int:
+        return len(self.essential_combos)
 
 
 @dataclass
@@ -373,6 +401,8 @@ class OptimizationResult:
 
     # Multi-objective optimization fields (backward compatible)
     utilization_per_card: dict[str, int] | None = None
+    # Why each card of the final cube is in it, most-used first
+    card_inclusion: list[CardInclusionStats] | None = None
     phase1_utilization_stats: UtilizationStats | None = None
     phase2_utilization_stats: UtilizationStats | None = None
     phase1_solve_time: float | None = None

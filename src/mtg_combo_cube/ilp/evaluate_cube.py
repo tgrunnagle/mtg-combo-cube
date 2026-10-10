@@ -17,6 +17,7 @@ from pathlib import Path
 from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
 from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.cube_evaluation import (
+    card_inclusion,
     card_utilization,
     combos_per_outcome,
     completable_combo_ids,
@@ -25,12 +26,14 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_card_mix_stats,
     compute_color_stats,
     compute_utilization_stats,
+    group_outcomes,
     largest_combo_groups,
     popularity_stats,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
+    CardInclusionStats,
     ComboGroupStats,
     OutcomeStats,
     PayoffStats,
@@ -43,6 +46,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     fetch_card_attributes,
     fetch_payoff_queries,
     format_archetype_stats,
+    format_card_inclusion,
     format_card_mix_stats,
     format_color_stats,
     format_combo_count,
@@ -51,6 +55,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_payoff_table,
     format_popularity_stats,
     load_instance,
+    write_card_data,
 )
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, OutcomeCategoryError
 from mtg_combo_cube.ilp.payoffs import (
@@ -82,6 +87,7 @@ class CubeEvaluation:
     archetype_stats: ArchetypeStats | None  # distinct combos per draft archetype, if known
     popularity_stats: PopularityStats  # how popular the distinct combos are
     outcome_stats: OutcomeStats | None  # distinct combos per outcome category, with a table
+    card_inclusion: list[CardInclusionStats]  # why each card is in the cube, most-used first
     payoff_stats: PayoffStats | None = None  # payoff cards per category, with a payoff table
     payoffs: PayoffTable | None = None  # the resolved payoff table, with one
 
@@ -154,6 +160,21 @@ async def evaluate_cube(
             if outcome_categories is not None
             else None
         ),
+        card_inclusion=card_inclusion(
+            cards,
+            combos,
+            completed,
+            group_categories=(
+                group_outcomes(combos, outcome_categories)
+                if outcome_categories is not None
+                else None
+            ),
+            payoff_cards=(
+                {name: payoffs.cards(name) for name in payoffs.names}
+                if payoffs is not None
+                else None
+            ),
+        ),
         payoff_stats=payoffs.stats(cards, payoff_only) if payoffs is not None else None,
         payoffs=payoffs,
     )
@@ -191,6 +212,12 @@ if __name__ == "__main__":
         default=DEFAULT_INFERENCE_THRESHOLD,
         help="Bundled variants a card must be the outlet of to count as an inferred payoff, as "
         f"used for the build (default: {DEFAULT_INFERENCE_THRESHOLD})",
+    )
+    argparser.add_argument(
+        "--card-data",
+        action="store_true",
+        help="Also write why each card is in the cube to <cube>_card_data.json beside the "
+        "cube list",
     )
     args = argparser.parse_args()
     if args.payoff_inference_min < 1:
@@ -253,6 +280,7 @@ if __name__ == "__main__":
     if evaluation.outcome_stats is not None:
         print("Outcomes (distinct combos): " + format_outcome_stats(evaluation.outcome_stats))
     print("Popularity (distinct combos): " + format_popularity_stats(evaluation.popularity_stats))
+    print("Cards by reason: " + format_card_inclusion(evaluation.card_inclusion))
     if evaluation.payoff_stats is not None and evaluation.payoffs is not None:
         print("Payoff cards in the cube: " + format_payoff_stats(evaluation.payoff_stats))
         print("Payoff table: " + format_payoff_table(evaluation.payoffs))
@@ -266,3 +294,5 @@ if __name__ == "__main__":
         print(f"Colors (by color identity): {format_color_stats(color_stats)}")
         card_mix = compute_card_mix_stats(cube_cards, attributes)
         print(f"Card mix: {format_card_mix_stats(card_mix)}")
+    if args.card_data:
+        print(f"Per-card data: {write_card_data(evaluation.card_inclusion, args.cube_file)}")

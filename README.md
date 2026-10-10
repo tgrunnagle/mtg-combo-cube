@@ -123,6 +123,7 @@ uv run python -m src.mtg_combo_cube -c 450 -o my_cube.txt -t 1800
 
 - **data/cube.txt**: List of selected cards (one per line)
 - **data/cube_stats.json**: Utilization statistics and optimization metrics
+- **data/cube_card_data.json**: Why each card is in the cube, one entry per card, most-used first: its `reason` (`essential`: the cube would lose a combo without it; `redundant`: in combos that other cards complete too; `payoff_only`: in no combo, there for the payoff floor; `no_combo`: in no combo, there for another cube rule), the variants and distinct combos it takes part in (as a named piece or by filling a template), the combos it is essential to, the templates it fills, its combos per outcome category, its payoff categories, and whether Phase 2 added it
 
 The stats file contains:
 
@@ -179,6 +180,8 @@ To score an existing cube list (true variant and distinct combo counts, the larg
 ```bash
 uv run python -m mtg_combo_cube.ilp.evaluate_cube data/cube.txt -n 20000
 ```
+
+Add `--card-data` to also write the per-card data to `data/cube_card_data.json` (without `added_in_phase2`, which only a build knows).
 
 Use the same `-n` (and `--config`, `--payoff-inference-min`) as the build you want to compare with. Cached data is read when present and fetched otherwise (only card attributes are written to the cache); cards that are not part of the instance are reported and count with utilization 0.
 
@@ -252,7 +255,7 @@ Integer Linear Programming using OR-Tools CP-SAT solver. Phase 1 is solved to pr
 - Phase 1: Maximize combo count
 - Phase 2: Balance card utilization while preserving combo count (within tolerance)
 - Produces balanced cubes where cards participate more evenly across combos
-- Outputs detailed statistics to `{output}_stats.json`
+- Outputs detailed statistics to `{output}_stats.json` and per-card data to `{output}_card_data.json`
 
 **Combos and variants**
 

@@ -10,7 +10,12 @@ from itertools import combinations
 from statistics import median
 
 from mtg_combo_cube.ilp.ilp_models import (
+    ESSENTIAL,
+    NO_COMBO,
+    PAYOFF_ONLY,
+    REDUNDANT,
     ArchetypeStats,
+    CardInclusionStats,
     CardMixStats,
     ColorStats,
     ComboData,
@@ -338,6 +343,105 @@ def card_utilization(selected_cards: Collection[str], combos: list[ComboData]) -
                 utilization[card] += 1
 
     return utilization
+
+
+def template_display_name(names: Collection[str]) -> str:
+    """The name a requirement template is reported under: its shortest alias, then the first."""
+    return min(names, key=lambda name: (len(name), name))
+
+
+def _survives_without(combo: ComboData, card: str, fillers: list[frozenset[str]]) -> bool:
+    """Whether a completed variant stays complete once `card` leaves the cube."""
+    return card not in combo.required_cards and all(opt - {card} for opt in fillers)
+
+
+def _inclusion_reason(essential: int, distinct: int, payoff_categories: list[str]) -> str:
+    if essential:
+        return ESSENTIAL
+    if distinct:
+        return REDUNDANT
+    return PAYOFF_ONLY if payoff_categories else NO_COMBO
+
+
+def card_inclusion(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+    group_categories: Mapping[str, frozenset[str]] | None = None,
+    payoff_cards: Mapping[str, Collection[str]] | None = None,
+) -> list[CardInclusionStats]:
+    """
+    Why each selected card is in the cube: the completed combos it takes part in (counted
+    as utilization counts them), the templates it fills, the completed combos the cube
+    would lose without it, and its payoff categories. Cards come most-used first.
+
+    `completed_ids` saves recomputing the completed variants; `group_categories` (the
+    result of group_outcomes) adds the outcome categories of the card's combos, and
+    `payoff_cards` (payoff category -> cards) its payoff categories.
+    """
+    selected = set(selected_cards)
+    variants = _completed_variants(selected, combos, completed_ids)
+    # The selected cards that fill each requirement of each completed variant
+    fillers = {
+        combo.id: [opt.cards & selected for opt in combo.requirement_options] for combo in variants
+    }
+    by_group: dict[str, list[ComboData]] = {}
+    for combo in variants:
+        by_group.setdefault(combo.group_key, []).append(combo)
+
+    pieces: dict[str, int] = dict.fromkeys(selected, 0)
+    fills: dict[str, int] = dict.fromkeys(selected, 0)
+    groups: dict[str, set[str]] = {card: set() for card in selected}
+    template_keys: dict[str, set[str]] = {card: set() for card in selected}
+    template_names: dict[str, set[str]] = {}
+    for combo in variants:
+        for card in combo.required_cards & selected:
+            pieces[card] += 1
+            groups[card].add(combo.group_key)
+        filled: set[str] = set()
+        for opt, cards in zip(combo.requirement_options, fillers[combo.id], strict=True):
+            template_names.setdefault(opt.group_key, set()).add(opt.template_name)
+            for card in cards:
+                template_keys[card].add(opt.group_key)
+            filled |= cards
+        for card in filled - combo.required_cards:
+            fills[card] += 1
+            groups[card].add(combo.group_key)
+
+    categories_of: dict[str, list[str]] = {card: [] for card in selected}
+    for name, cards in (payoff_cards or {}).items():
+        for card in selected.intersection(cards):
+            categories_of[card].append(name)
+
+    stats = []
+    for card in selected:
+        essential = sorted(
+            key
+            for key in groups[card]
+            if not any(_survives_without(combo, card, fillers[combo.id]) for combo in by_group[key])
+        )
+        outcomes: dict[str, int] = {}
+        if group_categories is not None:
+            for key in groups[card]:
+                for name in group_categories.get(key, ()):
+                    outcomes[name] = outcomes.get(name, 0) + 1
+        stats.append(
+            CardInclusionStats(
+                card=card,
+                combo_count=pieces[card] + fills[card],
+                distinct_combo_count=len(groups[card]),
+                piece_combo_count=pieces[card],
+                template_combo_count=fills[card],
+                templates=sorted(
+                    template_display_name(template_names[key]) for key in template_keys[card]
+                ),
+                essential_combos=essential,
+                outcomes=dict(sorted(outcomes.items(), key=lambda item: (-item[1], item[0]))),
+                payoff_categories=categories_of[card],
+                reason=_inclusion_reason(len(essential), len(groups[card]), categories_of[card]),
+            )
+        )
+    return sorted(stats, key=lambda s: (-s.combo_count, -s.essential_combo_count, s.card))
 
 
 def compute_utilization_stats(utilization: dict[str, int]) -> UtilizationStats:

@@ -1,0 +1,9032 @@
+{
+  "summary": {
+    "cards_per_reason": {
+      "essential": 285,
+      "redundant": 13,
+      "payoff_only": 12,
+      "no_combo": 0
+    },
+    "cards_in_one_combo": 13
+  },
+  "cards": [
+    {
+      "card": "Ashnod's Altar",
+      "reason": "essential",
+      "combo_count": 152,
+      "distinct_combo_count": 141,
+      "essential_combo_count": 106,
+      "piece_combo_count": 152,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 141,
+        "mana": 124,
+        "tokens": 52,
+        "counters": 49,
+        "damage": 34,
+        "mill": 22,
+        "storm": 15,
+        "draw": 8,
+        "lifegain": 6,
+        "win": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10108",
+        "10109",
+        "10650",
+        "10679",
+        "1078",
+        "1083",
+        "10895",
+        "1109",
+        "11166",
+        "11351",
+        "12133",
+        "12206",
+        "12983",
+        "13220",
+        "13892",
+        "14040",
+        "14045",
+        "141",
+        "14419",
+        "14573",
+        "14647",
+        "14692",
+        "15076",
+        "15130",
+        "15324",
+        "15325",
+        "15326",
+        "15327",
+        "15328",
+        "15605",
+        "15607",
+        "15937",
+        "15979",
+        "16388",
+        "1648",
+        "1650",
+        "16622",
+        "175",
+        "17547",
+        "17592",
+        "17594",
+        "17653",
+        "1813",
+        "1887",
+        "20327",
+        "20344",
+        "20348",
+        "20604",
+        "2141",
+        "2160",
+        "21707",
+        "2232",
+        "23577",
+        "23651",
+        "23701",
+        "23709",
+        "2499",
+        "2506",
+        "25965",
+        "26199",
+        "2678",
+        "2688",
+        "27116",
+        "27517",
+        "27775",
+        "27798",
+        "2855",
+        "2922",
+        "2951",
+        "30574",
+        "3114",
+        "31491",
+        "31738",
+        "3267",
+        "33062",
+        "4155",
+        "437",
+        "4464",
+        "5015",
+        "5192",
+        "5324",
+        "595",
+        "596",
+        "598",
+        "603",
+        "607",
+        "61",
+        "611",
+        "612",
+        "6905",
+        "6906",
+        "7492",
+        "7494",
+        "7521",
+        "7710",
+        "7986",
+        "7992",
+        "8166",
+        "8249",
+        "8252",
+        "8255",
+        "9131",
+        "9189",
+        "9213",
+        "9587",
+        "9588"
+      ]
+    },
+    {
+      "card": "Phyrexian Altar",
+      "reason": "essential",
+      "combo_count": 92,
+      "distinct_combo_count": 86,
+      "essential_combo_count": 58,
+      "piece_combo_count": 92,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 86,
+        "mana": 54,
+        "counters": 33,
+        "damage": 27,
+        "mill": 21,
+        "tokens": 16,
+        "storm": 9,
+        "lifegain": 5,
+        "draw": 3,
+        "win": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10894",
+        "1114",
+        "11350",
+        "13795",
+        "142",
+        "14572",
+        "14646",
+        "14652",
+        "14653",
+        "14660",
+        "14661",
+        "14665",
+        "14693",
+        "15075",
+        "15131",
+        "15893",
+        "15936",
+        "15978",
+        "17546",
+        "17591",
+        "18814",
+        "18815",
+        "18816",
+        "19840",
+        "20329",
+        "20345",
+        "20349",
+        "2142",
+        "2233",
+        "23576",
+        "23652",
+        "23657",
+        "2500",
+        "26178",
+        "26669",
+        "28439",
+        "2950",
+        "3115",
+        "31445",
+        "4156",
+        "438",
+        "4572",
+        "5016",
+        "597",
+        "604",
+        "613",
+        "62",
+        "695",
+        "7493",
+        "7709",
+        "7991",
+        "8165",
+        "8248",
+        "8251",
+        "8254",
+        "8662",
+        "9132",
+        "9188"
+      ]
+    },
+    {
+      "card": "Krark-Clan Ironworks",
+      "reason": "essential",
+      "combo_count": 61,
+      "distinct_combo_count": 57,
+      "essential_combo_count": 45,
+      "piece_combo_count": 61,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 49,
+        "triggers": 47,
+        "tokens": 22,
+        "counters": 13,
+        "storm": 11,
+        "draw": 7,
+        "mill": 5,
+        "damage": 3,
+        "lifegain": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10420",
+        "10681",
+        "12136",
+        "12984",
+        "14044",
+        "14224",
+        "14420",
+        "15235",
+        "15606",
+        "15608",
+        "15862",
+        "16623",
+        "17548",
+        "1821",
+        "19907",
+        "20328",
+        "20605",
+        "21706",
+        "23700",
+        "23708",
+        "25828",
+        "25829",
+        "25830",
+        "25831",
+        "25832",
+        "25833",
+        "25834",
+        "25962",
+        "26200",
+        "27117",
+        "27774",
+        "27797",
+        "30554",
+        "31641",
+        "3264",
+        "3266",
+        "32776",
+        "33244",
+        "4137",
+        "4571",
+        "7522",
+        "7711",
+        "7993",
+        "8397",
+        "9589"
+      ]
+    },
+    {
+      "card": "Pitiless Plunderer",
+      "reason": "essential",
+      "combo_count": 61,
+      "distinct_combo_count": 24,
+      "essential_combo_count": 24,
+      "piece_combo_count": 61,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 24,
+        "mana": 14,
+        "damage": 10,
+        "counters": 9,
+        "mill": 8,
+        "tokens": 7,
+        "storm": 5,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11838",
+        "11839",
+        "11840",
+        "11842",
+        "16705",
+        "1828",
+        "18814",
+        "18815",
+        "18816",
+        "25582",
+        "26529",
+        "26530",
+        "26944",
+        "26945",
+        "26946",
+        "28515",
+        "29482",
+        "29483",
+        "30204",
+        "34119",
+        "4169",
+        "4248",
+        "692",
+        "692+30584"
+      ]
+    },
+    {
+      "card": "Freed from the Real",
+      "reason": "essential",
+      "combo_count": 60,
+      "distinct_combo_count": 59,
+      "essential_combo_count": 52,
+      "piece_combo_count": 60,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 51,
+        "draw": 5,
+        "triggers": 5,
+        "other": 2,
+        "storm": 2,
+        "tokens": 2,
+        "lifegain": 1,
+        "lock": 1,
+        "mill": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11186",
+        "11188",
+        "12118",
+        "12119",
+        "14373",
+        "14484",
+        "14586",
+        "14587",
+        "14590",
+        "149+2725",
+        "16580",
+        "2175",
+        "2177",
+        "2208+30510",
+        "2352",
+        "2613",
+        "2615",
+        "2725+8493",
+        "3102",
+        "3838",
+        "3839",
+        "3846+30510",
+        "3850+30510",
+        "3851+30510",
+        "3853+30510",
+        "3854+30510",
+        "3860+30510",
+        "3861+30510",
+        "3862+30510",
+        "3863+30510",
+        "3864+30510",
+        "3866",
+        "3867+30510",
+        "3871+30510",
+        "3872+30510",
+        "3873+30510",
+        "3874+30510",
+        "3875+30510",
+        "3877",
+        "3922+30510",
+        "3926+30510",
+        "3927+30510",
+        "3928+30510",
+        "3929+30510",
+        "3930+30510",
+        "3932",
+        "3940",
+        "3944",
+        "554+2725",
+        "7900",
+        "8520",
+        "8662"
+      ]
+    },
+    {
+      "card": "Putrid Goblin",
+      "reason": "essential",
+      "combo_count": 60,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 15,
+        "mana": 10,
+        "damage": 9,
+        "counters": 7,
+        "mill": 6,
+        "lifegain": 3,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12685",
+        "12686",
+        "12687",
+        "12688",
+        "15326",
+        "25935",
+        "29040",
+        "2922"
+      ]
+    },
+    {
+      "card": "Murderous Redcap",
+      "reason": "essential",
+      "combo_count": 59,
+      "distinct_combo_count": 13,
+      "essential_combo_count": 6,
+      "piece_combo_count": 7,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 13,
+        "damage": 9,
+        "counters": 7,
+        "mana": 7,
+        "mill": 5,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11669",
+        "13439",
+        "15327",
+        "28505",
+        "3321",
+        "6372"
+      ]
+    },
+    {
+      "card": "Woodfall Primus",
+      "reason": "redundant",
+      "combo_count": 59,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 59,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Green Persist Creature",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 8,
+        "counters": 7,
+        "damage": 7,
+        "mana": 7,
+        "mill": 6,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Puppeteer Clique",
+      "reason": "essential",
+      "combo_count": 56,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 11,
+        "mana": 8,
+        "counters": 6,
+        "damage": 6,
+        "mill": 6,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2922",
+        "3322",
+        "9131",
+        "9132"
+      ]
+    },
+    {
+      "card": "Pemmin's Aura",
+      "reason": "essential",
+      "combo_count": 54,
+      "distinct_combo_count": 54,
+      "essential_combo_count": 47,
+      "piece_combo_count": 54,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 48,
+        "draw": 5,
+        "triggers": 3,
+        "other": 2,
+        "tokens": 2,
+        "lifegain": 1,
+        "lock": 1,
+        "storm": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11187",
+        "11189",
+        "12120",
+        "12121",
+        "14372",
+        "14485",
+        "14588",
+        "14589",
+        "14591",
+        "150+2725",
+        "16589",
+        "2209+30510",
+        "2351",
+        "2619",
+        "2621",
+        "2725+8494",
+        "3841",
+        "3842",
+        "3948+30510",
+        "3952+30510",
+        "3953+30510",
+        "3956+30510",
+        "3962+30510",
+        "3963+30510",
+        "3964+30510",
+        "3965+30510",
+        "3966+30510",
+        "3968",
+        "3969+30510",
+        "3973+30510",
+        "3974+30510",
+        "3975+30510",
+        "3976+30510",
+        "3977+30510",
+        "3979",
+        "4024+30510",
+        "4028+30510",
+        "4029+30510",
+        "4030+30510",
+        "4031+30510",
+        "4032+30510",
+        "4034",
+        "4042",
+        "4046",
+        "555+2725",
+        "7901",
+        "8525"
+      ]
+    },
+    {
+      "card": "Glen Elendra Archmage",
+      "reason": "essential",
+      "combo_count": 53,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 1,
+      "piece_combo_count": 1,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 7,
+        "counters": 6,
+        "damage": 6,
+        "mill": 5,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15324"
+      ]
+    },
+    {
+      "card": "River Kelpie",
+      "reason": "essential",
+      "combo_count": 53,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 1,
+      "piece_combo_count": 1,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 7,
+        "counters": 6,
+        "damage": 6,
+        "mill": 5,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15325"
+      ]
+    },
+    {
+      "card": "Persistent Constrictor",
+      "reason": "redundant",
+      "combo_count": 52,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 52,
+      "templates": [
+        "Creature with Persist or Undying",
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 7,
+        "counters": 6,
+        "damage": 6,
+        "mana": 6,
+        "mill": 5,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Clock of Omens",
+      "reason": "essential",
+      "combo_count": 48,
+      "distinct_combo_count": 37,
+      "essential_combo_count": 37,
+      "piece_combo_count": 48,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 15,
+        "mana": 14,
+        "tokens": 14,
+        "other": 8,
+        "draw": 7,
+        "lifegain": 5,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10661",
+        "13889",
+        "13891",
+        "14070",
+        "17625",
+        "24741",
+        "24742",
+        "24746",
+        "25828",
+        "25829",
+        "25830",
+        "25831",
+        "25832",
+        "25833",
+        "25834",
+        "26199",
+        "26200",
+        "26304",
+        "26305",
+        "26305+29969",
+        "29213",
+        "29524",
+        "29971",
+        "29972",
+        "4165",
+        "4166",
+        "5486",
+        "5888",
+        "7835",
+        "7836",
+        "7837",
+        "7838",
+        "7839",
+        "7898",
+        "9299",
+        "9300",
+        "9301"
+      ]
+    },
+    {
+      "card": "Altar of Dementia",
+      "reason": "essential",
+      "combo_count": 48,
+      "distinct_combo_count": 45,
+      "essential_combo_count": 22,
+      "piece_combo_count": 48,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mill": 45,
+        "triggers": 45,
+        "counters": 25,
+        "damage": 24,
+        "mana": 23,
+        "storm": 5,
+        "tokens": 5,
+        "draw": 3,
+        "lifegain": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10896",
+        "1107",
+        "11352",
+        "11405+28956",
+        "12685",
+        "14643",
+        "15863",
+        "15980",
+        "1812",
+        "1952",
+        "20346",
+        "20350",
+        "2231",
+        "23573",
+        "2501",
+        "25498",
+        "26944",
+        "3322",
+        "4154",
+        "439",
+        "5014",
+        "8253"
+      ]
+    },
+    {
+      "card": "Kiki-Jiki, Mirror Breaker",
+      "reason": "essential",
+      "combo_count": 47,
+      "distinct_combo_count": 28,
+      "essential_combo_count": 28,
+      "piece_combo_count": 47,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 26,
+        "tokens": 13,
+        "mana": 12,
+        "damage": 9,
+        "mill": 4,
+        "counters": 2,
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10768",
+        "14593",
+        "15461",
+        "17436",
+        "2373",
+        "2472",
+        "2528",
+        "25498",
+        "25499",
+        "2682",
+        "28328",
+        "2946",
+        "3107",
+        "3107+7940",
+        "31687",
+        "4126",
+        "4293",
+        "4294",
+        "4296",
+        "4297",
+        "6080",
+        "8662",
+        "914",
+        "9187",
+        "9188",
+        "9189",
+        "922",
+        "934"
+      ]
+    },
+    {
+      "card": "Blasting Station",
+      "reason": "essential",
+      "combo_count": 45,
+      "distinct_combo_count": 42,
+      "essential_combo_count": 18,
+      "piece_combo_count": 45,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 42,
+        "damage": 40,
+        "mill": 24,
+        "mana": 23,
+        "counters": 21,
+        "storm": 11,
+        "tokens": 6,
+        "draw": 4,
+        "lifegain": 3
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "1111",
+        "17456",
+        "17460",
+        "1814",
+        "1815",
+        "1816",
+        "1826",
+        "18643",
+        "20748",
+        "20749",
+        "2505",
+        "25323",
+        "25324",
+        "25499",
+        "26945",
+        "4153",
+        "4165",
+        "9139"
+      ]
+    },
+    {
+      "card": "Goblin Bombardment",
+      "reason": "essential",
+      "combo_count": 44,
+      "distinct_combo_count": 41,
+      "essential_combo_count": 17,
+      "piece_combo_count": 44,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 41,
+        "damage": 40,
+        "counters": 26,
+        "mill": 23,
+        "mana": 22,
+        "storm": 6,
+        "tokens": 6,
+        "lifegain": 3,
+        "draw": 1
+      },
+      "payoff_categories": [
+        "tokens"
+      ],
+      "essential_combos": [
+        "10648",
+        "12688",
+        "14642",
+        "15080",
+        "15939",
+        "20347",
+        "20351",
+        "22506",
+        "23575",
+        "2503",
+        "25966",
+        "26946",
+        "5597",
+        "5598",
+        "5613",
+        "5614",
+        "9187"
+      ]
+    },
+    {
+      "card": "Lesser Masticore",
+      "reason": "essential",
+      "combo_count": 44,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 36,
+      "templates": [
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 12,
+        "mana": 9,
+        "mill": 6,
+        "counters": 5,
+        "damage": 4,
+        "lifegain": 1
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "15328",
+        "15978",
+        "15979",
+        "15980",
+        "4204",
+        "5014",
+        "5015",
+        "5016"
+      ]
+    },
+    {
+      "card": "Ghave, Guru of Spores",
+      "reason": "essential",
+      "combo_count": 42,
+      "distinct_combo_count": 35,
+      "essential_combo_count": 35,
+      "piece_combo_count": 42,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 35,
+        "tokens": 21,
+        "counters": 18,
+        "mana": 18,
+        "damage": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10108",
+        "10109",
+        "13220",
+        "13892",
+        "17429",
+        "17430",
+        "17431",
+        "17591",
+        "17594",
+        "17653",
+        "19660",
+        "19661",
+        "19662",
+        "19663",
+        "19664",
+        "23651",
+        "23652",
+        "23657",
+        "27017",
+        "27321",
+        "27322",
+        "32946",
+        "4169",
+        "595",
+        "596",
+        "597",
+        "598",
+        "603",
+        "604",
+        "607",
+        "611",
+        "612",
+        "613",
+        "9131",
+        "9132"
+      ]
+    },
+    {
+      "card": "Karmic Guide",
+      "reason": "essential",
+      "combo_count": 36,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 36,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "mana": 6,
+        "mill": 6,
+        "counters": 5,
+        "damage": 4,
+        "lifegain": 2,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10894",
+        "10895",
+        "10896",
+        "10897",
+        "10899",
+        "11405+28956",
+        "28956",
+        "29432",
+        "2946",
+        "899",
+        "9546"
+      ]
+    },
+    {
+      "card": "Thunderblust",
+      "reason": "redundant",
+      "combo_count": 36,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 36,
+      "templates": [
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "counters": 4,
+        "damage": 4,
+        "mana": 4,
+        "triggers": 4,
+        "mill": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Twilight Shepherd",
+      "reason": "redundant",
+      "combo_count": 36,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 36,
+      "templates": [
+        "Persist Creature"
+      ],
+      "outcomes": {
+        "counters": 4,
+        "damage": 4,
+        "mana": 4,
+        "triggers": 4,
+        "mill": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Umbral Mantle",
+      "reason": "essential",
+      "combo_count": 35,
+      "distinct_combo_count": 33,
+      "essential_combo_count": 29,
+      "piece_combo_count": 35,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 23,
+        "triggers": 7,
+        "damage": 6,
+        "draw": 6,
+        "other": 5,
+        "storm": 4,
+        "tokens": 4,
+        "lifegain": 3,
+        "counters": 1,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10028",
+        "10420",
+        "13012",
+        "13114",
+        "13115",
+        "13116",
+        "13117",
+        "14592",
+        "15372",
+        "16386",
+        "21673",
+        "22360",
+        "22361",
+        "22459",
+        "22460",
+        "23433",
+        "26662",
+        "2725+27971",
+        "2725+8707+27971",
+        "27971",
+        "2934",
+        "29879",
+        "4584",
+        "5613",
+        "5614",
+        "7902",
+        "7903",
+        "7904",
+        "7905"
+      ]
+    },
+    {
+      "card": "Thornbite Staff",
+      "reason": "essential",
+      "combo_count": 33,
+      "distinct_combo_count": 31,
+      "essential_combo_count": 31,
+      "piece_combo_count": 33,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 30,
+        "mana": 14,
+        "tokens": 12,
+        "damage": 10,
+        "mill": 3,
+        "storm": 3,
+        "counters": 1
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "14642",
+        "14643",
+        "14644",
+        "14645",
+        "14646",
+        "14647",
+        "15075",
+        "15076",
+        "15080",
+        "15936",
+        "15937",
+        "15939",
+        "18643",
+        "1887",
+        "2160",
+        "2528",
+        "25498",
+        "25499",
+        "26121",
+        "29237",
+        "29238",
+        "32278",
+        "4126",
+        "4757",
+        "7493",
+        "7494",
+        "7532",
+        "9187",
+        "9188",
+        "9189",
+        "997"
+      ]
+    },
+    {
+      "card": "Pili-Pala",
+      "reason": "essential",
+      "combo_count": 33,
+      "distinct_combo_count": 26,
+      "essential_combo_count": 26,
+      "piece_combo_count": 33,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 26,
+        "counters": 6,
+        "draw": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1347",
+        "1352",
+        "1353",
+        "1356",
+        "1357",
+        "1360",
+        "1361",
+        "14399",
+        "14400",
+        "21997",
+        "21999",
+        "22001",
+        "22003",
+        "22357",
+        "22358",
+        "25848",
+        "25849",
+        "27010",
+        "27517",
+        "2996",
+        "3005",
+        "31544",
+        "4058",
+        "526",
+        "530",
+        "534"
+      ]
+    },
+    {
+      "card": "Cathars' Crusade",
+      "reason": "essential",
+      "combo_count": 32,
+      "distinct_combo_count": 26,
+      "essential_combo_count": 24,
+      "piece_combo_count": 32,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 26,
+        "triggers": 26,
+        "tokens": 13,
+        "mana": 11,
+        "damage": 3,
+        "mill": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13795",
+        "17429",
+        "2499",
+        "2500",
+        "2501",
+        "2502",
+        "2503",
+        "2504",
+        "2505",
+        "27017",
+        "27053",
+        "358",
+        "5815",
+        "596",
+        "597",
+        "6618",
+        "6686",
+        "7521",
+        "7522",
+        "8165",
+        "8166",
+        "9212",
+        "9213",
+        "9854"
+      ]
+    },
+    {
+      "card": "Doubling Season",
+      "reason": "essential",
+      "combo_count": 32,
+      "distinct_combo_count": 32,
+      "essential_combo_count": 24,
+      "piece_combo_count": 32,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 22,
+        "tokens": 20,
+        "mana": 16,
+        "counters": 9,
+        "storm": 7,
+        "damage": 3,
+        "draw": 3,
+        "lock": 3,
+        "turns": 3,
+        "lifegain": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1078",
+        "11758",
+        "11842",
+        "12469",
+        "14660",
+        "15238",
+        "15408",
+        "15410",
+        "18814",
+        "19660",
+        "23360",
+        "25828",
+        "32489",
+        "32918",
+        "5192",
+        "598",
+        "6675",
+        "6676",
+        "6677",
+        "6678",
+        "6679",
+        "7837",
+        "9208",
+        "9300"
+      ]
+    },
+    {
+      "card": "Luminous Broodmoth",
+      "reason": "essential",
+      "combo_count": 32,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 32,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "counters": 7,
+        "mana": 5,
+        "mill": 5,
+        "damage": 4,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1043",
+        "1051",
+        "1051+1669",
+        "1669",
+        "28439",
+        "28515",
+        "33815",
+        "4204",
+        "5316",
+        "5316+33815",
+        "5355"
+      ]
+    },
+    {
+      "card": "Chromatic Orrery",
+      "reason": "essential",
+      "combo_count": 31,
+      "distinct_combo_count": 30,
+      "essential_combo_count": 26,
+      "piece_combo_count": 31,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 30,
+        "mana": 30,
+        "triggers": 13,
+        "lifegain": 3,
+        "tokens": 2,
+        "damage": 1,
+        "mill": 1,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12118",
+        "12120",
+        "12206",
+        "13012",
+        "13014",
+        "14586",
+        "14588",
+        "14888",
+        "16580",
+        "16589",
+        "23433",
+        "24742",
+        "24812",
+        "2615",
+        "2621",
+        "29879",
+        "4153",
+        "4154",
+        "4155",
+        "4156",
+        "4201",
+        "4335",
+        "6905",
+        "8657",
+        "8658",
+        "9587"
+      ]
+    },
+    {
+      "card": "Ashaya, Soul of the Wild",
+      "reason": "essential",
+      "combo_count": 31,
+      "distinct_combo_count": 20,
+      "essential_combo_count": 19,
+      "piece_combo_count": 31,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 18,
+        "damage": 3,
+        "triggers": 3,
+        "counters": 1,
+        "lifegain": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11585",
+        "11586",
+        "16948",
+        "17843",
+        "17846",
+        "17848",
+        "17850",
+        "17851",
+        "19014",
+        "26784",
+        "2983",
+        "2996",
+        "3005",
+        "3029",
+        "3042",
+        "31580",
+        "32306",
+        "4058",
+        "5654"
+      ]
+    },
+    {
+      "card": "Viscera Seer",
+      "reason": "essential",
+      "combo_count": 31,
+      "distinct_combo_count": 30,
+      "essential_combo_count": 8,
+      "piece_combo_count": 31,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 30,
+        "damage": 23,
+        "counters": 21,
+        "mill": 20,
+        "mana": 18,
+        "tokens": 4,
+        "lifegain": 3,
+        "storm": 1
+      },
+      "payoff_categories": [
+        "triggers"
+      ],
+      "essential_combos": [
+        "10897",
+        "11353",
+        "12686",
+        "14644",
+        "23572",
+        "2502",
+        "3321",
+        "6372"
+      ]
+    },
+    {
+      "card": "Deadeye Navigator",
+      "reason": "essential",
+      "combo_count": 30,
+      "distinct_combo_count": 22,
+      "essential_combo_count": 21,
+      "piece_combo_count": 30,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 21,
+        "mana": 13,
+        "tokens": 5,
+        "draw": 4,
+        "lifegain": 4,
+        "lock": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10217",
+        "11755",
+        "11756",
+        "11758",
+        "13389",
+        "14198",
+        "14519",
+        "17791",
+        "24812",
+        "27087",
+        "28260",
+        "28262",
+        "28262+28369",
+        "28370",
+        "30110",
+        "32938",
+        "33286",
+        "6347",
+        "7648",
+        "8396",
+        "8658"
+      ]
+    },
+    {
+      "card": "Carrion Feeder",
+      "reason": "essential",
+      "combo_count": 30,
+      "distinct_combo_count": 29,
+      "essential_combo_count": 9,
+      "piece_combo_count": 30,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 29,
+        "counters": 27,
+        "damage": 22,
+        "mill": 18,
+        "mana": 16,
+        "tokens": 4,
+        "lifegain": 2,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10899",
+        "11354",
+        "12687",
+        "14645",
+        "23574",
+        "2504",
+        "25582",
+        "6564",
+        "6565"
+      ]
+    },
+    {
+      "card": "Intruder Alarm",
+      "reason": "essential",
+      "combo_count": 29,
+      "distinct_combo_count": 29,
+      "essential_combo_count": 29,
+      "piece_combo_count": 29,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 29,
+        "mana": 28,
+        "tokens": 20,
+        "storm": 6,
+        "counters": 1,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10194",
+        "10195",
+        "10679",
+        "10681",
+        "12170",
+        "14196",
+        "14197",
+        "14198",
+        "16720",
+        "17144",
+        "17145",
+        "17376",
+        "18189",
+        "18372",
+        "20540",
+        "2188",
+        "2472",
+        "27118",
+        "2769",
+        "28022",
+        "3106",
+        "32678",
+        "34057",
+        "4396",
+        "6244",
+        "7492",
+        "7531",
+        "8478",
+        "9798"
+      ]
+    },
+    {
+      "card": "Staff of Domination",
+      "reason": "essential",
+      "combo_count": 29,
+      "distinct_combo_count": 23,
+      "essential_combo_count": 19,
+      "piece_combo_count": 29,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 22,
+        "lifegain": 22,
+        "mana": 22,
+        "tokens": 4,
+        "triggers": 4,
+        "damage": 2,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10030",
+        "11323",
+        "11323+29879",
+        "13014",
+        "15872",
+        "16148",
+        "17501",
+        "17502",
+        "19357",
+        "19358",
+        "21671",
+        "24741",
+        "24742",
+        "24746",
+        "25834",
+        "2725+8706",
+        "28246",
+        "7906",
+        "7907"
+      ]
+    },
+    {
+      "card": "Mikaeus, the Unhallowed",
+      "reason": "essential",
+      "combo_count": 29,
+      "distinct_combo_count": 17,
+      "essential_combo_count": 17,
+      "piece_combo_count": 29,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 17,
+        "damage": 9,
+        "mana": 9,
+        "counters": 5,
+        "mill": 4,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1107",
+        "1109",
+        "1111",
+        "1113",
+        "1114",
+        "11350",
+        "11351",
+        "11352",
+        "11353",
+        "11354",
+        "12951",
+        "31636",
+        "3339",
+        "33815",
+        "5316",
+        "5316+33815",
+        "8412"
+      ]
+    },
+    {
+      "card": "Basalt Monolith",
+      "reason": "essential",
+      "combo_count": 28,
+      "distinct_combo_count": 25,
+      "essential_combo_count": 19,
+      "piece_combo_count": 28,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 19,
+        "draw": 7,
+        "triggers": 6,
+        "tokens": 4,
+        "lifegain": 3,
+        "other": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "120",
+        "122",
+        "14488",
+        "1527",
+        "1933+26850",
+        "1934+26850",
+        "21688",
+        "21689",
+        "21692",
+        "21693",
+        "24741",
+        "24742",
+        "25931",
+        "26850",
+        "2842",
+        "32954",
+        "4200",
+        "4201",
+        "948"
+      ]
+    },
+    {
+      "card": "Derevi, Empyrial Tactician",
+      "reason": "essential",
+      "combo_count": 28,
+      "distinct_combo_count": 19,
+      "essential_combo_count": 19,
+      "piece_combo_count": 28,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 19,
+        "mana": 17,
+        "draw": 7,
+        "tokens": 2,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14519",
+        "1710+6220",
+        "27087",
+        "2747",
+        "27733",
+        "27734",
+        "28353",
+        "4153",
+        "4154",
+        "4155",
+        "4156",
+        "4464",
+        "6347",
+        "7639",
+        "7640",
+        "8655",
+        "8656",
+        "8657",
+        "8658"
+      ]
+    },
+    {
+      "card": "Emiel the Blessed",
+      "reason": "essential",
+      "combo_count": 28,
+      "distinct_combo_count": 20,
+      "essential_combo_count": 19,
+      "piece_combo_count": 28,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 19,
+        "mana": 13,
+        "draw": 2,
+        "counters": 1,
+        "lock": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11585",
+        "11586",
+        "12706",
+        "12707",
+        "13387",
+        "14196",
+        "14886",
+        "14888",
+        "16003",
+        "16005",
+        "28353",
+        "28589",
+        "30111",
+        "32245",
+        "6622",
+        "7647",
+        "8479",
+        "8655",
+        "8656"
+      ]
+    },
+    {
+      "card": "Paradise Mantle",
+      "reason": "essential",
+      "combo_count": 28,
+      "distinct_combo_count": 25,
+      "essential_combo_count": 18,
+      "piece_combo_count": 24,
+      "template_combo_count": 4,
+      "templates": [
+        "Equipment with Equip Cost = {1}"
+      ],
+      "outcomes": {
+        "mana": 16,
+        "other": 6,
+        "triggers": 4,
+        "counters": 2,
+        "storm": 2,
+        "tokens": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10194",
+        "11130",
+        "11188",
+        "11189",
+        "1353",
+        "1357",
+        "1361",
+        "14481",
+        "14484",
+        "14485",
+        "21997",
+        "21999",
+        "22357",
+        "22360",
+        "8520",
+        "8525",
+        "989",
+        "991"
+      ]
+    },
+    {
+      "card": "Felidar Guardian",
+      "reason": "essential",
+      "combo_count": 28,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 14,
+      "piece_combo_count": 28,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 14,
+        "mana": 8,
+        "mill": 4,
+        "tokens": 4,
+        "counters": 2,
+        "damage": 2,
+        "draw": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11405+28956",
+        "1154",
+        "14886",
+        "14888",
+        "20848",
+        "2185",
+        "24812",
+        "28088",
+        "28646",
+        "28956",
+        "30640",
+        "562",
+        "922",
+        "9731"
+      ]
+    },
+    {
+      "card": "Nim Deathmantle",
+      "reason": "essential",
+      "combo_count": 25,
+      "distinct_combo_count": 24,
+      "essential_combo_count": 24,
+      "piece_combo_count": 25,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 23,
+        "mana": 14,
+        "tokens": 7,
+        "counters": 1,
+        "damage": 1,
+        "lifegain": 1,
+        "lock": 1,
+        "mill": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12133",
+        "12136",
+        "14419",
+        "14420",
+        "15130",
+        "15131",
+        "15862",
+        "15863",
+        "2688",
+        "27116",
+        "27117",
+        "2855",
+        "2950",
+        "2951",
+        "30574",
+        "3114",
+        "3115",
+        "31491",
+        "31641",
+        "31738",
+        "32776",
+        "4571",
+        "4572",
+        "5698"
+      ]
+    },
+    {
+      "card": "Teshar, Ancestor's Apostle",
+      "reason": "essential",
+      "combo_count": 25,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 25,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "storm": 9,
+        "draw": 7,
+        "damage": 5,
+        "mana": 5,
+        "mill": 3,
+        "counters": 2,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1812",
+        "1813",
+        "1814",
+        "1815",
+        "1816",
+        "1820",
+        "1821",
+        "1825",
+        "1826",
+        "30554"
+      ]
+    },
+    {
+      "card": "Magistrate's Scepter",
+      "reason": "essential",
+      "combo_count": 24,
+      "distinct_combo_count": 24,
+      "essential_combo_count": 24,
+      "piece_combo_count": 24,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 24,
+        "turns": 24
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12469",
+        "13708",
+        "13709",
+        "14070",
+        "14154",
+        "14156",
+        "14158",
+        "14590",
+        "14591",
+        "14592",
+        "14593",
+        "14595",
+        "15408",
+        "15410",
+        "28058",
+        "28246",
+        "30249",
+        "30752",
+        "31744",
+        "4197",
+        "5698",
+        "5704",
+        "7348",
+        "7547"
+      ]
+    },
+    {
+      "card": "Anointed Procession",
+      "reason": "essential",
+      "combo_count": 24,
+      "distinct_combo_count": 24,
+      "essential_combo_count": 15,
+      "piece_combo_count": 24,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 18,
+        "tokens": 15,
+        "mana": 11,
+        "counters": 3,
+        "storm": 3,
+        "draw": 2,
+        "lock": 2,
+        "turns": 2,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10496",
+        "11838",
+        "14661",
+        "19662",
+        "21688",
+        "21692",
+        "21706",
+        "21707",
+        "25831",
+        "595",
+        "6677",
+        "6678",
+        "7838",
+        "9299",
+        "9819"
+      ]
+    },
+    {
+      "card": "Scrap Trawler",
+      "reason": "essential",
+      "combo_count": 24,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 7,
+      "piece_combo_count": 24,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 9,
+        "storm": 8,
+        "mana": 7,
+        "counters": 5,
+        "damage": 3,
+        "tokens": 3,
+        "mill": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14224",
+        "1825",
+        "23700",
+        "23701",
+        "25320",
+        "25323",
+        "30554"
+      ]
+    },
+    {
+      "card": "Mycosynth Lattice",
+      "reason": "essential",
+      "combo_count": 23,
+      "distinct_combo_count": 23,
+      "essential_combo_count": 22,
+      "piece_combo_count": 23,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 13,
+        "mana": 9,
+        "lock": 3,
+        "mill": 2,
+        "storm": 2,
+        "damage": 1,
+        "other": 1,
+        "tokens": 1,
+        "win": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1173+2408",
+        "11826",
+        "12119",
+        "12121",
+        "12677",
+        "14587",
+        "14589",
+        "15551",
+        "17149",
+        "20517",
+        "20748",
+        "2231",
+        "2232",
+        "2233",
+        "26178",
+        "26181",
+        "33689",
+        "4200",
+        "4334",
+        "6906",
+        "9588",
+        "9589"
+      ]
+    },
+    {
+      "card": "Cryptolith Rite",
+      "reason": "essential",
+      "combo_count": 23,
+      "distinct_combo_count": 22,
+      "essential_combo_count": 17,
+      "piece_combo_count": 23,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 17,
+        "triggers": 5,
+        "tokens": 4,
+        "counters": 3,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10195",
+        "11186",
+        "11187",
+        "1352",
+        "1356",
+        "1360",
+        "15467",
+        "19320+34101",
+        "19321+34101",
+        "22001",
+        "22003",
+        "22358",
+        "22361",
+        "27005",
+        "2717",
+        "33286",
+        "5670+34101"
+      ]
+    },
+    {
+      "card": "Parallel Lives",
+      "reason": "essential",
+      "combo_count": 23,
+      "distinct_combo_count": 23,
+      "essential_combo_count": 16,
+      "piece_combo_count": 23,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 17,
+        "tokens": 13,
+        "mana": 9,
+        "storm": 6,
+        "counters": 3,
+        "draw": 3,
+        "lifegain": 1,
+        "lock": 1,
+        "other": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11756",
+        "11839",
+        "14665",
+        "15237",
+        "18815",
+        "19664",
+        "23358",
+        "25830",
+        "611",
+        "6675",
+        "6677",
+        "6679",
+        "6680",
+        "7835",
+        "9301",
+        "9818"
+      ]
+    },
+    {
+      "card": "Mondrak, Glory Dominus",
+      "reason": "essential",
+      "combo_count": 23,
+      "distinct_combo_count": 23,
+      "essential_combo_count": 14,
+      "piece_combo_count": 23,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 16,
+        "tokens": 14,
+        "mana": 12,
+        "counters": 4,
+        "draw": 3,
+        "lock": 2,
+        "turns": 2,
+        "other": 1,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13889",
+        "13891",
+        "13892",
+        "13895",
+        "13896",
+        "14572",
+        "14573",
+        "15240",
+        "19663",
+        "21689",
+        "21693",
+        "21706",
+        "21707",
+        "25832"
+      ]
+    },
+    {
+      "card": "Training Grounds",
+      "reason": "essential",
+      "combo_count": 22,
+      "distinct_combo_count": 22,
+      "essential_combo_count": 20,
+      "piece_combo_count": 22,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 13,
+        "triggers": 7,
+        "tokens": 4,
+        "other": 3,
+        "counters": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11585",
+        "1320",
+        "14653",
+        "15243",
+        "16003",
+        "1650",
+        "16722",
+        "16732",
+        "1933+26850",
+        "1934+26850",
+        "20517",
+        "20518",
+        "21999",
+        "22003",
+        "25848",
+        "27010",
+        "2934",
+        "530",
+        "534",
+        "991"
+      ]
+    },
+    {
+      "card": "Selvala, Heart of the Wilds",
+      "reason": "essential",
+      "combo_count": 22,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 11,
+      "piece_combo_count": 20,
+      "template_combo_count": 2,
+      "templates": [
+        "Mana Dork or Mana Dork Creator"
+      ],
+      "outcomes": {
+        "mana": 15,
+        "triggers": 5,
+        "storm": 2,
+        "tokens": 2,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17843",
+        "26524",
+        "26690",
+        "2725+6079",
+        "2725+6943",
+        "2725+8184",
+        "2725+8493",
+        "2725+8494",
+        "29387",
+        "31676",
+        "31846"
+      ]
+    },
+    {
+      "card": "Animation Module",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 21,
+      "essential_combo_count": 21,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 21,
+        "triggers": 21,
+        "mana": 12,
+        "tokens": 8,
+        "damage": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13795",
+        "17546",
+        "17547",
+        "17548",
+        "19907",
+        "25582",
+        "25962",
+        "25965",
+        "25966",
+        "32552",
+        "5815",
+        "61",
+        "62",
+        "7521",
+        "7522",
+        "7986",
+        "7991",
+        "7992",
+        "7993",
+        "8254",
+        "8255"
+      ]
+    },
+    {
+      "card": "Fatestitcher",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 20,
+      "essential_combo_count": 17,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 17,
+        "tokens": 2,
+        "triggers": 2,
+        "lock": 1,
+        "other": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "20540",
+        "3922+30510",
+        "3926+30510",
+        "3927+30510",
+        "3928+30510",
+        "3929+30510",
+        "3930+30510",
+        "3932",
+        "4024+30510",
+        "4028+30510",
+        "4029+30510",
+        "4030+30510",
+        "4031+30510",
+        "4032+30510",
+        "4034",
+        "4294",
+        "6302+32655"
+      ]
+    },
+    {
+      "card": "Vizier of Tumbling Sands",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 20,
+      "essential_combo_count": 16,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 16,
+        "lock": 2,
+        "turns": 2,
+        "other": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3867+30510",
+        "3871+30510",
+        "3872+30510",
+        "3873+30510",
+        "3874+30510",
+        "3875+30510",
+        "3877",
+        "3969+30510",
+        "3973+30510",
+        "3974+30510",
+        "3975+30510",
+        "3976+30510",
+        "3977+30510",
+        "3979",
+        "4297",
+        "6313+32655"
+      ]
+    },
+    {
+      "card": "Krenko, Mob Boss",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 15,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 15,
+        "triggers": 14,
+        "mana": 9,
+        "damage": 4,
+        "storm": 3,
+        "draw": 2,
+        "lifegain": 2,
+        "counters": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14642",
+        "14643",
+        "14644",
+        "14645",
+        "14646",
+        "14647",
+        "18223",
+        "18223+29074",
+        "18643",
+        "2769",
+        "29075",
+        "29402",
+        "3154",
+        "996",
+        "997"
+      ]
+    },
+    {
+      "card": "Reassembling Skeleton",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 12,
+        "damage": 7,
+        "mana": 4,
+        "counters": 3,
+        "mill": 2,
+        "win": 2,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "141",
+        "142",
+        "1828",
+        "2141",
+        "2142",
+        "28439",
+        "28515",
+        "30204",
+        "34119",
+        "9587",
+        "9588",
+        "9589"
+      ]
+    },
+    {
+      "card": "Solemnity",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "mana": 5,
+        "counters": 3,
+        "damage": 3,
+        "mill": 3,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1043",
+        "1051",
+        "1051+1669",
+        "1107",
+        "1109",
+        "1111",
+        "1114",
+        "11669",
+        "1669",
+        "9659"
+      ]
+    },
+    {
+      "card": "Stridehangar Automaton",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "mana": 6,
+        "tokens": 6,
+        "counters": 3,
+        "damage": 3,
+        "draw": 3,
+        "lifegain": 3,
+        "mill": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26305+29969",
+        "27138",
+        "27806",
+        "29213",
+        "29444",
+        "29482",
+        "29483",
+        "32321",
+        "32362",
+        "33216"
+      ]
+    },
+    {
+      "card": "Mishra's Bauble",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 9,
+      "piece_combo_count": 17,
+      "template_combo_count": 4,
+      "templates": [
+        "Artifact Castable for {0} that survives",
+        "Noncreature Artifact Castable for {0}",
+        "Noncreature permanent castable for {0}"
+      ],
+      "outcomes": {
+        "storm": 11,
+        "triggers": 10,
+        "draw": 8,
+        "mana": 5,
+        "mill": 4,
+        "damage": 3,
+        "lock": 2,
+        "turns": 2,
+        "counters": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1812",
+        "1813",
+        "1816",
+        "1820",
+        "1821",
+        "1826",
+        "7379",
+        "7381",
+        "877"
+      ]
+    },
+    {
+      "card": "Reveillark",
+      "reason": "essential",
+      "combo_count": 21,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 21,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 9,
+        "mana": 4,
+        "counters": 3,
+        "damage": 3,
+        "mill": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "23572",
+        "23573",
+        "23574",
+        "23575",
+        "23576",
+        "23577",
+        "29432",
+        "30640",
+        "899"
+      ]
+    },
+    {
+      "card": "Myr Retriever",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 18,
+      "essential_combo_count": 18,
+      "piece_combo_count": 20,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 18,
+        "triggers": 18,
+        "mana": 10,
+        "damage": 5,
+        "draw": 5,
+        "mill": 4,
+        "tokens": 4,
+        "counters": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11166",
+        "1812",
+        "1813",
+        "1814",
+        "1815",
+        "1816",
+        "1820",
+        "1821",
+        "23700",
+        "23701",
+        "23708",
+        "23709",
+        "25320",
+        "25321",
+        "25323",
+        "25324",
+        "27774",
+        "27775"
+      ]
+    },
+    {
+      "card": "Nyxbloom Ancient",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 19,
+      "essential_combo_count": 18,
+      "piece_combo_count": 20,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 19,
+        "draw": 4,
+        "lifegain": 3,
+        "damage": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10812",
+        "122",
+        "13115",
+        "1360",
+        "1361",
+        "17502",
+        "17850",
+        "19320+34101",
+        "19358",
+        "22460",
+        "24659",
+        "29390",
+        "3005",
+        "32853",
+        "553",
+        "714",
+        "7902",
+        "7906"
+      ]
+    },
+    {
+      "card": "Magus of the Candelabra",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 14,
+      "piece_combo_count": 20,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 14,
+        "draw": 3,
+        "lifegain": 3,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14706",
+        "14708",
+        "16948",
+        "17501",
+        "17502",
+        "21671",
+        "21673",
+        "24659",
+        "26784",
+        "3029",
+        "32306",
+        "3944",
+        "4046",
+        "5654"
+      ]
+    },
+    {
+      "card": "Primal Vigor",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 20,
+      "essential_combo_count": 14,
+      "piece_combo_count": 20,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 14,
+        "tokens": 13,
+        "mana": 12,
+        "counters": 9,
+        "storm": 6,
+        "damage": 3,
+        "draw": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1083",
+        "11840",
+        "13220",
+        "15239",
+        "18816",
+        "19661",
+        "25829",
+        "32918",
+        "6676",
+        "6678",
+        "6679",
+        "6680",
+        "7836",
+        "9209"
+      ]
+    },
+    {
+      "card": "Trazyn the Infinite",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 20,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "draw": 6,
+        "lifegain": 3,
+        "damage": 1,
+        "lock": 1,
+        "tokens": 1,
+        "triggers": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11323",
+        "11323+29879",
+        "11324",
+        "14399",
+        "14400",
+        "15872",
+        "19313",
+        "29853",
+        "29879",
+        "30752",
+        "32954"
+      ]
+    },
+    {
+      "card": "Lotus Petal",
+      "reason": "essential",
+      "combo_count": 20,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 5,
+      "piece_combo_count": 14,
+      "template_combo_count": 6,
+      "templates": [
+        "Artifact Castable for {0} that survives",
+        "Noncreature Artifact Castable for {0}",
+        "Noncreature Artifact with MV<=1",
+        "Noncreature permanent castable for {0}"
+      ],
+      "outcomes": {
+        "storm": 8,
+        "triggers": 8,
+        "mana": 6,
+        "mill": 5,
+        "counters": 2,
+        "damage": 2,
+        "tokens": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1814",
+        "28677",
+        "3102",
+        "31623",
+        "876"
+      ]
+    },
+    {
+      "card": "Faeburrow Elder",
+      "reason": "essential",
+      "combo_count": 19,
+      "distinct_combo_count": 18,
+      "essential_combo_count": 15,
+      "piece_combo_count": 19,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 13,
+        "triggers": 10,
+        "tokens": 4,
+        "lifegain": 3,
+        "draw": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1214",
+        "12706",
+        "14519",
+        "2177",
+        "2725+8181",
+        "2725+8183",
+        "27734",
+        "554+2725",
+        "555+2725",
+        "6080",
+        "6083",
+        "6622",
+        "7640",
+        "7891",
+        "9149"
+      ]
+    },
+    {
+      "card": "Spark Double",
+      "reason": "essential",
+      "combo_count": 19,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 13,
+      "piece_combo_count": 16,
+      "template_combo_count": 3,
+      "templates": [
+        "Card That Copies a Creature"
+      ],
+      "outcomes": {
+        "triggers": 14,
+        "mana": 9,
+        "mill": 3,
+        "damage": 2,
+        "tokens": 2,
+        "draw": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15324",
+        "15325",
+        "15326",
+        "15327",
+        "15328",
+        "2186",
+        "3107",
+        "3321",
+        "3322",
+        "5499",
+        "562",
+        "6086",
+        "9731"
+      ]
+    },
+    {
+      "card": "Summoning Station",
+      "reason": "essential",
+      "combo_count": 19,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 19,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 12,
+        "mana": 5,
+        "mill": 5,
+        "damage": 4,
+        "tokens": 2,
+        "counters": 1,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14692",
+        "14693",
+        "15551",
+        "15553",
+        "16705",
+        "18333",
+        "20748",
+        "20749",
+        "2231",
+        "2232",
+        "2233",
+        "9139"
+      ]
+    },
+    {
+      "card": "Skirk Prospector",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 16,
+      "piece_combo_count": 18,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 15,
+        "mana": 11,
+        "storm": 6,
+        "damage": 5,
+        "tokens": 5,
+        "lifegain": 3,
+        "draw": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10220",
+        "15344",
+        "15369",
+        "15372",
+        "18223",
+        "18223+29074",
+        "19838",
+        "25935",
+        "26181",
+        "26529",
+        "2682",
+        "29040",
+        "29075",
+        "29402",
+        "4126",
+        "997"
+      ]
+    },
+    {
+      "card": "Emry, Lurker of the Loch",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 15,
+      "piece_combo_count": 18,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 13,
+        "triggers": 12,
+        "mana": 6,
+        "lock": 2,
+        "mill": 2,
+        "turns": 2,
+        "damage": 1,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10420",
+        "10679",
+        "10681",
+        "17144",
+        "17145",
+        "17149",
+        "29237",
+        "29238",
+        "3102",
+        "31623",
+        "32278",
+        "5704",
+        "8681",
+        "876",
+        "877"
+      ]
+    },
+    {
+      "card": "Bloom Tender",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 12,
+      "piece_combo_count": 16,
+      "template_combo_count": 2,
+      "templates": [
+        "Mana Dork or Mana Dork Creator"
+      ],
+      "outcomes": {
+        "mana": 12,
+        "triggers": 7,
+        "lifegain": 2,
+        "tokens": 2,
+        "draw": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12707",
+        "149+2725",
+        "150+2725",
+        "2175",
+        "2725+8180",
+        "2725+8182",
+        "27733",
+        "4071",
+        "6347",
+        "7639",
+        "7892",
+        "9148"
+      ]
+    },
+    {
+      "card": "Grinding Station",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 17,
+      "essential_combo_count": 11,
+      "piece_combo_count": 18,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mill": 15,
+        "triggers": 14,
+        "mana": 7,
+        "counters": 6,
+        "storm": 6,
+        "damage": 4,
+        "draw": 3,
+        "tokens": 3,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15551",
+        "15553",
+        "17120",
+        "1820",
+        "25320",
+        "25321",
+        "27437",
+        "29972",
+        "4166",
+        "4204",
+        "9139"
+      ]
+    },
+    {
+      "card": "Renata, Called to the Hunt",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 18,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "mana": 7,
+        "counters": 2,
+        "damage": 2,
+        "mill": 2,
+        "tokens": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17431",
+        "19359",
+        "2506",
+        "26943",
+        "28505",
+        "29040",
+        "5014",
+        "5015",
+        "5016",
+        "612",
+        "613"
+      ]
+    },
+    {
+      "card": "Urza, Lord High Artificer",
+      "reason": "essential",
+      "combo_count": 18,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 11,
+      "piece_combo_count": 18,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "tokens": 10,
+        "mana": 6,
+        "draw": 3,
+        "counters": 2,
+        "lifegain": 2,
+        "damage": 1
+      },
+      "payoff_categories": [
+        "storm"
+      ],
+      "essential_combos": [
+        "10217",
+        "20517",
+        "20518",
+        "27010",
+        "28260",
+        "28262",
+        "28262+28369",
+        "28370",
+        "32321",
+        "32552",
+        "32938"
+      ]
+    },
+    {
+      "card": "Blade of the Bloodchief",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 17,
+      "essential_combo_count": 17,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 17,
+        "counters": 12,
+        "mana": 11,
+        "damage": 2,
+        "mill": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "16388",
+        "20327",
+        "20328",
+        "20329",
+        "20344",
+        "20345",
+        "20346",
+        "20347",
+        "20348",
+        "20349",
+        "20350",
+        "20351",
+        "27081",
+        "2922",
+        "7991",
+        "7992",
+        "7993"
+      ]
+    },
+    {
+      "card": "Earthcraft",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 17,
+      "essential_combo_count": 17,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 15,
+        "tokens": 11,
+        "mana": 8,
+        "counters": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1113",
+        "16003",
+        "16005",
+        "17429",
+        "17430",
+        "17431",
+        "19660",
+        "19661",
+        "19662",
+        "19663",
+        "19664",
+        "22258",
+        "25848",
+        "25849",
+        "27321",
+        "32489",
+        "5815"
+      ]
+    },
+    {
+      "card": "Urza, Prince of Kroog",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 17,
+      "essential_combo_count": 17,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 16,
+        "triggers": 16,
+        "mana": 10,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12983",
+        "12984",
+        "13708",
+        "14040",
+        "15605",
+        "15606",
+        "20517",
+        "20518",
+        "20830",
+        "20832",
+        "20833",
+        "21688",
+        "21689",
+        "21692",
+        "21693",
+        "21706",
+        "21707"
+      ]
+    },
+    {
+      "card": "Mana Reflection",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 15,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 16,
+        "draw": 3,
+        "lifegain": 3,
+        "damage": 2,
+        "counters": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "120",
+        "13114",
+        "1356",
+        "1357",
+        "17501",
+        "17851",
+        "19321+34101",
+        "19357",
+        "22459",
+        "2996",
+        "31056",
+        "552",
+        "713",
+        "7903",
+        "7907"
+      ]
+    },
+    {
+      "card": "Kinnan, Bonder Prodigy",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 14,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 12,
+        "draw": 1,
+        "other": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11186",
+        "11187",
+        "11188",
+        "11189",
+        "13117",
+        "1347",
+        "2175",
+        "2177",
+        "25954+34101",
+        "32850",
+        "33286",
+        "5499",
+        "7904",
+        "948"
+      ]
+    },
+    {
+      "card": "Sprout Swarm",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 13,
+      "essential_combo_count": 13,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 13,
+        "storm": 12,
+        "triggers": 12,
+        "mana": 7,
+        "counters": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "18814",
+        "18815",
+        "18816",
+        "2188",
+        "2189",
+        "2368",
+        "33062",
+        "6675",
+        "6676",
+        "6677",
+        "6678",
+        "6679",
+        "6680"
+      ]
+    },
+    {
+      "card": "Myr Turbine",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 12,
+        "tokens": 11,
+        "mana": 2,
+        "counters": 1,
+        "damage": 1,
+        "draw": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13889",
+        "17625",
+        "388",
+        "4165",
+        "4166",
+        "6244",
+        "7835",
+        "7836",
+        "7837",
+        "7838",
+        "7839",
+        "7898"
+      ]
+    },
+    {
+      "card": "Dross Scorpion",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "mana": 2,
+        "counters": 1,
+        "damage": 1,
+        "mill": 1,
+        "storm": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12677",
+        "16622",
+        "16623",
+        "17149",
+        "19496",
+        "27797",
+        "27798",
+        "29444",
+        "388",
+        "4912"
+      ]
+    },
+    {
+      "card": "Gravecrawler",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "storm": 8,
+        "damage": 6,
+        "mana": 4,
+        "lifegain": 3,
+        "counters": 2,
+        "draw": 2,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27267",
+        "29336",
+        "30914",
+        "6564",
+        "6565",
+        "6905",
+        "6906",
+        "692",
+        "692+30584",
+        "695"
+      ]
+    },
+    {
+      "card": "Ivy Lane Denizen",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "tokens": 8,
+        "mana": 6,
+        "counters": 5,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15081",
+        "17430",
+        "28581",
+        "32678",
+        "3827",
+        "607",
+        "6617",
+        "6687",
+        "9850",
+        "9853"
+      ]
+    },
+    {
+      "card": "Fiend Hunter",
+      "reason": "essential",
+      "combo_count": 17,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 17,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 4,
+        "damage": 3,
+        "mana": 3,
+        "counters": 2,
+        "mill": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10648",
+        "10650",
+        "28328",
+        "9546"
+      ]
+    },
+    {
+      "card": "Voyaging Satyr",
+      "reason": "essential",
+      "combo_count": 16,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 16,
+      "piece_combo_count": 16,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 16,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10028",
+        "10030",
+        "2208+30510",
+        "2209+30510",
+        "3860+30510",
+        "3861+30510",
+        "3862+30510",
+        "3863+30510",
+        "3864+30510",
+        "3866",
+        "3962+30510",
+        "3963+30510",
+        "3964+30510",
+        "3965+30510",
+        "3966+30510",
+        "3968"
+      ]
+    },
+    {
+      "card": "Academy Manufactor",
+      "reason": "essential",
+      "combo_count": 16,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 15,
+      "piece_combo_count": 16,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 7,
+        "turns": 7,
+        "lifegain": 6,
+        "triggers": 5,
+        "draw": 4,
+        "mana": 4,
+        "counters": 1,
+        "mill": 1,
+        "other": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10217",
+        "10495",
+        "11755",
+        "11756",
+        "11758",
+        "13896",
+        "23448",
+        "23449",
+        "24631",
+        "26304",
+        "28979",
+        "29524",
+        "33244",
+        "9818",
+        "9819"
+      ]
+    },
+    {
+      "card": "Myr Battlesphere",
+      "reason": "essential",
+      "combo_count": 16,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 14,
+      "piece_combo_count": 16,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 12,
+        "mana": 11,
+        "tokens": 11,
+        "damage": 2,
+        "lock": 2,
+        "turns": 2,
+        "counters": 1,
+        "lifegain": 1,
+        "win": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12983",
+        "12984",
+        "15923",
+        "175",
+        "2950",
+        "31641",
+        "32361",
+        "3264",
+        "3266",
+        "3267",
+        "32938",
+        "4757",
+        "8681",
+        "8683"
+      ]
+    },
+    {
+      "card": "Helm of the Host",
+      "reason": "essential",
+      "combo_count": 16,
+      "distinct_combo_count": 16,
+      "essential_combo_count": 13,
+      "piece_combo_count": 13,
+      "template_combo_count": 3,
+      "templates": [
+        "Card That Copies a Creature"
+      ],
+      "outcomes": {
+        "triggers": 7,
+        "lock": 5,
+        "mana": 4,
+        "other": 4,
+        "tokens": 4,
+        "turns": 4,
+        "lifegain": 2,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13300",
+        "14595",
+        "1921",
+        "19623",
+        "24631",
+        "3107+7940",
+        "6086+25272",
+        "6086+25273",
+        "6086+25274",
+        "6086+25275",
+        "8683",
+        "9148",
+        "9149"
+      ]
+    },
+    {
+      "card": "Smothering Tithe",
+      "reason": "essential",
+      "combo_count": 16,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 16,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 11,
+        "mana": 11,
+        "counters": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15235",
+        "15237",
+        "15238",
+        "15239",
+        "15240",
+        "15241",
+        "15242",
+        "15243",
+        "32850",
+        "32853",
+        "33549"
+      ]
+    },
+    {
+      "card": "Mana Echoes",
+      "reason": "essential",
+      "combo_count": 15,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 14,
+      "piece_combo_count": 15,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 13,
+        "triggers": 13,
+        "tokens": 11,
+        "counters": 4,
+        "damage": 3,
+        "draw": 1,
+        "lifegain": 1,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10768",
+        "15081",
+        "15893",
+        "1660",
+        "2368",
+        "27757",
+        "28019",
+        "28088",
+        "2901",
+        "8479",
+        "8480",
+        "9208",
+        "9209",
+        "9212"
+      ]
+    },
+    {
+      "card": "Incubation Druid",
+      "reason": "essential",
+      "combo_count": 15,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 13,
+      "piece_combo_count": 15,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 15,
+        "counters": 3,
+        "draw": 2,
+        "lifegain": 2,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26689",
+        "27971",
+        "528",
+        "530",
+        "7893",
+        "7900",
+        "7901",
+        "7902",
+        "7903",
+        "7904",
+        "7905",
+        "7906",
+        "7907"
+      ]
+    },
+    {
+      "card": "Lotus Field",
+      "reason": "essential",
+      "combo_count": 15,
+      "distinct_combo_count": 15,
+      "essential_combo_count": 13,
+      "piece_combo_count": 15,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 15,
+        "triggers": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14706",
+        "2208+30510",
+        "2209+30510",
+        "27087",
+        "3846+30510",
+        "3867+30510",
+        "3922+30510",
+        "3944",
+        "3948+30510",
+        "3969+30510",
+        "4024+30510",
+        "4046",
+        "4464"
+      ]
+    },
+    {
+      "card": "Warren Soultrader",
+      "reason": "essential",
+      "combo_count": 15,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 15,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "damage": 9,
+        "lifegain": 9,
+        "mana": 5,
+        "counters": 4,
+        "storm": 4,
+        "draw": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27138",
+        "27267",
+        "27269",
+        "27806",
+        "29336",
+        "29938",
+        "30914",
+        "31636",
+        "33216",
+        "34119"
+      ]
+    },
+    {
+      "card": "Spawning Pit",
+      "reason": "essential",
+      "combo_count": 15,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 6,
+      "piece_combo_count": 15,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 14,
+        "mana": 13,
+        "counters": 8,
+        "damage": 8,
+        "mill": 8,
+        "tokens": 6,
+        "storm": 2,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11838",
+        "11839",
+        "11840",
+        "11842",
+        "5192",
+        "692+30584"
+      ]
+    },
+    {
+      "card": "Time Sieve",
+      "reason": "essential",
+      "combo_count": 14,
+      "distinct_combo_count": 14,
+      "essential_combo_count": 14,
+      "piece_combo_count": 14,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 14,
+        "turns": 14
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10495",
+        "10496",
+        "10823",
+        "13895",
+        "13896",
+        "23448",
+        "23449",
+        "24631",
+        "26918",
+        "8681",
+        "8683",
+        "9818",
+        "9819",
+        "9887"
+      ]
+    },
+    {
+      "card": "Retrofitter Foundry",
+      "reason": "essential",
+      "combo_count": 14,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 14,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "tokens": 7,
+        "mana": 4,
+        "draw": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26199",
+        "26200",
+        "27757",
+        "27797",
+        "27798",
+        "29213",
+        "29444",
+        "29853",
+        "32321",
+        "4137"
+      ]
+    },
+    {
+      "card": "Karn, the Great Creator",
+      "reason": "essential",
+      "combo_count": 14,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 9,
+      "piece_combo_count": 14,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "draw": 3,
+        "damage": 1,
+        "lock": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1173+2408",
+        "1934+26850",
+        "2613",
+        "2615",
+        "2619",
+        "2621",
+        "32140",
+        "6244",
+        "905"
+      ]
+    },
+    {
+      "card": "First Day of Class",
+      "reason": "essential",
+      "combo_count": 14,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 6,
+      "piece_combo_count": 14,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "damage": 4,
+        "counters": 3,
+        "draw": 2,
+        "mana": 2,
+        "mill": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12685",
+        "12686",
+        "12687",
+        "12688",
+        "25935",
+        "6372"
+      ]
+    },
+    {
+      "card": "Voltaic Construct",
+      "reason": "essential",
+      "combo_count": 14,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 14,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3,
+        "draw": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11324",
+        "1320",
+        "5159",
+        "903"
+      ]
+    },
+    {
+      "card": "Coretapper",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 13,
+      "essential_combo_count": 13,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 13,
+        "turns": 13
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13708",
+        "13709",
+        "14590",
+        "14591",
+        "14592",
+        "14593",
+        "14595",
+        "28058",
+        "4197",
+        "5698",
+        "5704",
+        "7348",
+        "7547"
+      ]
+    },
+    {
+      "card": "Marath, Will of the Wild",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 12,
+        "mana": 11,
+        "tokens": 11,
+        "counters": 8,
+        "damage": 6,
+        "storm": 1
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "1078",
+        "1083",
+        "15081",
+        "15893",
+        "16388",
+        "2678",
+        "32489",
+        "3827",
+        "9208",
+        "9209",
+        "9212",
+        "9213"
+      ]
+    },
+    {
+      "card": "Village Bell-Ringer",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 12,
+        "triggers": 12,
+        "tokens": 8,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1710",
+        "17375",
+        "28020",
+        "28688",
+        "29965",
+        "33306",
+        "4275",
+        "6083",
+        "7646",
+        "7647",
+        "7648",
+        "914"
+      ]
+    },
+    {
+      "card": "Biomancer's Familiar",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 13,
+      "essential_combo_count": 11,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "triggers": 5,
+        "other": 2,
+        "tokens": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11586",
+        "14652",
+        "15242",
+        "16005",
+        "1648",
+        "16719",
+        "16734",
+        "21997",
+        "22001",
+        "25849",
+        "989"
+      ]
+    },
+    {
+      "card": "Scurry Oak",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 13,
+      "essential_combo_count": 11,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 13,
+        "counters": 12,
+        "mana": 6,
+        "tokens": 4,
+        "damage": 2,
+        "mill": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10108",
+        "20348",
+        "20349",
+        "20350",
+        "20351",
+        "22506",
+        "6686",
+        "6687",
+        "8251",
+        "8252",
+        "8253"
+      ]
+    },
+    {
+      "card": "Memnite",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 8,
+      "piece_combo_count": 9,
+      "template_combo_count": 4,
+      "templates": [
+        "Artifact Creature with Mana Cost Equal to {0}",
+        "Creature Castable for {C}",
+        "Creature castable for {0} that survives"
+      ],
+      "outcomes": {
+        "storm": 11,
+        "triggers": 11,
+        "damage": 5,
+        "mana": 2,
+        "mill": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10679",
+        "10681",
+        "17460",
+        "1815",
+        "29238",
+        "439",
+        "5598",
+        "5614"
+      ]
+    },
+    {
+      "card": "The Jolly Balloon Man",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 6,
+        "tokens": 6,
+        "triggers": 6,
+        "lock": 2,
+        "turns": 2,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "28019",
+        "28020",
+        "28022",
+        "28058",
+        "28088",
+        "28646",
+        "32662",
+        "33306"
+      ]
+    },
+    {
+      "card": "Grim Monolith",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 7,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 12,
+        "draw": 6,
+        "lifegain": 2,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "24746",
+        "25932",
+        "4334",
+        "4335",
+        "5499",
+        "713",
+        "714"
+      ]
+    },
+    {
+      "card": "Empowered Autogenerator",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 6,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 12,
+        "draw": 7,
+        "lifegain": 3,
+        "triggers": 3,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11323+29879",
+        "24741",
+        "24746",
+        "2613",
+        "2619",
+        "32954"
+      ]
+    },
+    {
+      "card": "Badgermole Cub",
+      "reason": "essential",
+      "combo_count": 13,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 4,
+      "piece_combo_count": 13,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 5,
+        "triggers": 2,
+        "counters": 1,
+        "damage": 1,
+        "lifegain": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "31544",
+        "31580",
+        "31909",
+        "32245"
+      ]
+    },
+    {
+      "card": "Enduring Renewal",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 12,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 12,
+        "triggers": 12,
+        "mana": 4,
+        "damage": 3,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15344",
+        "17456",
+        "17460",
+        "2887",
+        "2893",
+        "29938",
+        "437",
+        "438",
+        "439",
+        "7709",
+        "7710",
+        "7711"
+      ]
+    },
+    {
+      "card": "Tidewater Minion",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 11,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 11,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14820",
+        "3846+30510",
+        "3850+30510",
+        "3851+30510",
+        "3853+30510",
+        "3854+30510",
+        "3948+30510",
+        "3952+30510",
+        "3953+30510",
+        "3956+30510",
+        "5640"
+      ]
+    },
+    {
+      "card": "Horseshoe Crab",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "counters": 5,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11130",
+        "14481",
+        "19320+34101",
+        "19321+34101",
+        "25954+34101",
+        "34101",
+        "524",
+        "528",
+        "532",
+        "5670+34101"
+      ]
+    },
+    {
+      "card": "Metalworker",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 10,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 12,
+        "tokens": 5,
+        "triggers": 5,
+        "draw": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12118",
+        "12119",
+        "12120",
+        "12121",
+        "20830",
+        "20832",
+        "20833",
+        "32333",
+        "5159",
+        "8501"
+      ]
+    },
+    {
+      "card": "Simic Growth Chamber",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 10,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 10,
+        "other": 2,
+        "lifegain": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3853+30510",
+        "3863+30510",
+        "3874+30510",
+        "3929+30510",
+        "3940",
+        "3965+30510",
+        "3976+30510",
+        "4031+30510",
+        "4042",
+        "6086+25272"
+      ]
+    },
+    {
+      "card": "Azorius Chancery",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 12,
+      "essential_combo_count": 9,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 10,
+        "other": 2,
+        "lifegain": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3850+30510",
+        "3860+30510",
+        "3871+30510",
+        "3926+30510",
+        "3952+30510",
+        "3962+30510",
+        "3973+30510",
+        "4028+30510",
+        "6086+25273"
+      ]
+    },
+    {
+      "card": "Thousand-Year Elixir",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 8,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "mana": 5,
+        "tokens": 5,
+        "storm": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12133",
+        "12136",
+        "18223+29074",
+        "20832",
+        "21688",
+        "21689",
+        "27005",
+        "32140"
+      ]
+    },
+    {
+      "card": "Kodama of the East Tree",
+      "reason": "essential",
+      "combo_count": 12,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 12,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 5,
+        "lifegain": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "6086",
+        "6086+25272",
+        "6086+25273",
+        "6086+25274",
+        "6086+25275",
+        "6186"
+      ]
+    },
+    {
+      "card": "Activated Sleeper",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "mana": 4,
+        "counters": 2,
+        "mill": 2,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10894",
+        "10895",
+        "10896",
+        "10897",
+        "10899",
+        "23572",
+        "23573",
+        "23574",
+        "23575",
+        "23576",
+        "23577"
+      ]
+    },
+    {
+      "card": "Sliver Queen",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 11,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "mana": 4,
+        "tokens": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12170",
+        "14572",
+        "14652",
+        "14653",
+        "14660",
+        "14661",
+        "14665",
+        "1648",
+        "1650",
+        "1660",
+        "5324"
+      ]
+    },
+    {
+      "card": "Agatha of the Vile Cauldron",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 10,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "other": 3,
+        "tokens": 2,
+        "triggers": 2,
+        "damage": 1,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "21671",
+        "21673",
+        "22341",
+        "22345",
+        "22357",
+        "22358",
+        "22360",
+        "22361",
+        "26548",
+        "26662"
+      ]
+    },
+    {
+      "card": "Nuka-Cola Vending Machine",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8,
+        "draw": 3,
+        "counters": 1,
+        "lifegain": 1,
+        "mill": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "25819",
+        "25828",
+        "25829",
+        "25830",
+        "25831",
+        "25832",
+        "25833",
+        "25834",
+        "28979",
+        "29524"
+      ]
+    },
+    {
+      "card": "Dimir Aqueduct",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 9,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "other": 2,
+        "lifegain": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3851+30510",
+        "3861+30510",
+        "3872+30510",
+        "3927+30510",
+        "3953+30510",
+        "3963+30510",
+        "3974+30510",
+        "4029+30510",
+        "6086+25274"
+      ]
+    },
+    {
+      "card": "Herd Baloth",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 9,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 11,
+        "counters": 10,
+        "mana": 6,
+        "tokens": 4,
+        "damage": 1,
+        "lifegain": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10109",
+        "20344",
+        "20345",
+        "20346",
+        "20347",
+        "6617",
+        "6618",
+        "8248",
+        "8249"
+      ]
+    },
+    {
+      "card": "Pentavus",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 9,
+        "mana": 6,
+        "counters": 2,
+        "tokens": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14573",
+        "17592",
+        "20327",
+        "20328",
+        "20329",
+        "2901",
+        "4912",
+        "8165",
+        "8166"
+      ]
+    },
+    {
+      "card": "Unctus, Grand Metatect",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 9
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14186",
+        "14372",
+        "14373",
+        "14481",
+        "14484",
+        "14485",
+        "14488",
+        "14820",
+        "28800"
+      ]
+    },
+    {
+      "card": "Adrix and Nev, Twincasters",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 8,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 6,
+        "tokens": 5,
+        "mana": 4,
+        "draw": 3,
+        "storm": 3,
+        "counters": 1,
+        "lifegain": 1,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11755",
+        "15241",
+        "23448",
+        "25833",
+        "6675",
+        "6676",
+        "6680",
+        "7839"
+      ]
+    },
+    {
+      "card": "Aggravated Assault",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 11,
+      "essential_combo_count": 8,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "tokens": 4,
+        "triggers": 4,
+        "draw": 3,
+        "lifegain": 3,
+        "other": 2,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10824",
+        "16205",
+        "1774",
+        "2717",
+        "2725+6079",
+        "5267",
+        "6080",
+        "6761"
+      ]
+    },
+    {
+      "card": "Sol Ring",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 6,
+      "piece_combo_count": 9,
+      "template_combo_count": 2,
+      "templates": [
+        "Noncreature Artifact with MV<=1"
+      ],
+      "outcomes": {
+        "mana": 8,
+        "triggers": 6,
+        "counters": 2,
+        "draw": 2,
+        "mill": 2,
+        "storm": 2,
+        "tokens": 2,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10095",
+        "10420",
+        "10661",
+        "17120",
+        "26548",
+        "30554"
+      ]
+    },
+    {
+      "card": "Basking Broodscale",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 5,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 7,
+        "triggers": 7,
+        "mana": 5,
+        "tokens": 4,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27053",
+        "27081",
+        "27321",
+        "27322",
+        "32946"
+      ]
+    },
+    {
+      "card": "Transmutation Font",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 2,
+        "other": 2,
+        "lifegain": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26304",
+        "26305",
+        "26305+29969",
+        "29971",
+        "29972"
+      ]
+    },
+    {
+      "card": "Aerie Ouphes",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 7,
+      "templates": [
+        "Green Persist Creature"
+      ],
+      "outcomes": {
+        "triggers": 5,
+        "counters": 2,
+        "damage": 1,
+        "mana": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15977",
+        "19359",
+        "9853",
+        "9854"
+      ]
+    },
+    {
+      "card": "Ioreth of the Healing House",
+      "reason": "essential",
+      "combo_count": 11,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 2,
+      "piece_combo_count": 11,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3,
+        "lock": 1,
+        "other": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27315",
+        "29063"
+      ]
+    },
+    {
+      "card": "Death's Presence",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "counters": 8,
+        "mana": 6,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17653",
+        "22506",
+        "23657",
+        "8248",
+        "8249",
+        "8251",
+        "8252",
+        "8253",
+        "8254",
+        "8255"
+      ]
+    },
+    {
+      "card": "Devoted Druid",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 6,
+        "counters": 5,
+        "mana": 4,
+        "tokens": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1113",
+        "27017",
+        "31621",
+        "32918",
+        "358",
+        "551",
+        "552",
+        "553",
+        "8412",
+        "9850"
+      ]
+    },
+    {
+      "card": "Faerie Mastermind",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 10,
+        "mana": 10
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "15235",
+        "15237",
+        "15238",
+        "15239",
+        "15240",
+        "15241",
+        "15242",
+        "15243",
+        "32850",
+        "32853"
+      ]
+    },
+    {
+      "card": "Molten Echoes",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "damage": 3,
+        "mana": 3,
+        "tokens": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10220",
+        "10648",
+        "10650",
+        "1154",
+        "19838",
+        "19840",
+        "23358",
+        "23360",
+        "2855",
+        "28801"
+      ]
+    },
+    {
+      "card": "Orthion, Hero of Lavabrink",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8,
+        "tokens": 8,
+        "triggers": 8,
+        "damage": 1,
+        "draw": 1,
+        "lifegain": 1,
+        "lock": 1,
+        "turns": 1,
+        "win": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15923",
+        "15936",
+        "15937",
+        "15939",
+        "16148",
+        "16205",
+        "16386",
+        "18189",
+        "28688",
+        "29313"
+      ]
+    },
+    {
+      "card": "Palladium Myr",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "draw": 3,
+        "triggers": 2,
+        "lifegain": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12133",
+        "12136",
+        "1320",
+        "14399",
+        "14586",
+        "14587",
+        "14588",
+        "14589",
+        "15872",
+        "32140"
+      ]
+    },
+    {
+      "card": "Priest of Urabrask",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 10,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 10,
+        "mana": 9,
+        "tokens": 6,
+        "damage": 2,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15075",
+        "15076",
+        "15080",
+        "15936",
+        "15937",
+        "15939",
+        "16148",
+        "16205",
+        "16386",
+        "2688"
+      ]
+    },
+    {
+      "card": "Leyline of Abundance",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 9,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 8,
+        "mana": 8,
+        "damage": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13116",
+        "1352",
+        "1353",
+        "32918",
+        "4058",
+        "4584",
+        "551",
+        "5670+34101",
+        "7905"
+      ]
+    },
+    {
+      "card": "Lightning Greaves",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 9,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 9,
+        "storm": 4,
+        "mana": 3,
+        "tokens": 3,
+        "damage": 2,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15369",
+        "17791",
+        "20830",
+        "21692",
+        "21693",
+        "31676",
+        "5597",
+        "5598",
+        "6622"
+      ]
+    },
+    {
+      "card": "Rings of Brighthearth",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 10,
+      "essential_combo_count": 9,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 5,
+        "mana": 5,
+        "turns": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1062",
+        "1527",
+        "1528",
+        "15408",
+        "26689",
+        "26690",
+        "4071",
+        "6302+32655",
+        "6313+32655"
+      ]
+    },
+    {
+      "card": "Walking Ballista",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 7,
+        "storm": 5,
+        "counters": 3,
+        "damage": 3,
+        "mana": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [
+        "counters"
+      ],
+      "essential_combos": [
+        "1043",
+        "14224",
+        "17144",
+        "17149",
+        "2887",
+        "29237",
+        "30303",
+        "3339",
+        "4971"
+      ]
+    },
+    {
+      "card": "Koll, the Forgemaster",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 8,
+        "triggers": 8,
+        "damage": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15369",
+        "15372",
+        "31445",
+        "31446",
+        "5597",
+        "5598",
+        "5613",
+        "5614"
+      ]
+    },
+    {
+      "card": "Rosie Cotton of South Lane",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "tokens": 6,
+        "counters": 5,
+        "mana": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17546",
+        "17547",
+        "17548",
+        "17587",
+        "17591",
+        "17592",
+        "17594",
+        "31621"
+      ]
+    },
+    {
+      "card": "Chrome Dome",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 6,
+        "mana": 5,
+        "tokens": 5,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "32275",
+        "32297",
+        "32333",
+        "32361",
+        "32362",
+        "33244"
+      ]
+    },
+    {
+      "card": "Karn, Silver Golem",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 6,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 6,
+        "triggers": 3,
+        "draw": 2,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14044",
+        "14045",
+        "17120",
+        "1933+26850",
+        "21328",
+        "23433"
+      ]
+    },
+    {
+      "card": "Lightning Crafter",
+      "reason": "essential",
+      "combo_count": 10,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 10,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 5,
+        "triggers": 5,
+        "mana": 3,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10220",
+        "17436",
+        "2373",
+        "2682",
+        "28801"
+      ]
+    },
+    {
+      "card": "Archfiend of Despair",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 9,
+        "win": 7
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11328",
+        "12974",
+        "26841",
+        "28298",
+        "3405",
+        "9177",
+        "9180",
+        "9182",
+        "9185"
+      ]
+    },
+    {
+      "card": "Arixmethes, Slumbering Isle",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2351",
+        "2352",
+        "2934",
+        "3866",
+        "3877",
+        "3932",
+        "3968",
+        "3979",
+        "4034"
+      ]
+    },
+    {
+      "card": "Bloodletter of Aclazotz",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 9,
+        "win": 9,
+        "lifegain": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26032",
+        "26034",
+        "26035",
+        "26036",
+        "26038",
+        "26039",
+        "26040",
+        "26839",
+        "28300"
+      ]
+    },
+    {
+      "card": "Cogwork Assembler",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8,
+        "tokens": 8,
+        "triggers": 8,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13709",
+        "15607",
+        "15608",
+        "20604",
+        "20605",
+        "26548",
+        "3266",
+        "3267",
+        "8501"
+      ]
+    },
+    {
+      "card": "Eldrazi Displacer",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 7,
+        "draw": 2,
+        "damage": 1,
+        "lock": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10661",
+        "13388",
+        "14197",
+        "175",
+        "3264",
+        "7646",
+        "8397",
+        "8480",
+        "8657"
+      ]
+    },
+    {
+      "card": "Fable of the Mirror-Breaker // Reflection of Kiki-Jiki",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 5,
+        "tokens": 4,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10768",
+        "17375",
+        "17376",
+        "19838",
+        "19840",
+        "7492",
+        "7493",
+        "7494",
+        "8105"
+      ]
+    },
+    {
+      "card": "Najeela, the Blade-Blossom",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 9,
+        "lifegain": 6,
+        "triggers": 6,
+        "mana": 5,
+        "damage": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10825",
+        "1214",
+        "12206",
+        "2747",
+        "29387",
+        "4138",
+        "6762",
+        "9148",
+        "9149"
+      ]
+    },
+    {
+      "card": "Warlock Class",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 9,
+        "win": 8
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11329",
+        "12973",
+        "26842",
+        "28299",
+        "8241",
+        "9178",
+        "9181",
+        "9183",
+        "9186"
+      ]
+    },
+    {
+      "card": "Wound Reflection",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 9,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 8,
+        "win": 8
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11327",
+        "26840",
+        "28297",
+        "2840",
+        "3404",
+        "6358",
+        "9176",
+        "9179",
+        "9184"
+      ]
+    },
+    {
+      "card": "Cathodion",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 5,
+        "storm": 4,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1952",
+        "3114",
+        "3115",
+        "32297",
+        "32776",
+        "7709",
+        "7710",
+        "7711"
+      ]
+    },
+    {
+      "card": "Salvaging Station",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "mana": 6,
+        "mill": 3,
+        "counters": 2,
+        "damage": 2,
+        "storm": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14044",
+        "14045",
+        "14224",
+        "17120",
+        "29113",
+        "29449",
+        "4137",
+        "9139"
+      ]
+    },
+    {
+      "card": "Su-Chi Cave Guard",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8,
+        "triggers": 8,
+        "tokens": 4,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14040",
+        "15130",
+        "15131",
+        "15862",
+        "15863",
+        "20604",
+        "20605",
+        "32275"
+      ]
+    },
+    {
+      "card": "Aphetto Alchemist",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 7,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 6,
+        "draw": 2,
+        "other": 2,
+        "lifegain": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13012",
+        "13014",
+        "14186",
+        "15266",
+        "26647",
+        "2680",
+        "4293"
+      ]
+    },
+    {
+      "card": "Gaea's Cradle",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 7,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 9,
+        "triggers": 3,
+        "draw": 1,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10028",
+        "10030",
+        "14708",
+        "14886",
+        "1528",
+        "17848",
+        "32245"
+      ]
+    },
+    {
+      "card": "Izzet Boilerworks",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 7,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "other": 2,
+        "lifegain": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3862+30510",
+        "3873+30510",
+        "3928+30510",
+        "3964+30510",
+        "3975+30510",
+        "4030+30510",
+        "6086+25275"
+      ]
+    },
+    {
+      "card": "The Enigma Jewel // Locus of Enlightenment",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 5,
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "25931",
+        "25932",
+        "26646",
+        "26647",
+        "28236",
+        "28246",
+        "31744"
+      ]
+    },
+    {
+      "card": "Blood Artist",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 9,
+      "essential_combo_count": 6,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 9,
+        "triggers": 9,
+        "lifegain": 6,
+        "counters": 4,
+        "mana": 4,
+        "draw": 2,
+        "storm": 1
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "141",
+        "142",
+        "26669",
+        "27269",
+        "31636",
+        "6565"
+      ]
+    },
+    {
+      "card": "Roaming Throne",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 5,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "mana": 3,
+        "damage": 2,
+        "counters": 1,
+        "mill": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17436",
+        "1828",
+        "27733",
+        "27734",
+        "28370"
+      ]
+    },
+    {
+      "card": "Cayth, Famed Mechanist",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 4,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "mana": 3,
+        "tokens": 2,
+        "counters": 1,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27116",
+        "27117",
+        "27118",
+        "29965"
+      ]
+    },
+    {
+      "card": "Krenko, Baron of Tin Street",
+      "reason": "essential",
+      "combo_count": 9,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 9,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 4,
+        "mana": 2,
+        "counters": 1,
+        "damage": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26178",
+        "26181",
+        "26529",
+        "26530"
+      ]
+    },
+    {
+      "card": "Basri's Lieutenant",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 8,
+        "counters": 7,
+        "mana": 3,
+        "damage": 2,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2499",
+        "2500",
+        "2501",
+        "2502",
+        "2503",
+        "2504",
+        "2505",
+        "2506"
+      ]
+    },
+    {
+      "card": "Coral Atoll",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "3854+30510",
+        "3864+30510",
+        "3875+30510",
+        "3930+30510",
+        "3956+30510",
+        "3966+30510",
+        "3977+30510",
+        "4032+30510"
+      ]
+    },
+    {
+      "card": "Deathbringer Thoctar",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "triggers": 6,
+        "mana": 3,
+        "counters": 2,
+        "lock": 2,
+        "mill": 1
+      },
+      "payoff_categories": [
+        "counters"
+      ],
+      "essential_combos": [
+        "11350",
+        "11351",
+        "11352",
+        "11353",
+        "11354",
+        "19956",
+        "19958",
+        "7986"
+      ]
+    },
+    {
+      "card": "Hope Tender",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 8,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17843",
+        "17846",
+        "17848",
+        "17850",
+        "17851",
+        "19014",
+        "3940",
+        "4042"
+      ]
+    },
+    {
+      "card": "Illusionist's Bracers",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "counters": 2,
+        "triggers": 2,
+        "damage": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11130",
+        "1575",
+        "16948",
+        "2678",
+        "2680",
+        "32140",
+        "32946",
+        "5640"
+      ]
+    },
+    {
+      "card": "Quietus Spike",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "win": 6,
+        "lock": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14463",
+        "19958",
+        "26036",
+        "4435",
+        "8565",
+        "9179",
+        "9180",
+        "9181"
+      ]
+    },
+    {
+      "card": "Splinter Twin",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 7,
+        "tokens": 5,
+        "mana": 3,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15462",
+        "1710",
+        "1710+6220",
+        "26121",
+        "32160",
+        "3371",
+        "4695",
+        "8478"
+      ]
+    },
+    {
+      "card": "Yurlok of Scorch Thrash",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 8,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 8,
+        "mana": 8,
+        "draw": 2,
+        "lifegain": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "19014",
+        "19357",
+        "19358",
+        "22459",
+        "22460",
+        "26662",
+        "26784",
+        "4584"
+      ]
+    },
+    {
+      "card": "Imotekh the Stormlord",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "tokens": 7,
+        "triggers": 7,
+        "storm": 4,
+        "counters": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14419",
+        "14420",
+        "23700",
+        "23701",
+        "23708",
+        "23709",
+        "29449"
+      ]
+    },
+    {
+      "card": "Peregrin Took",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 7,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 7,
+        "triggers": 5,
+        "tokens": 4,
+        "lifegain": 1,
+        "lock": 1,
+        "mana": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17625",
+        "18333",
+        "23449",
+        "25819",
+        "28262+28369",
+        "32321",
+        "33216"
+      ]
+    },
+    {
+      "card": "Workshop Assistant",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 8,
+      "essential_combo_count": 6,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 8,
+        "triggers": 8,
+        "mana": 5,
+        "counters": 2,
+        "damage": 2,
+        "tokens": 2,
+        "draw": 1,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11166",
+        "1826",
+        "23708",
+        "23709",
+        "25321",
+        "25324"
+      ]
+    },
+    {
+      "card": "Vhal, Candlekeep Researcher",
+      "reason": "essential",
+      "combo_count": 8,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 8,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 5,
+        "draw": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "16580",
+        "16589",
+        "2725+8706",
+        "2725+8707+27971",
+        "30443"
+      ]
+    },
+    {
+      "card": "Astarion, the Decadent",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 7,
+        "win": 7
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "29389",
+        "8564",
+        "8565",
+        "8566",
+        "8567",
+        "8568",
+        "8569"
+      ]
+    },
+    {
+      "card": "Experiment Kraj",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "counters": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "27315",
+        "524",
+        "526",
+        "528",
+        "530",
+        "532",
+        "534"
+      ]
+    },
+    {
+      "card": "Krosan Restorer",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 7,
+        "counters": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "25006",
+        "3042",
+        "3839",
+        "3842",
+        "532",
+        "534",
+        "8409"
+      ]
+    },
+    {
+      "card": "Patrol Signaler",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 7,
+        "triggers": 7,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15467",
+        "16719",
+        "16720",
+        "16722",
+        "22258",
+        "22345",
+        "27005"
+      ]
+    },
+    {
+      "card": "Phyrexian Triniform",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 7,
+        "mana": 6,
+        "tokens": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15605",
+        "15606",
+        "15607",
+        "15608",
+        "31738",
+        "4571",
+        "4572"
+      ]
+    },
+    {
+      "card": "Presence of Gond",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 6,
+        "triggers": 6,
+        "mana": 3,
+        "counters": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1106",
+        "1887",
+        "27517",
+        "3106",
+        "31621",
+        "358",
+        "9850"
+      ]
+    },
+    {
+      "card": "Prototype Portal",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 4,
+        "triggers": 2,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13891",
+        "16622",
+        "16623",
+        "7547",
+        "9299",
+        "9300",
+        "9301"
+      ]
+    },
+    {
+      "card": "Tazri, Stalwart Survivor",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 4,
+        "triggers": 4,
+        "other": 3,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "16719",
+        "16720",
+        "16722",
+        "16732",
+        "16734",
+        "22341",
+        "22345"
+      ]
+    },
+    {
+      "card": "Timestream Navigator",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 7,
+        "turns": 7
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1921",
+        "29313",
+        "30257",
+        "32662",
+        "8104",
+        "8105",
+        "934"
+      ]
+    },
+    {
+      "card": "Tivit, Seller of Secrets",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 7,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 4,
+        "turns": 4,
+        "triggers": 3,
+        "mana": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10495",
+        "10496",
+        "10661",
+        "13895",
+        "26918",
+        "8396",
+        "8397"
+      ]
+    },
+    {
+      "card": "Encroaching Mycosynth",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 6,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 6,
+        "mana": 2,
+        "damage": 1,
+        "mill": 1,
+        "other": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14692",
+        "14693",
+        "15553",
+        "19496",
+        "20518",
+        "20749"
+      ]
+    },
+    {
+      "card": "Seeker of Skybreak",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 6,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 6,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1575",
+        "26646",
+        "26689",
+        "26690",
+        "4071",
+        "4296"
+      ]
+    },
+    {
+      "card": "Crime Novelist",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 5,
+        "triggers": 5,
+        "mana": 4,
+        "storm": 2,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "25962",
+        "25965",
+        "25966",
+        "27774",
+        "27775"
+      ]
+    },
+    {
+      "card": "Magda, Brazen Outlaw",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3,
+        "other": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "5267",
+        "5486",
+        "5888",
+        "8520",
+        "8525"
+      ]
+    },
+    {
+      "card": "Magosi, the Waterveil",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 5,
+        "turns": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1062",
+        "30239",
+        "32655",
+        "6302+32655",
+        "6313+32655"
+      ]
+    },
+    {
+      "card": "March of the Machines",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 5,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "triggers": 2,
+        "damage": 1,
+        "draw": 1,
+        "lock": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1085",
+        "11826",
+        "14488",
+        "29113",
+        "4248"
+      ]
+    },
+    {
+      "card": "Stonybrook Schoolmaster",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 7,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "tokens": 4,
+        "mana": 3,
+        "damage": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10194",
+        "10195",
+        "10644",
+        "20540",
+        "2160"
+      ]
+    },
+    {
+      "card": "Cursed Mirror",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 3,
+      "templates": [
+        "Card That Copies a Creature"
+      ],
+      "outcomes": {
+        "triggers": 7,
+        "mana": 3,
+        "tokens": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12706",
+        "12707",
+        "20848",
+        "8776"
+      ]
+    },
+    {
+      "card": "Boromir, Warden of the Tower",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 5,
+      "templates": [
+        "Card with \"The Ring tempts you\""
+      ],
+      "outcomes": {
+        "mana": 3,
+        "triggers": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1669",
+        "33815"
+      ]
+    },
+    {
+      "card": "The Fire Crystal",
+      "reason": "essential",
+      "combo_count": 7,
+      "distinct_combo_count": 7,
+      "essential_combo_count": 2,
+      "piece_combo_count": 4,
+      "template_combo_count": 3,
+      "templates": [
+        "Card That Copies a Creature"
+      ],
+      "outcomes": {
+        "mana": 6,
+        "triggers": 6,
+        "tokens": 3,
+        "storm": 2,
+        "damage": 1,
+        "draw": 1,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "18223",
+        "30257"
+      ]
+    },
+    {
+      "card": "Argothian Elder",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 6,
+        "counters": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2577",
+        "2983",
+        "3838",
+        "3841",
+        "524",
+        "526"
+      ]
+    },
+    {
+      "card": "Blitzwing, Cruel Tormentor // Blitzwing, Adaptive Assailant",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "win": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14462",
+        "14463",
+        "14464",
+        "14465",
+        "14466",
+        "14467"
+      ]
+    },
+    {
+      "card": "Carnival of Souls",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "triggers": 6,
+        "mana": 2,
+        "win": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "141",
+        "142",
+        "2141",
+        "2142",
+        "6564",
+        "6565"
+      ]
+    },
+    {
+      "card": "Fraying Omnipotence",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "win": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12973",
+        "12974",
+        "14462",
+        "26032",
+        "6358",
+        "8564"
+      ]
+    },
+    {
+      "card": "Gwenna, Eyes of Gaea",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3,
+        "other": 2,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13114",
+        "13115",
+        "13116",
+        "13117",
+        "17791",
+        "17846"
+      ]
+    },
+    {
+      "card": "Kurkesh, Onakke Ancient",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 4,
+        "draw": 2,
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14154",
+        "14156",
+        "4200",
+        "4201",
+        "4334",
+        "4335"
+      ]
+    },
+    {
+      "card": "Mystic Sanctuary",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 6,
+        "turns": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1192",
+        "1193",
+        "1196",
+        "1197",
+        "7379",
+        "7381"
+      ]
+    },
+    {
+      "card": "Scourge of the Skyclaves",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "win": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14465",
+        "26034",
+        "3404",
+        "3405",
+        "8241",
+        "8567"
+      ]
+    },
+    {
+      "card": "Scytheclaw",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "win": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14467",
+        "26038",
+        "8569",
+        "9176",
+        "9177",
+        "9178"
+      ]
+    },
+    {
+      "card": "Tamiyo's Journal",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 6,
+        "turns": 6
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13896",
+        "23448",
+        "23449",
+        "24631",
+        "9818",
+        "9819"
+      ]
+    },
+    {
+      "card": "Tribute to the World Tree",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 6,
+        "mana": 3,
+        "counters": 1,
+        "mill": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15977",
+        "15978",
+        "15979",
+        "15980",
+        "23651",
+        "23652"
+      ]
+    },
+    {
+      "card": "Virtus the Veiled",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 6,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "win": 6,
+        "damage": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14466",
+        "26039",
+        "2840",
+        "8568",
+        "9182",
+        "9183"
+      ]
+    },
+    {
+      "card": "Breath of Fury",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 5,
+        "mana": 5,
+        "triggers": 5,
+        "tokens": 2,
+        "draw": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15461",
+        "15462",
+        "19623",
+        "29515",
+        "996"
+      ]
+    },
+    {
+      "card": "Temur Sabertooth",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 4,
+        "storm": 4,
+        "triggers": 4,
+        "counters": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26524",
+        "28649",
+        "31676",
+        "4275"
+      ]
+    },
+    {
+      "card": "Gogo, Master of Mimicry",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "30239",
+        "30249",
+        "30443"
+      ]
+    },
+    {
+      "card": "Zulaport Cutthroat",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 6,
+      "essential_combo_count": 3,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 6,
+        "triggers": 6,
+        "counters": 3,
+        "lifegain": 3,
+        "mana": 3,
+        "draw": 2,
+        "win": 2,
+        "storm": 1
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "2141",
+        "2142",
+        "6564"
+      ]
+    },
+    {
+      "card": "Suture Priest",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 2,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 4,
+        "damage": 3,
+        "lifegain": 3,
+        "mana": 3,
+        "tokens": 2,
+        "counters": 1,
+        "storm": 1
+      },
+      "payoff_categories": [
+        "mana",
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "30580",
+        "9798"
+      ]
+    },
+    {
+      "card": "Concordant Crossroads",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 1,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "mana": 3,
+        "tokens": 2,
+        "damage": 1,
+        "draw": 1,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15467"
+      ]
+    },
+    {
+      "card": "Gleaming Splendor",
+      "reason": "essential",
+      "combo_count": 6,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 1,
+      "piece_combo_count": 6,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 1,
+        "draw": 1,
+        "mana": 1
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "33549"
+      ]
+    },
+    {
+      "card": "Aetherflux Reservoir",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 5,
+        "lifegain": 1,
+        "storm": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [
+        "storm",
+        "lifegain"
+      ],
+      "essential_combos": [
+        "1085",
+        "19313",
+        "21328",
+        "29336",
+        "905"
+      ]
+    },
+    {
+      "card": "Banishing Knack",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 5,
+        "mana": 3,
+        "triggers": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10095",
+        "119",
+        "18372",
+        "2856",
+        "878"
+      ]
+    },
+    {
+      "card": "Battered Golem",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 2,
+        "tokens": 2,
+        "triggers": 2,
+        "mana": 1,
+        "other": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10095",
+        "2856",
+        "29971",
+        "3371",
+        "7898"
+      ]
+    },
+    {
+      "card": "Feldon of the Third Path",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 4,
+        "mana": 3,
+        "damage": 1,
+        "lock": 1,
+        "tokens": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15075",
+        "15076",
+        "15080",
+        "6083",
+        "8104"
+      ]
+    },
+    {
+      "card": "Forsaken Miner",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "damage": 4,
+        "lifegain": 2,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26669",
+        "26944",
+        "26945",
+        "26946",
+        "27269"
+      ]
+    },
+    {
+      "card": "Goblin Welder",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 5,
+        "mana": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12677",
+        "19496",
+        "4757",
+        "7531",
+        "7532"
+      ]
+    },
+    {
+      "card": "Knacksaw Clique",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "16732",
+        "16734",
+        "22341",
+        "989",
+        "991"
+      ]
+    },
+    {
+      "card": "Maze of Ith",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14706",
+        "14708",
+        "24659",
+        "25006",
+        "2577"
+      ]
+    },
+    {
+      "card": "Mycosynth Golem",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 5,
+        "triggers": 5,
+        "damage": 2,
+        "mill": 2,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11166",
+        "25320",
+        "25321",
+        "25323",
+        "25324"
+      ]
+    },
+    {
+      "card": "Raving Dead",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 5,
+        "win": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14464",
+        "8566",
+        "9184",
+        "9185",
+        "9186"
+      ]
+    },
+    {
+      "card": "Shard of the Nightbringer",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 5,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 5,
+        "win": 5,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "11327",
+        "11328",
+        "11329",
+        "11331",
+        "26040"
+      ]
+    },
+    {
+      "card": "Crackdown Construct",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15266",
+        "24003",
+        "2842",
+        "5667"
+      ]
+    },
+    {
+      "card": "Temporal Manipulation",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 4,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 5,
+        "turns": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1192",
+        "1196",
+        "17049",
+        "7381"
+      ]
+    },
+    {
+      "card": "Time Warp",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 4,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 5,
+        "turns": 5
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1193",
+        "1197",
+        "17048",
+        "7379"
+      ]
+    },
+    {
+      "card": "Crookshank Kobolds",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 5,
+      "essential_combo_count": 3,
+      "piece_combo_count": 4,
+      "template_combo_count": 1,
+      "templates": [
+        "Creature castable for {0} that survives"
+      ],
+      "outcomes": {
+        "storm": 5,
+        "triggers": 5,
+        "damage": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17456",
+        "5597",
+        "5613"
+      ]
+    },
+    {
+      "card": "Deserted Temple",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 5,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1062",
+        "1528",
+        "28236"
+      ]
+    },
+    {
+      "card": "Swiftfoot Boots",
+      "reason": "essential",
+      "combo_count": 5,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 1,
+      "piece_combo_count": 1,
+      "template_combo_count": 4,
+      "templates": [
+        "Equipment with Equip Cost = {1}"
+      ],
+      "outcomes": {
+        "triggers": 3,
+        "storm": 2,
+        "mana": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "20833"
+      ]
+    },
+    {
+      "card": "Fiery Inscription",
+      "reason": "redundant",
+      "combo_count": 5,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 5,
+      "templates": [
+        "Card with \"The Ring tempts you\""
+      ],
+      "outcomes": {
+        "mana": 1
+      },
+      "payoff_categories": [
+        "storm"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Arcbound Crusher",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 4,
+        "triggers": 4,
+        "tokens": 3,
+        "mana": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "19907",
+        "32552",
+        "61",
+        "62"
+      ]
+    },
+    {
+      "card": "Azor, the Lawbringer",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "13300",
+        "13387",
+        "13388",
+        "13389"
+      ]
+    },
+    {
+      "card": "Contagion Engine",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 4,
+        "turns": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "12469",
+        "14156",
+        "14158",
+        "4197"
+      ]
+    },
+    {
+      "card": "Goblin Sharpshooter",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "triggers": 2,
+        "damage": 1
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "2528",
+        "32160",
+        "4432",
+        "4435"
+      ]
+    },
+    {
+      "card": "Grievous Wound",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 4,
+        "win": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "28297",
+        "28298",
+        "28299",
+        "28300"
+      ]
+    },
+    {
+      "card": "Jeskai Ascendancy",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 4,
+        "mana": 3,
+        "triggers": 3,
+        "draw": 1,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2189",
+        "876",
+        "877",
+        "878"
+      ]
+    },
+    {
+      "card": "Lonis, Cryptozoologist",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lifegain": 4,
+        "triggers": 4,
+        "draw": 1,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10217",
+        "11755",
+        "11756",
+        "11758"
+      ]
+    },
+    {
+      "card": "Torgaar, Famine Incarnate",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 4,
+        "win": 4
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26839",
+        "26840",
+        "26841",
+        "26842"
+      ]
+    },
+    {
+      "card": "Vigean Graftmage",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 4,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "other": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "7891",
+        "7892",
+        "7893",
+        "8409"
+      ]
+    },
+    {
+      "card": "Light of Promise",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 2,
+        "lifegain": 2,
+        "damage": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "30303",
+        "30580"
+      ]
+    },
+    {
+      "card": "Lithoform Engine",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 2,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 3,
+        "turns": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14158",
+        "15410"
+      ]
+    },
+    {
+      "card": "Rite of Replication",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 4,
+      "essential_combo_count": 1,
+      "piece_combo_count": 1,
+      "template_combo_count": 3,
+      "templates": [
+        "Card That Copies a Creature"
+      ],
+      "outcomes": {
+        "mana": 4,
+        "triggers": 3,
+        "tokens": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "29390"
+      ]
+    },
+    {
+      "card": "Scute Swarm",
+      "reason": "essential",
+      "combo_count": 4,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 1,
+      "piece_combo_count": 4,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lifegain": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "6186"
+      ]
+    },
+    {
+      "card": "Astral Dragon",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 3,
+        "triggers": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "23358",
+        "23360",
+        "8776"
+      ]
+    },
+    {
+      "card": "Blood Tribute",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 3,
+        "win": 3,
+        "lifegain": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "26035",
+        "29389",
+        "30704"
+      ]
+    },
+    {
+      "card": "Ezuri, Renegade Leader",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3,
+        "counters": 2
+      },
+      "payoff_categories": [
+        "tokens"
+      ],
+      "essential_combos": [
+        "551",
+        "552",
+        "553"
+      ]
+    },
+    {
+      "card": "Gauntlets of Light",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2725+6943",
+        "2725+8180",
+        "2725+8181"
+      ]
+    },
+    {
+      "card": "High Alert",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2725+8182",
+        "2725+8183",
+        "2725+8184"
+      ]
+    },
+    {
+      "card": "Midnight Guard",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "tokens": 2,
+        "triggers": 2,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1106",
+        "119",
+        "4695"
+      ]
+    },
+    {
+      "card": "Old Gnawbone",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "lifegain": 1,
+        "lock": 1,
+        "tokens": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "6761",
+        "6762",
+        "9887"
+      ]
+    },
+    {
+      "card": "Tameshi, Reality Architect",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 3,
+        "turns": 3
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "7348",
+        "7379",
+        "7381"
+      ]
+    },
+    {
+      "card": "The Reaver Cleaver",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 2,
+        "mana": 2,
+        "lock": 1,
+        "tokens": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "10823",
+        "10824",
+        "10825"
+      ]
+    },
+    {
+      "card": "Underworld Breach",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mill": 3,
+        "storm": 2,
+        "mana": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1952",
+        "27437",
+        "28677"
+      ]
+    },
+    {
+      "card": "Vivi Ornitier",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 3,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 3,
+        "mana": 2
+      },
+      "payoff_categories": [
+        "storm"
+      ],
+      "essential_combos": [
+        "30110",
+        "30111",
+        "30574"
+      ]
+    },
+    {
+      "card": "The Tenth Doctor",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 1,
+        "storm": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "19417",
+        "29760"
+      ]
+    },
+    {
+      "card": "Elas il-Kor, Sadistic Pilgrim",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 3,
+      "essential_combo_count": 1,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 3,
+        "triggers": 3,
+        "lifegain": 2,
+        "storm": 2,
+        "mana": 1
+      },
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": [
+        "29938"
+      ]
+    },
+    {
+      "card": "Rousing Refrain",
+      "reason": "essential",
+      "combo_count": 3,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 1,
+      "piece_combo_count": 1,
+      "template_combo_count": 2,
+      "templates": [
+        "Self-Suspending Instant or Sorcery"
+      ],
+      "outcomes": {
+        "lock": 1,
+        "storm": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "19417"
+      ]
+    },
+    {
+      "card": "The Legend of Kyoshi // Avatar Kyoshi",
+      "reason": "redundant",
+      "combo_count": 3,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 3,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "draw": 1,
+        "lifegain": 1,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Universal Automaton",
+      "reason": "redundant",
+      "combo_count": 3,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 0,
+      "piece_combo_count": 1,
+      "template_combo_count": 2,
+      "templates": [
+        "Creature Castable for {C}"
+      ],
+      "outcomes": {
+        "mana": 1,
+        "storm": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Altar of the Brood",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mill": 2,
+        "triggers": 2
+      },
+      "payoff_categories": [
+        "triggers"
+      ],
+      "essential_combos": [
+        "2186",
+        "562"
+      ]
+    },
+    {
+      "card": "Aminatou, the Fateshifter",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 2,
+        "mill": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "2185",
+        "2186"
+      ]
+    },
+    {
+      "card": "Basilisk Collar",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "19956",
+        "4432"
+      ]
+    },
+    {
+      "card": "Berta, Wise Extrapolator",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "tokens": 2,
+        "triggers": 2,
+        "counters": 1
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "32678",
+        "34057"
+      ]
+    },
+    {
+      "card": "Brain Freeze",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mill": 2,
+        "storm": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [
+        "storm"
+      ],
+      "essential_combos": [
+        "28677",
+        "3102"
+      ]
+    },
+    {
+      "card": "Capsize",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1192",
+        "1193"
+      ]
+    },
+    {
+      "card": "Dionus, Elvish Archdruid",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 2,
+        "mana": 2,
+        "triggers": 2,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "28589",
+        "28649"
+      ]
+    },
+    {
+      "card": "Exalted Flamer of Tzeentch",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [
+        "storm"
+      ],
+      "essential_combos": [
+        "17048",
+        "17049"
+      ]
+    },
+    {
+      "card": "Geralf's Messenger",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 2,
+        "damage": 2,
+        "mana": 2,
+        "tokens": 2,
+        "triggers": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "603",
+        "604"
+      ]
+    },
+    {
+      "card": "Hellkite Tyrant",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "win": 2,
+        "lock": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "15923",
+        "33689"
+      ]
+    },
+    {
+      "card": "Hellraiser Goblin",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "tokens": 2,
+        "triggers": 2,
+        "damage": 1,
+        "storm": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "29075",
+        "996"
+      ]
+    },
+    {
+      "card": "Karn's Bastion",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "14154",
+        "15410"
+      ]
+    },
+    {
+      "card": "Kefnet the Mindful",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "1196",
+        "1197"
+      ]
+    },
+    {
+      "card": "Mirror Entity",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "other": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "24003",
+        "29432"
+      ]
+    },
+    {
+      "card": "Phelddagrif",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "mana": 2,
+        "tokens": 2,
+        "triggers": 2,
+        "damage": 1
+      },
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": [
+        "4396",
+        "9798"
+      ]
+    },
+    {
+      "card": "Shifting Wall",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "storm": 2,
+        "triggers": 2,
+        "mana": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "17145",
+        "2893"
+      ]
+    },
+    {
+      "card": "Sword of Feast and Famine",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 1,
+        "lifegain": 1,
+        "other": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "1774",
+        "4138"
+      ]
+    },
+    {
+      "card": "Uthros Research Craft",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Spacecraft"
+      ],
+      "outcomes": {
+        "lock": 2,
+        "turns": 2
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "30752",
+        "31744"
+      ]
+    },
+    {
+      "card": "Vito, Thorn of the Dusk Rose",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 2,
+      "essential_combo_count": 2,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "damage": 2,
+        "win": 2
+      },
+      "payoff_categories": [
+        "lifegain"
+      ],
+      "essential_combos": [
+        "11331",
+        "30704"
+      ]
+    },
+    {
+      "card": "Broodhatch Nantuko",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 1,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "32117"
+      ]
+    },
+    {
+      "card": "Rite of Passage",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 1,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "counters": 1,
+        "damage": 1,
+        "mana": 1
+      },
+      "payoff_categories": [
+        "triggers"
+      ],
+      "essential_combos": [
+        "4971"
+      ]
+    },
+    {
+      "card": "Taigam, Master Opportunist",
+      "reason": "essential",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 1,
+      "piece_combo_count": 2,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": [
+        "29760"
+      ]
+    },
+    {
+      "card": "Akroma's Will",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Card that gives indestructible"
+      ],
+      "outcomes": {
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Avenger of the Fallen",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Creature with Mobilize"
+      ],
+      "outcomes": {
+        "damage": 1,
+        "draw": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Flawless Maneuver",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Card that gives indestructible"
+      ],
+      "outcomes": {
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Suspended Sentence",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Self-Suspending Instant or Sorcery"
+      ],
+      "outcomes": {
+        "lock": 1,
+        "turns": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Voice of Victory",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Creature with Mobilize"
+      ],
+      "outcomes": {
+        "damage": 1,
+        "draw": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Zurgo, Thunder's Decree",
+      "reason": "redundant",
+      "combo_count": 2,
+      "distinct_combo_count": 1,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 2,
+      "templates": [
+        "Creature with Mobilize"
+      ],
+      "outcomes": {
+        "damage": 1,
+        "draw": 1,
+        "mana": 1,
+        "tokens": 1,
+        "triggers": 1
+      },
+      "payoff_categories": [],
+      "essential_combos": []
+    },
+    {
+      "card": "Apocalypse Hydra",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "counters"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Contaminated Drink",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Garna, Bloodfist of Keld",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Nyxborn Hydra",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Pious Evangel // Wayward Disciple",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Rampaging Ferocidon",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Sky Crier",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Spiteful Prankster",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "The Meathook Massacre",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Thunder of Unity",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "tokens",
+        "triggers"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Universal Surveillance",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": []
+    },
+    {
+      "card": "Well of Lost Dreams",
+      "reason": "payoff_only",
+      "combo_count": 0,
+      "distinct_combo_count": 0,
+      "essential_combo_count": 0,
+      "piece_combo_count": 0,
+      "template_combo_count": 0,
+      "templates": [],
+      "outcomes": {},
+      "payoff_categories": [
+        "mana"
+      ],
+      "essential_combos": []
+    }
+  ]
+}
