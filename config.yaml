@@ -1,4 +1,5 @@
-# Cube configuration: the blocklist, the outcome category table and the payoff table.
+# Cube configuration: the blocklist, the blocklist queries, the outcome category table and
+# the payoff table.
 # Read from the working directory by default; pass another file with --config.
 
 # Cards to always exclude from the cube
@@ -10,6 +11,17 @@ blocklist:
   - War Room
   - Command Beacon
   - Jeweled Lotus
+
+# Scryfall queries whose matching cards are blocked too (paper cards, the first result page
+# of 175 cards of each), resolved through the cache like the payoff queries
+blocklist_queries:
+  # The Un-set card types: Unfinity's sticker sheets and attractions, Unstable's contraptions
+  # and hosts, and the augment cards that only combine with a host
+  - t:stickers
+  - t:attraction
+  - t:contraption
+  - t:host
+  - keyword:augment
 
 # What a combo does, from the features it produces on Commander Spellbook. A category lists
 # case-insensitive substrings of feature names, or regular expressions prefixed with "re:".

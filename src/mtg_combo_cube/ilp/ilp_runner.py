@@ -7,6 +7,7 @@ from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
+from mtg_combo_cube.blocklist import fetch_blocklist
 from mtg_combo_cube.config import CubeConfig, load_config
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.ilp.cube_evaluation import (
@@ -860,8 +861,9 @@ async def build_cube_ilp(
     """
     Build cube using ILP optimization with optional API caching.
 
-    config holds the blocklist, the outcome category table and the payoff table (the
-    default configuration file when None, see config.py). The outcome table is behind the
+    config holds the blocklist, the blocklist queries, the outcome category table and the
+    payoff table (the default configuration file when None, see config.py); the cards the
+    blocklist queries match are blocked too (see blocklist.py). The outcome table is behind the
     outcome statistics and the Phase 2 outcome rules; without it and with no rule on, the
     build goes on without the outcome statistics. The payoff table is behind the payoff
     statistics and the Phase 2 payoff floor (min_payoffs per category, payoff_share of the
@@ -887,7 +889,12 @@ async def build_cube_ilp(
         or min_payoffs > 0,
         payoffs=min_payoffs > 0,
     )
-    blocklist = config.blocklist
+    blocklist = await fetch_blocklist(
+        config.blocklist,
+        config.blocklist_queries,
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+    )
     outcome_categories = config.outcome_categories
     payoff_definitions = config.payoffs
     if outcome_categories is None:

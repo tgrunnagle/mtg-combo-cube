@@ -1,4 +1,5 @@
-"""Tests for the configuration file: the blocklist, outcome and payoff sections."""
+"""Tests for the configuration file: the blocklist, blocklist query, outcome and payoff
+sections."""
 
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from mtg_combo_cube.config import (
     CubeConfig,
     load_config,
     parse_blocklist,
+    parse_blocklist_queries,
     parse_config,
 )
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, parse_outcome_categories
@@ -20,6 +22,8 @@ CONFIG = """\
 blocklist:
   - Sol Ring
   - "  Demonic Tutor  "
+blocklist_queries:
+  - t:stickers
 outcome_categories:
   mana: [infinite colored mana]
   damage: {patterns: ["re:infinite damage(?! to creatures)"], min_combos: 3}
@@ -42,6 +46,7 @@ class TestLoad:
         config = load_config(write(tmp_path, CONFIG))
 
         assert config.blocklist == frozenset({"Sol Ring", "Demonic Tutor"})
+        assert config.blocklist_queries == ("t:stickers",)
         assert config.outcome_categories is not None
         assert config.outcome_categories.names == ("mana", "damage", "other")
         assert config.outcome_categories.categories[1].min_combos == 3
@@ -65,6 +70,7 @@ class TestLoad:
         config = load_config(write(tmp_path, "blocklist: [Sol Ring]\n"))
 
         assert config.blocklist == frozenset({"Sol Ring"})
+        assert config.blocklist_queries == ()
         assert config.outcome_categories is None
         assert config.payoffs is None
 
@@ -101,6 +107,18 @@ class TestParse:
     def test_invalid_blocklists_are_rejected(self, entries: object):
         with pytest.raises(ConfigError, match="list of card names"):
             parse_blocklist(entries)
+
+    def test_blocklist_queries_are_stripped_and_deduplicated_in_order(self):
+        assert parse_blocklist_queries(["t:stickers", " t:attraction ", "t:stickers"]) == (
+            "t:stickers",
+            "t:attraction",
+        )
+        assert parse_blocklist_queries([]) == ()
+
+    @pytest.mark.parametrize("entries", ["t:stickers", ["t:stickers", ""], [1], {"a": 1}])
+    def test_invalid_blocklist_queries_are_rejected(self, entries: object):
+        with pytest.raises(ConfigError, match="list of Scryfall queries"):
+            parse_blocklist_queries(entries)
 
 
 class TestConsistency:

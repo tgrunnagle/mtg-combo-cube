@@ -9,6 +9,7 @@ from unittest.mock import MagicMock
 import aiohttp
 import pytest
 
+from mtg_combo_cube.blocklist import BlocklistQueryError
 from mtg_combo_cube.ilp.payoffs import parse_payoff_table
 from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
@@ -316,6 +317,37 @@ class TestPrecache:
         assert result.cards == 2
         assert session.requests == [CREATURE_URL, COLLECTION_URL]
         assert session.bodies == [{"identifiers": [{"name": "Card A"}, {"name": "Creature X"}]}]
+
+    @pytest.mark.asyncio
+    async def test_blocklist_queries_are_resolved_and_block_their_cards(self, tmp_path):
+        stickers_url = PayoffFetcher.search_url("t:stickers")
+        session = FakeSession(
+            {
+                stickers_url: [FakeResponse(200, card_names=["Card B"])],
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                COLLECTION_URL: [colors_response({"Card A": ["W"], "Creature X": ["G"]})],
+            }
+        )
+
+        result = await run_precache(
+            tmp_path, FakeSpellbook(VARIANTS), session, blocklist_queries=["t:stickers"]
+        )
+
+        # The query blocks Card B, so combo1 is dropped and Card B is not looked up
+        assert result.complete
+        assert result.cards == 2
+        assert session.requests == [stickers_url, CREATURE_URL, COLLECTION_URL]
+        with open(tmp_path / PayoffFetcher.CACHE_FILENAME, encoding="utf-8") as f:
+            assert json.load(f)["queries"][stickers_url]["cards"] == ["Card B"]
+
+    @pytest.mark.asyncio
+    async def test_rejected_blocklist_query_stops_the_run(self, tmp_path):
+        session = FakeSession({PayoffFetcher.search_url("t:nonsense"): [FakeResponse(400)]})
+
+        with pytest.raises(BlocklistQueryError, match="t:nonsense"):
+            await run_precache(
+                tmp_path, FakeSpellbook(VARIANTS), session, blocklist_queries=["t:nonsense"]
+            )
 
     @pytest.mark.asyncio
     async def test_spellbook_network_error_is_retried_with_growing_wait(self, tmp_path):

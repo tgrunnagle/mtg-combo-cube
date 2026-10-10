@@ -2,6 +2,7 @@
 
 import logging
 
+from mtg_combo_cube.blocklist import fetch_blocklist
 from mtg_combo_cube.config import load_config
 from mtg_combo_cube.greedy.greedy_runner import run_greedy
 from mtg_combo_cube.ilp.ilp_models import DEFAULT_CARD_MIX, CardMixRules
@@ -131,7 +132,12 @@ async def run(
             cube_size=cube_size,
             output_file=output_file,
             golden_ratio=golden_ratio,
-            blocklist=config.blocklist,
+            blocklist=await fetch_blocklist(
+                config.blocklist,
+                config.blocklist_queries,
+                enable_cache_write=enable_cache_write,
+                read_cache=read_cache,
+            ),
             enable_cache_write=enable_cache_write,
             read_cache=read_cache,
         )
