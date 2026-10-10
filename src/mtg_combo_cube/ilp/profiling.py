@@ -96,8 +96,9 @@ def extract_solver_stats(solver: cp_model.CpSolver) -> dict[str, Any]:
     try:
         bound = solver.BestObjectiveBound()
         stats["best_objective_bound"] = bound
-        # The objective value is only meaningful when a solution was found
-        if solver.StatusName() in ("OPTIMAL", "FEASIBLE"):
+        # The objective value is only meaningful when a solution was found. Read the status from
+        # the response: StatusName() with no argument raises a TypeError in ortools 9.15.
+        if solver.response_proto.status in (cp_model.OPTIMAL, cp_model.FEASIBLE):
             obj = solver.ObjectiveValue()
             stats["objective_value"] = obj
             stats["relative_gap"] = relative_gap(obj, bound)

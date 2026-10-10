@@ -422,7 +422,7 @@ class TestMixedIdentityGroups:
         base.model.add(base.x[forbid] == 0)
         optimizer._add_combo_count_objective(base)
         solver = optimizer._make_solver()
-        status = optimizer._status_to_string(solver.solve(base.model))  # type: ignore[arg-type]
+        status = optimizer._status_to_string(solver.solve(base.model))
         assert status == "OPTIMAL", status
         return {card for card in optimizer.all_cards if solver.value(base.x[card]) == 1}
 
@@ -440,7 +440,7 @@ class TestMixedIdentityGroups:
         base.model.add(base.x["Y"] == 0)
         solver = optimizer._make_solver()
 
-        assert optimizer._status_to_string(solver.solve(base.model)) == "INFEASIBLE"  # type: ignore[arg-type]
+        assert optimizer._status_to_string(solver.solve(base.model)) == "INFEASIBLE"
         # One fit variable, for the group that only partly fits mono white
         assert set(base.fit_vars) == {("W", "g")}
 
