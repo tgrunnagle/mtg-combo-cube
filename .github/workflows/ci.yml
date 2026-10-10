@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+
+      - uses: arduino/setup-task@v2
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run checks
+        run: task check
+
+      # `task check` runs `task format`, which rewrites files in place rather than failing,
+      # so fail here if it changed anything (this also catches an out-of-date uv.lock).
+      - name: Fail on uncommitted changes
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "::error::'task check' modified files. Run 'task format' (and 'uv lock') and commit the changes."
+            git status --porcelain
+            git diff
+            exit 1
+          fi
