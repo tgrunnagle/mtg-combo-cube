@@ -1,9 +1,11 @@
 """
-The cube configuration: one YAML file with the blocklist, the outcome category table and the
-payoff table.
+The cube configuration: one YAML file with the blocklist, the blocklist queries, the outcome
+category table and the payoff table.
 
     blocklist:
       - Command Tower
+    blocklist_queries:
+      - t:stickers
     outcome_categories:
       mana: ["infinite colored mana", "infinite colorless mana"]
       damage: {patterns: ["infinite damage"], min_combos: 40}
@@ -13,7 +15,9 @@ payoff table.
         queries: ['o:"{X}" o:"X damage" -t:land']
         exclude: [Chromatic Orrery]
 
-Every section is optional: without a blocklist no card is blocked, and without an outcome or
+A blocklist query is a Scryfall search whose matching cards are blocked too (resolved before
+the instance is loaded, see blocklist.py). Every section is optional: without a blocklist and
+blocklist queries no card is blocked, and without an outcome or
 payoff table the run goes on without the statistics and rules that need it (a rule that is
 on needs its table; see CubeConfig.require). The sections are described in
 ilp/outcomes.py and ilp/payoffs.py. Every payoff category must be a category of the outcome
@@ -32,7 +36,7 @@ from mtg_combo_cube.ilp.outcomes import OutcomeCategories, parse_outcome_categor
 from mtg_combo_cube.ilp.payoffs import PayoffDefinitions, PayoffTableError, parse_payoff_table
 
 DEFAULT_CONFIG_PATH = "config.yaml"
-SECTIONS = ("blocklist", "outcome_categories", "payoffs")
+SECTIONS = ("blocklist", "blocklist_queries", "outcome_categories", "payoffs")
 
 
 class ConfigError(ValueError):
@@ -44,6 +48,7 @@ class CubeConfig:
     """The configuration of a run; a payoff table is checked against the outcome table."""
 
     blocklist: frozenset[str] = frozenset()
+    blocklist_queries: tuple[str, ...] = ()
     outcome_categories: OutcomeCategories | None = None
     payoffs: PayoffDefinitions | None = None
 
@@ -82,6 +87,15 @@ def parse_blocklist(entries: object) -> frozenset[str]:
     return frozenset(str(entry).strip() for entry in entries)
 
 
+def parse_blocklist_queries(entries: object) -> tuple[str, ...]:
+    """The Scryfall queries from the parsed `blocklist_queries` section (a list of queries)."""
+    if not isinstance(entries, list) or not all(
+        isinstance(entry, str) and entry.strip() for entry in entries
+    ):
+        raise ConfigError("the blocklist queries must be a list of Scryfall queries")
+    return tuple(dict.fromkeys(str(entry).strip() for entry in entries))
+
+
 def parse_config(data: object) -> CubeConfig:
     """Build the configuration from the parsed YAML document (see the module docstring)."""
     if data is None:
@@ -95,10 +109,14 @@ def parse_config(data: object) -> CubeConfig:
             f"the configuration has unknown sections {unknown} (expected {', '.join(SECTIONS)})"
         )
     blocklist = sections.get("blocklist")
+    blocklist_queries = sections.get("blocklist_queries")
     outcomes = sections.get("outcome_categories")
     payoffs = sections.get("payoffs")
     return CubeConfig(
         blocklist=frozenset() if blocklist is None else parse_blocklist(blocklist),
+        blocklist_queries=(
+            () if blocklist_queries is None else parse_blocklist_queries(blocklist_queries)
+        ),
         outcome_categories=None if outcomes is None else parse_outcome_categories(outcomes),
         payoffs=None if payoffs is None else parse_payoff_table(payoffs),
     )

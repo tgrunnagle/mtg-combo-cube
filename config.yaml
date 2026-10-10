@@ -1,4 +1,5 @@
-# Cube configuration: the blocklist, the outcome category table and the payoff table.
+# Cube configuration: the blocklist, the blocklist queries, the outcome category table and
+# the payoff table.
 # Read from the working directory by default; pass another file with --config.
 
 # Cards to always exclude from the cube
@@ -10,6 +11,17 @@ blocklist:
   - War Room
   - Command Beacon
   - Jeweled Lotus
+
+# Scryfall queries whose matching cards are blocked too (paper cards, the first result page
+# of 175 cards of each), resolved through the cache like the payoff queries
+blocklist_queries:
+  # The Un-set card types: Unfinity's sticker sheets and attractions, Unstable's contraptions
+  # and hosts, and the augment cards that only combine with a host
+  - t:stickers
+  - t:attraction
+  - t:contraption
+  - t:host
+  - keyword:augment
 
 # What a combo does, from the features it produces on Commander Spellbook. A category lists
 # case-insensitive substrings of feature names, or regular expressions prefixed with "re:".
@@ -58,45 +70,64 @@ outcome_categories:
   other: []
 
 # The outlets that turn an engine into a win, per outcome category (each must be a category
-# above): Scryfall `queries` (EDHREC order, the first 25 unblocked cards of each), explicit
+# above): Scryfall `queries` (EDHREC order over paper cards without the Un-set ones, the
+# first 25 unblocked cards of each), explicit
 # `cards`, and `exclude`, names dropped whatever their source. A category may bound its own
 # payoff floor with `min_payoffs` and `max_payoffs`.
 payoffs:
   mana:
     queries:
-      - 'o:"{X}" o:"X damage" -t:land'
-      - 'o:"{X}" (o:"draw X cards" or o:"draws X cards")'
+      # X spells (X in the mana cost) and X activations
+      - '(m:{X} or o:"{X}") o:"X damage" -t:land'
+      - '(m:{X} or o:"{X}") (o:"draw X cards" or o:"draws X cards")'
+      - '(m:{X} or o:"{X}") o:"loses X life"'
       - 'o:"{X}" o:"X +1/+1 counters"'
+      # Repeatable activations whose whole cost is mana (no tap)
+      - 'o:/^(\{[0-9WUBRGC]\})+: [^\n]*(deals \d+ damage|loses \d+ life)/ -t:land'
+      - 'o:/^(\{[0-9WUBRGC]\})+: [^\n]*draws? (a|\d+) cards?/ -t:land'
+    cards:
+      - Torment of Hailfire  # "repeat the following process X times"
     exclude:
       - Chromatic Orrery
   storm:
     queries:
-      - 'keyword:storm f:commander (o:damage or o:"create" or o:mills or o:"loses" or o:"draw" or o:"copy target")'
-      - 'o:/whenever you cast (an|a) (instant|sorcery|noncreature|instant or sorcery)/ (o:"deals 1 damage" or o:"deals 2 damage" or o:"loses 1 life") f:commander -t:planeswalker'
+      - 'keyword:storm (o:damage or o:"create" or o:mills or o:"loses" or o:"draw" or o:"copy target")'
+      - 'o:/whenever you cast (an|a) (instant|sorcery|noncreature|instant or sorcery|spell)/ (o:/deals \d+ damage/ or o:/loses \d+ life/) -t:planeswalker -t:land'
+      # Magecraft: "whenever you cast or copy"
+      - 'o:/whenever you cast or copy (an|a) / (o:/deals \d+ damage/ or o:/loses \d+ life/)'
     exclude:
       - Chromatic Orrery
   tokens:
     queries:
-      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:"loses 1 life" or o:"deals 1 damage") f:commander'
-      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:"loses 1 life" or o:"deals 1 damage" or o:"deals 2 damage") f:commander'
-      - 'o:"creatures you control get +" o:"trample until end of turn" (t:sorcery or t:instant or t:creature) f:commander'
-      - 'o:"gain trample and get +X/+X" f:commander'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
+      - 'o:"creatures you control get +" o:"trample until end of turn" (t:sorcery or t:instant or t:creature)'
+      - 'o:"gain trample and get +X/+X"'
+      # Sacrifice outlets that damage or drain (Goblin Bombardment)
+      - 'o:/sacrifice (a|another) creature: / (o:/deals \d+ damage/ or o:/loses \d+ life/)'
     exclude:
       - Chromatic Orrery
   triggers:
     queries:
-      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:"loses 1 life" or o:"deals 1 damage") f:commander'
-      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:"loses 1 life" or o:"deals 1 damage" or o:"deals 2 damage") f:commander'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
+      - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
     exclude:
       - Chromatic Orrery
   lifegain:
     queries:
-      - 'o:"whenever you gain life" (o:"deals that much damage" or o:"loses that much life" or o:"loses 1 life" or o:"deals 1 damage") f:commander'
-      - 'o:"pay 50 life" f:commander'
-      - 'o:"you win the game" o:/\d+ or more life/ f:commander'
+      - 'o:"whenever you gain life" (o:"deals that much damage" or o:"loses that much life" or o:/loses \d+ life/ or o:/deals \d+ damage/) -t:land'
+      - 'o:/pay (\d+|X) life:/ -t:land'
+      - 'o:"you win the game" o:/\d+ or more life/ -t:land'
+    cards:
+      - Bolas's Citadel
+    exclude:
+      # Life costs that win nothing: a tap ability, a toughness pump, a bounce
+      - Myr Convert
+      - Wall of Blood
+      - Hibernation Sliver
   counters:
     queries:
-      - 'o:"remove a +1/+1 counter from" (o:"deals 1 damage" or o:"draw a card") f:commander'
-      - 'o:"+1/+1 counters are put on" o:"draw" f:commander'
+      - 'o:"remove a +1/+1 counter from" (o:/deals \d+ damage/ or o:"draw a card")'
+      - 'o:"+1/+1 counters are put on" o:"draw"'
     exclude:
       - Chromatic Orrery

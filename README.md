@@ -85,13 +85,15 @@ uv run python -m src.mtg_combo_cube -c 300 --method greedy
 --min-coverage-ratio   Min coverage ratio for requirement templates (default: 0.1)
 --workers              Parallel search workers for the ILP solver (default: 8)
 --profile              Enable detailed profiling of ILP optimization
---config               Path to the configuration file: blocklist, outcome category table and payoff table (default: config.yaml)
+--config               Path to the configuration file: blocklist, blocklist queries, outcome category table and payoff table (default: config.yaml)
 --skip-api-caching     Skip writing API responses to cache files
 --read-api-cache       Read from cache if available, fall back to API if not
 -d, --debug            Enable debug logging (includes the CP-SAT search log)
 ```
 
 `-t`, `-n` and every Phase 2 / solver option apply to the ILP method only; `-r` applies to the greedy method only. `-t` is applied to each phase separately.
+
+Both methods leave out the cards of the configuration's `blocklist` and the cards matching its `blocklist_queries`, Scryfall searches resolved (and cached) before the build: the defaults block the Un-set card types (stickers, attractions, contraptions, hosts and augments). A query Scryfall rejects is a usage error; one that cannot be fetched stops the run.
 
 The `task build:ilp*` targets pass `--profile --read-api-cache` and accept `CUBE_SIZE`, `OUTPUT`, `TIME_LIMIT`, `MAX_VARIANTS`, `WORKERS` and `CONFIG` (a configuration file other than `config.yaml`) variables, e.g. `task build:ilp CUBE_SIZE=200 TIME_LIMIT=120`. Any other flag goes after `--`, e.g. `task build:ilp CUBE_SIZE=200 MAX_VARIANTS=1000 -- --min-pair-combos 0 --min-mono-combos 0 --min-outcome-combos 0 --min-payoffs 0` (the archetype and outcome minimums and the payoff floor are sized for the default build; see "Phase 2 Options"). Their defaults (300 cards, 20,000 variants, a 360 s time limit, 8 workers) are the top-level `vars` in `Taskfile.yml`, shared with `task precache`.
 
@@ -171,7 +173,7 @@ Every combo count and utilization number is computed from the selected cards, no
 
 `payoffs` counts the outlets in the cube: the cards that turn an engine into a win (a storm spell for an infinite storm count, an X spell for infinite mana, an aristocrat for infinite tokens). The outcome categories that are their own payoff (damage, draw, mill, turns, lock, win, and the catch-all `other`) need none; for the others the `payoffs` section of [config.yaml](config.yaml) says how to find them:
 
-- The table maps an outcome category to `queries` (Scryfall searches, run in EDHREC order over paper cards, the first 25 unblocked cards of each), `cards` (names) and `exclude` (names dropped whatever their source). Every category must be a category of the outcome table; the default table covers mana, storm, tokens, lifegain and counters. A payoff table that names a category the outcome table lacks, or that has no outcome table beside it, is an error whatever the settings. Without the section the build goes on without payoffs, as long as the payoff floor is off.
+- The table maps an outcome category to `queries` (Scryfall searches, run in EDHREC order over paper cards without the Un-set ones, the first 25 unblocked cards of each), `cards` (names) and `exclude` (names dropped whatever their source). Every category must be a category of the outcome table; the default table covers mana, storm, tokens, lifegain and counters. A payoff table that names a category the outcome table lacks, or that has no outcome table beside it, is an error whatever the settings. Without the section the build goes on without payoffs, as long as the payoff floor is off.
 - A third source is inferred from the pool: Spellbook bundles an engine with an outlet as a variant that `includes` more than one combo (infinite mana plus Walking Ballista is "Infinite damage"), so the cards such a variant adds to the engine it includes are outlets of the engine's categories. A card counts once it is the outlet of `--payoff-inference-min` bundled variants (default 2). The inference finds the outlets Spellbook knows about (Blood Artist, Suture Priest, Gravitic Punch) but not the storm spells, which are no combo; the table covers those.
 - A category may also bound its own payoff floor with `min_payoffs` and `max_payoffs` (see `--payoff-share` under "Phase 2 Options").
 - `cards_per_category` is the number of payoff cards of each category in the cube and `cards` lists them with their sources (`inferred`, `card`, `query`); a card can be an outlet for several categories. With the floor on, every payoff card the pool lacks is added to the candidate cards as a card that completes no combo (`payoff_only` lists the ones in the cube); the cube may hold at most as many of them as the floors add up to, so they are chosen for the payoff floor and nothing else. With `--min-payoffs 0` the pool is unchanged and the table serves the statistics only.
@@ -244,7 +246,7 @@ task precache -- --keep-existing                # only fetch what is missing
 uv run python -m mtg_combo_cube.precache -n 20000 --max-cards-in-combo 4 --config config.yaml
 ```
 
-It fills the variants file, the Scryfall template searches, the payoff table's searches and the card attributes (of the candidate cards and the payoff cards). Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`), `--config` (`CONFIG`) as the build: the first two name the variants file, and the configuration's blocklist and payoff table decide which templates, queries and cards the build asks for. `task precache` and the `task build:ilp*` targets both default to 20,000 variants.
+It fills the variants file, the Scryfall template searches, the blocklist's and the payoff table's searches and the card attributes (of the candidate cards and the payoff cards). Use the same `-n` (`MAX_VARIANTS`), `--max-cards-in-combo` (`MAX_CARDS_IN_COMBO`), `--config` (`CONFIG`) as the build: the first two name the variants file, and the configuration's blocklist, blocklist queries and payoff table decide which templates, queries and cards the build asks for. `task precache` and the `task build:ilp*` targets both default to 20,000 variants.
 
 - **Existing data is overwritten.** The variants file is replaced, and so is every template, payoff query and card attribute entry of the configuration. Entries that only other configurations use are left alone. A failed download leaves the existing variants file in place.
 - `--keep-existing` keeps the entries already in the cache and fetches only what is missing, which finishes an incomplete run without starting over.
