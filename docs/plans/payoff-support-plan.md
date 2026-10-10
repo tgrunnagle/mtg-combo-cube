@@ -354,6 +354,64 @@ reserved-slot mechanism is exercised by the tests and the measurements (one or t
 payoff-only cards at floors 2 to 5) rather than by the tracked cube. Phase 1 had one outlet
 for mana and storm and none for lifegain; the previous tracked cube had the same holes.
 
+### Step 4 (10 October 2026): floors sized from the cube, `triggers` and `other`
+
+The flat floor of 2 per category is 4% of a 300-card cube; a draft format wants outlets at
+15 to 20% of the cards, and a flat number cannot follow the pool, where mana is half the
+engines and lifegain a twentieth. `--payoff-share` (default 0.15) now sizes the floors from
+the cube: the floors add up to the share of the cube's cards, split among the payoff
+categories in proportion to their distinct combos in the pool by the D'Hondt method, each
+category at least `--min-payoffs` and at most twice the even split, or the table's own
+`min_payoffs` / `max_payoffs`. Two outcome categories were added at the same time:
+`triggers` (infinite creature ETB, LTB, death and sacrifice trigger loops, which were most
+of the uncategorized combos and are the aristocrat engine; its payoffs are the aristocrat
+queries) and the catch-all `other` (an empty pattern list; every combo no named category
+matches), so the outcome minimum keeps the leftover combos in the cube too. The storm and
+lifegain queries were widened (storm 14 to 39 cards, lifegain 10 to 20).
+
+One full run at 310 cards (a 400-card cube with 90 slots reserved for lands, ramp and
+interaction) and otherwise the defaults (`task build:ilp CUBE_SIZE=310`), against the
+tracked 300-card cube of Step 2:
+
+| | Tracked cube (300, floor 2) | 310 cards, share 0.15 |
+|---|---|---|
+| Phase 1 variants / distinct / weighted | 2,409 / 1,491 / 1,582.8 | 2,626 / 1,557 / 1,663.9 |
+| Reference under the cube rules (distinct / weighted) | 1,089 / 1,140.0 | 948 / 985.0 |
+| Phase 2 variants / distinct / weighted | 1,323 / 993 / 1,026.0 | 1,116 / 861 / 886.5 |
+| Payoff floors (mana / storm / tokens / triggers / lifegain / counters) | 2 / 2 / 2 / - / 2 / 2 | 13 / 6 / 6 / 16 / 2 / 3 |
+| Payoff cards in the cube, per category | 2 / 2 / 5 / - / 2 / 2 | 13 / 6 / 14 / 16 / 2 / 3 |
+| Distinct payoff cards (share of the cube) | 11 (4%) | 38 (12%) |
+| Payoff-only cards in the cube | 0 | 16 |
+| Utilization min / max / std dev | 2 / 187 / 18.0 | 2 / 92 / 12.2 |
+| Lowest pair / lowest mono | BR 268 / B 178 | RG 251 / G 150 |
+| Largest outcome categories | mana 530 (53%) | triggers 432, mana 366 (43%) |
+| `other` combos | (87 uncategorized, no rule) | 41 |
+| Phase 2 time | 360 s | 360 s |
+
+What the run says:
+
+- The split follows the pool: `triggers` is the pool's largest category (4,616 distinct
+  combos against 3,466 mana; many combos list a trigger loop beside their main result) and
+  took the even-split cap of 16, mana 13, storm and tokens 6, counters 3, lifegain 2.
+- The 54 floor slots are filled by 38 distinct cards, because every aristocrat (Blood
+  Artist, Zulaport Cutthroat, Suture Priest, ...) counts for tokens and triggers both and
+  Suture Priest for mana too. The share is a floor on slots, not on distinct cards; if the
+  distinct count should reach 15%, the tokens and triggers payoffs want different queries
+  (overrun effects alone for tokens), or the share goes up.
+- The cost is 13% of the distinct combos against the tracked cube (993 to 861) at ten more
+  cards, where the flat floor of 5 (25 slots) was measured at 12%; the reference solve
+  shows the same (1,140.0 to 985.0 weighted). The Phase 1 cube broke the floors for mana
+  (2 of 13), storm (1 of 6), triggers (7 of 16) and lifegain (0 of 2), so without the rule
+  those outlets are not in the cube.
+- Sixteen payoff-only cards made the cube (5%): eight X spells for mana (Fall of the Titans,
+  Street Spasm, Lantern Flare, Wren's Run Hydra, ...), Chatterstorm, Tendrils of Agony and
+  Amphibian Downpour for storm, four aristocrats and The Meathook Massacre, Dyadrine for
+  counters. The mana floor of 13 is the one that reaches past the combo pieces into the
+  query's EDHREC tail; a curated `cards` list for mana, or `max_payoffs`, would raise its
+  quality.
+- Utilization is far flatter (std dev 18.0 to 12.2, max 187 to 92): the payoff slots and
+  the two new minimums leave the objective less room to stack a hub card.
+
 ## Open questions
 
 - The conditional form ("a mana combo counts toward the outcome minimum only if a mana
