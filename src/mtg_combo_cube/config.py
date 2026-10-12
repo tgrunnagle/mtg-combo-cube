@@ -1,6 +1,6 @@
 """
 The cube configuration: one YAML file with the blocklist, the blocklist queries, the outcome
-category table and the payoff table.
+category table, the payoff table and the enabler table.
 
     blocklist:
       - Command Tower
@@ -14,14 +14,18 @@ category table and the payoff table.
       mana:
         queries: ['o:"{X}" o:"X damage" -t:land']
         exclude: [Chromatic Orrery]
+    enablers:
+      fast_mana:
+        queries: ['t:artifact mv<=1 o:/sacrifice ~: add/ -t:land -t:creature']
 
 A blocklist query is a Scryfall search whose matching cards are blocked too (resolved before
 the instance is loaded, see blocklist.py). Every section is optional: without a blocklist and
-blocklist queries no card is blocked, and without an outcome or
-payoff table the run goes on without the statistics and rules that need it (a rule that is
-on needs its table; see CubeConfig.require). The sections are described in
-ilp/outcomes.py and ilp/payoffs.py. Every payoff category must be a category of the outcome
-table, so a payoff table needs the outcome table beside it.
+blocklist queries no card is blocked, and without an outcome, payoff or enabler table the
+run goes on without the statistics and rules that need it (a rule that is on needs its
+table; see CubeConfig.require). The sections are described in ilp/outcomes.py,
+ilp/payoffs.py and ilp/enablers.py. Every payoff category must be a category of the outcome
+table, so a payoff table needs the outcome table beside it; the enabler categories are
+free-form names.
 
 The default file is config.yaml in the working directory, which is the repository root for
 every build.
@@ -32,11 +36,12 @@ from pathlib import Path
 
 import yaml
 
+from mtg_combo_cube.ilp.enablers import EnablerDefinitions, parse_enabler_table
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, parse_outcome_categories
 from mtg_combo_cube.ilp.payoffs import PayoffDefinitions, PayoffTableError, parse_payoff_table
 
 DEFAULT_CONFIG_PATH = "config.yaml"
-SECTIONS = ("blocklist", "blocklist_queries", "outcome_categories", "payoffs")
+SECTIONS = ("blocklist", "blocklist_queries", "outcome_categories", "payoffs", "enablers")
 
 
 class ConfigError(ValueError):
@@ -51,6 +56,7 @@ class CubeConfig:
     blocklist_queries: tuple[str, ...] = ()
     outcome_categories: OutcomeCategories | None = None
     payoffs: PayoffDefinitions | None = None
+    enablers: EnablerDefinitions | None = None
 
     def __post_init__(self) -> None:
         if self.payoffs is None:
@@ -61,20 +67,24 @@ class CubeConfig:
             )
         self.payoffs.check_categories(self.outcome_categories)
 
-    def require(self, *, outcome_categories: bool = False, payoffs: bool = False) -> None:
+    def require(
+        self, *, outcome_categories: bool = False, payoffs: bool = False, enablers: bool = False
+    ) -> None:
         """Raise ConfigError when a section a run needs is missing."""
         missing = [
             name
             for name, needed, present in (
                 ("outcome_categories", outcome_categories, self.outcome_categories),
                 ("payoffs", payoffs, self.payoffs),
+                ("enablers", enablers, self.enablers),
             )
             if needed and present is None
         ]
         if missing:
             raise ConfigError(
                 f"the configuration has no {' or '.join(missing)} section, which the rules "
-                "that are on need (--min-outcome-combos, --max-outcome-share, --min-payoffs)"
+                "that are on need (--min-outcome-combos, --max-outcome-share, --min-payoffs, "
+                "--min-enablers)"
             )
 
 
@@ -112,6 +122,7 @@ def parse_config(data: object) -> CubeConfig:
     blocklist_queries = sections.get("blocklist_queries")
     outcomes = sections.get("outcome_categories")
     payoffs = sections.get("payoffs")
+    enablers = sections.get("enablers")
     return CubeConfig(
         blocklist=frozenset() if blocklist is None else parse_blocklist(blocklist),
         blocklist_queries=(
@@ -119,6 +130,7 @@ def parse_config(data: object) -> CubeConfig:
         ),
         outcome_categories=None if outcomes is None else parse_outcome_categories(outcomes),
         payoffs=None if payoffs is None else parse_payoff_table(payoffs),
+        enablers=None if enablers is None else parse_enabler_table(enablers),
     )
 
 
@@ -128,8 +140,8 @@ def load_config(path: str | None = None) -> CubeConfig:
     path is given).
 
     Raises FileNotFoundError when the file does not exist, ConfigError when it is not valid
-    YAML or has unknown sections, and OutcomeCategoryError or PayoffTableError when a table
-    is invalid.
+    YAML or has unknown sections, and OutcomeCategoryError, PayoffTableError or
+    EnablerTableError when a table is invalid.
     """
     config_path = Path(path) if path else Path(DEFAULT_CONFIG_PATH)
     if not config_path.exists():

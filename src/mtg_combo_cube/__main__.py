@@ -8,14 +8,11 @@ import sys
 
 from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError
 from mtg_combo_cube.config import ConfigError, load_config
+from mtg_combo_cube.ilp.card_table import CardTableError, CardTableFetchError
 from mtg_combo_cube.ilp.ilp_models import CardMixRuleError, CardMixRules
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, outcome_rules_requested
-from mtg_combo_cube.ilp.payoffs import (
-    DEFAULT_INFERENCE_THRESHOLD,
-    PayoffFetchError,
-    PayoffTableError,
-)
+from mtg_combo_cube.ilp.payoffs import DEFAULT_INFERENCE_THRESHOLD
 from mtg_combo_cube.runner import run
 
 if __name__ == "__main__":
@@ -75,8 +72,8 @@ if __name__ == "__main__":
         "--config",
         type=str,
         default=None,
-        help="Path to the configuration file with the blocklist, the outcome category table "
-        "and the payoff table (default: config.yaml)",
+        help="Path to the configuration file with the blocklist, the outcome category table, "
+        "the payoff table and the enabler table (default: config.yaml)",
     )
     argparser.add_argument(
         "--profile",
@@ -273,6 +270,26 @@ if __name__ == "__main__":
         "of before it counts as an inferred payoff of the engine's category (default: "
         f"{DEFAULT_INFERENCE_THRESHOLD}). At least 1.",
     )
+    argparser.add_argument(
+        "--min-enablers",
+        type=int,
+        default=ILPOptimizer.DEFAULT_MIN_ENABLERS,
+        help="Enabler support for phase 2: the cube must hold at least this many enabler cards "
+        "(fast mana, rituals, wheels, graveyard fillers, ...) of every category in the enabler "
+        f"table (default: {ILPOptimizer.DEFAULT_MIN_ENABLERS}). Enabler cards the pool lacks "
+        "are added to the candidate cards, and enabler cards below --min-util-floor are "
+        "exempt from it. Set to 0 to disable the enabler floor.",
+    )
+    argparser.add_argument(
+        "--enabler-share",
+        type=float,
+        default=ILPOptimizer.DEFAULT_ENABLER_SHARE,
+        help="Enabler support for phase 2: the share of the cube's cards the enabler floors add "
+        "up to, split evenly among the enabler categories, each at least --min-enablers and "
+        "at most twice the even split (a category's own min_enablers / max_enablers in the "
+        f"table override) (default: {ILPOptimizer.DEFAULT_ENABLER_SHARE}). 0 keeps the floor "
+        "at --min-enablers per category. Below 1.",
+    )
     args = argparser.parse_args()
     if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
@@ -294,6 +311,10 @@ if __name__ == "__main__":
         argparser.error("--payoff-share must be 0 or more and below 1")
     if args.payoff_inference_min < 1:
         argparser.error("--payoff-inference-min must be at least 1")
+    if args.min_enablers < 0:
+        argparser.error("--min-enablers must be 0 or more")
+    if not math.isfinite(args.enabler_share) or not 0 <= args.enabler_share < 1:
+        argparser.error("--enabler-share must be 0 or more and below 1")
     # The card mix settings are validated once, by CardMixRules; the error names the field
     try:
         card_mix = CardMixRules(
@@ -316,8 +337,9 @@ if __name__ == "__main__":
             )
             or args.min_payoffs > 0,
             payoffs=args.min_payoffs > 0,
+            enablers=args.min_enablers > 0,
         )
-    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, CardTableError) as e:
         argparser.error(str(e))
     logging.basicConfig(level=logging.DEBUG if args.debug else logging.INFO)
 
@@ -352,14 +374,16 @@ if __name__ == "__main__":
                 min_payoffs=args.min_payoffs,
                 payoff_share=args.payoff_share,
                 payoff_inference_min=args.payoff_inference_min,
+                min_enablers=args.min_enablers,
+                enabler_share=args.enabler_share,
             )
         )
-    except (PayoffTableError, BlocklistQueryError) as e:
-        # A payoff query that matches no card or that Scryfall rejects, or a blocklist query
-        # Scryfall rejects: a configuration error
+    except (CardTableError, BlocklistQueryError) as e:
+        # A payoff or enabler query that matches no card or that Scryfall rejects, or a
+        # blocklist query Scryfall rejects: a configuration error
         argparser.error(str(e))
-    except (PayoffFetchError, BlocklistFetchError) as e:
-        # Scryfall could not be reached for a query the payoff floor or the blocklist needs:
-        # not a usage error
+    except (CardTableFetchError, BlocklistFetchError) as e:
+        # Scryfall could not be reached for a query the payoff floor, the enabler floor or
+        # the blocklist needs: not a usage error
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)

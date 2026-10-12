@@ -21,6 +21,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
+    ENABLER_ONLY,
     ESSENTIAL,
     NO_COMBO,
     PAYOFF_ONLY,
@@ -351,6 +352,22 @@ class TestCardInclusion:
         assert stats["F"].reason == NO_COMBO
         assert stats["A"].payoff_categories == ["mana"]
         assert stats["F"].payoff_categories == []
+        assert stats["A"].enabler_categories == []
+
+    def test_enabler_reasons(self):
+        # An enabler in no completed combo is enabler-only; one that is a payoff card too
+        # is payoff-only; a combo piece keeps its combo reason and its categories
+        stats = self.by_card(
+            payoff_cards={"mana": ["Pay"]},
+            enabler_cards={"ritual": ["F", "Pay", "H"], "wheel": ["F"]},
+        )
+        assert stats["F"].reason == ENABLER_ONLY
+        assert stats["F"].enabler_categories == ["ritual", "wheel"]
+        assert stats["Pay"].reason == PAYOFF_ONLY
+        assert stats["Pay"].enabler_categories == ["ritual"]
+        assert stats["H"].reason == ESSENTIAL
+        assert stats["H"].enabler_categories == ["ritual"]
+        assert stats["A"].enabler_categories == []
 
     def test_outcomes_count_distinct_combos(self):
         categories = {"big": frozenset({"mana", "damage"}), "ab": frozenset({"mana"})}

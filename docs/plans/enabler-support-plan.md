@@ -248,6 +248,157 @@ description, the Phase 2 options, the output files, the tracked cube paragraph),
 `docs/plans/README.md` and the memory note. Replace the tracked cube and
 `data/current_best_cube_command.txt` if the run is adopted.
 
+## Results (12 October 2026)
+
+### Steps 1 and 2: the table and the floor
+
+Implemented as planned, with the generic table in `ilp/card_table.py` (`TableKind` names a
+table's label, error class and bound keys; `parse_card_table`, `resolve_sources`,
+`CardTable`), `ilp/payoffs.py` rebuilt on it with every payoff test unchanged, and
+`ilp/enablers.py` on top. In the optimizer the payoff-only and enabler-only cards form one
+`exempt_cards` set for the utilization floor, the warm-start checks, the `mad` and `minmax`
+objectives and the utilization statistics; the two floors share `_floor_targets`,
+`_add_floor_rule` and `_floor_shortfalls`. The default table resolves (queries fetched 12
+October 2026) to 67 cards: fast_mana 16, ritual 8, wheel 21 (2 explicit), graveyard 22; 26
+are candidates already and 41 are added as enabler-only cards, 43 enabler-only candidates in
+all with the two pool cards below the utilization floor. Every unit test passes (872).
+
+### Step 3: combo cost of the enabler floor
+
+Phase 1 style solves of the repair model (every Phase 2 cube rule at its default, the payoff
+floor and the enabler floor), 20,000 variants, 8 workers, weighted combos at
+`--variant-weight 0.1`, hinted with the tracked run's Phase 1 cube as `_best_constrained_cube`
+does. 120 s unless noted:
+
+| Configuration | Weighted | Distinct | Enablers (fast_mana / ritual / wheel / graveyard) | Enabler-only | Target cards in the cube |
+|---|---|---|---|---|---|
+| 310, no enabler floor | 1,257.2 | 1,192 | 2 / 0 / 0 / 0 | 0 | none (Everflowing Chalice, Paradise Mantle) |
+| 310, share 0.03 (9 cards) | 1,257.9 | 1,204 | 3 / 2 / 2 / 2 | 2 | Lotus Petal |
+| 310, share 0.05 (16 cards) | 1,070.5 | 1,027 | 4 / 4 / 4 / 4 | 4 | Lotus Petal, Dark Ritual, Seething Song, Wheel of Fortune, Mana Vault |
+| 310, share 0.05, 300 s | 1,284.9 | 1,237 | 4 / 4 / 4 / 4 | 4 | Lion's Eye Diamond, Lotus Petal, Seething Song, Wheel of Fortune, Windfall |
+| 310, share 0.08 (25 cards) | no cube found in 120 s | | | | |
+| 310, share 0.08, 300 s | 1,086.3 | 1,034 | 7 / 6 / 6 / 6 | 10 | the five above and Dark Ritual |
+| 326, share 0.05 | 1,247.2 | 1,191 | 4 / 4 / 4 / 4 | 2 | Lion's Eye Diamond, Lotus Petal, Seething Song, Wheel of Fortune, Windfall |
+
+Single runs of a time-limited search; differences under about 8% are noise. The 120 s
+result at 0.05 is a time-limit artifact: the same model given 300 s scores above the
+unconstrained 120 s baseline, so a share of 0.05 costs nothing measurable, and so does
+building 326 cards (the 16 enablers out of the reserved slots). At 0.08 the floor costs
+about 14% and pulls in 10 enabler-only cards (three Moxen, Timetwister, three looting
+spells), where 0.05 needs four. Decision: `--enabler-share 0.05` and `--min-enablers 2`, as
+planned; the 326-card alternative is a `-c` change for whoever wants the enablers out of
+the reserved slots.
+
+What the floor chooses (Step 3.3): the solver prefers enabler cards that are combo pieces,
+since they score, so at 0.03 the floor is met with Pyretic Ritual, Desperate Ritual, Lively
+Dirge and Wheel of Misfortune rather than the targets; at 0.05 the floors of 4 reach Lion's
+Eye Diamond, Seething Song, Wheel of Fortune and Windfall beside them, and Dark Ritual at
+0.08. The graveyard category fills with looting (Three Steps Ahead, Faithful Mending, Wild
+Guess) and Goblin Engineer; Entomb and Buried Alive never made a cube, nor did Mana Crypt. If
+those are wanted regardless, `exclude` the looting cards or name the targets in `cards` of a
+category of their own with its own `min_enablers`; the floor cannot tell a good enabler from
+a bad one.
+
+### Verification
+
+One full run at the defaults (`task build:ilp OUTPUT=data/cube_310_enablers.txt`: 310 cards,
+20,000 variants, 360 s per phase, 8 workers, `--min-enablers 2 --enabler-share 0.05`, warm
+caches) against the tracked `data/current_best_cube.txt` (the same build of 10 October
+without the enabler floor):
+
+| | Tracked cube (10 Oct) | This run |
+|---|---|---|
+| Phase 1 variants / distinct / weighted | 2,594 / 1,544 / 1,649.0 | 2,589 / 1,580 / 1,680.9 |
+| Reference under the cube rules (distinct / weighted) | 1,126 / 1,167.3 | 998 / 1,032.9 |
+| Phase 2 variants / distinct / weighted | 1,332 / 1,019 / 1,050.3 | 1,174 / 902 / 929.2 |
+| Enabler cards (fast_mana / ritual / wheel / graveyard) | 2 / 0 / 0 / 0 (none required) | 4 / 4 / 4 / 4 |
+| Enabler-only cards in the cube | 0 | 8 |
+| Payoff cards (mana / storm / tokens / triggers / lifegain / counters), payoff-only | 13 / 6 / 15 / 16 / 2 / 3, 12 | 13 / 6 / 16 / 16 / 2 / 3, 12 |
+| Utilization min / max / std dev | 2 / 152 / 15.7 | 2 / 121 / 13.7 |
+| Lowest pair / lowest mono | WR 265 / W 157 | UB 257 / U 153 |
+| Mana combos (share of distinct) | 578 (57%) | 486 (54%) |
+| Smallest outcome category | other 40 | other 40 |
+| Phase 2 time (reference solve and repair) | 360 s (90 s) | 360 s (94.5 s) |
+
+The floor was met: fast mana Everflowing Chalice, Lotus Petal, Mox Opal and Paradise Mantle;
+rituals Desperate Ritual, Pyretic Ritual, Rite of Flame and Seething Song; wheels Day's
+Undoing, Jace's Archivist, Midnight Clock and Timetwister; graveyard fillers Carnivorous
+Cultivator // Enroot, Chart a Course, Faithless Looting and Goblin Engineer. Eight of them
+are enabler-only (in no completed combo), where the Step 3 solves needed four: Phase 2 holds
+the combo score inside the window and balances utilization, and a card that completes
+nothing costs the balance nothing, so it fills the wheel and graveyard floors with dead
+cards (Day's Undoing, Midnight Clock) where a Phase 1 style solve took Windfall and Wheel of
+Fortune. The same happens to the payoff floor (12 payoff-only cards in both runs).
+
+The run completes 11% fewer distinct combos than the tracked cube. The Step 3 solves say
+the floor itself does not cost that: given 300 s, the constrained Phase 1 model with the
+floor scores above the tracked run's reference (1,237 against 1,126 distinct). The loss is
+in the reference solve, which a build gives `WARM_START_MAXIMIZE_FRACTION` (0.2) of the time
+limit, 72 s, and which converges worse with the extra floor (the 120 s solve of Step 3 showed
+the same, 1,027 distinct); Phase 2 then holds a window measured from that lower reference.
+The tracked cube is left as it is. Two follow-ups for a second run before adopting one:
+give the reference solve more time (a larger fraction, or its own limit), and curate the
+wheel and graveyard queries (`exclude` Day's Undoing, Midnight Clock and the double-faced
+Carnivorous Cultivator // Enroot, or name the targets in `cards`), since the floor treats
+every card of a category alike.
+
+### Second run: the reference solve on its own time limit, named wheels and fillers
+
+Both follow-ups were taken:
+
+- The warm-start preparation now runs outside the Phase 2 budget, the reference solve
+  (`_best_constrained_cube`) and the floor repair (`_repair_floor`) each with the whole
+  `--time-limit` (`WARM_START_MAXIMIZE_FRACTION` and `WARM_START_FLOOR_FRACTION` are gone).
+  A first attempt gave only the reference solve its own limit: it ran to 361 s and found a
+  reference of 1,221 distinct / 1,270.3 weighted combos (against 998 / 1,032.9 with 72 s, and
+  above the tracked run's 1,126 / 1,167.3), but the repair of that reference found no cube
+  inside the tighter window in its 72 s, and Phase 2, hinted with a cube 19 cards below the
+  floor, timed out without a solution and fell back to Phase 1. A build is up to four solves
+  of 360 s; the repair stops at the first cube meeting the floor, so it is usually short.
+- The `wheel` and `graveyard` categories name their cards instead of querying for them:
+  nine wheels (Wheel of Fortune, Windfall, Timetwister, Time Spiral, Echo of Eons, Reforge
+  the Soul, Magus of the Wheel, Wheel of Misfortune, Memory Jar) and ten graveyard fillers
+  (Entomb, Buried Alive, Unmarked Grave, Lively Dirge, Goblin Engineer, Faithless Looting,
+  Careful Study, Cathartic Reunion, Thrill of Possibility, Tormenting Voice). The table
+  resolves to 43 cards (16 / 8 / 9 / 10), 22 candidates already and 21 added as enabler-only,
+  against 67 and 41 before. Fast mana and rituals stay queried: their queries find nothing
+  the slot would not want.
+
+The second full run (`task build:ilp OUTPUT=data/cube_310_enablers3.txt`, same settings as
+above, about 25 minutes):
+
+| | Tracked cube (10 Oct) | First run | Second run |
+|---|---|---|---|
+| Phase 1 variants / distinct / weighted | 2,594 / 1,544 / 1,649.0 | 2,589 / 1,580 / 1,680.9 | 2,590 / 1,576 / 1,677.4 |
+| Reference under the cube rules (distinct / weighted) | 1,126 / 1,167.3 | 998 / 1,032.9 | 1,263 / 1,316.3 |
+| Phase 2 variants / distinct / weighted | 1,332 / 1,019 / 1,050.3 | 1,174 / 902 / 929.2 | 1,574 / 1,141 / 1,184.3 |
+| Enabler cards (fast_mana / ritual / wheel / graveyard) | 2 / 0 / 0 / 0 | 4 / 4 / 4 / 4 | 4 / 4 / 4 / 4 |
+| Enabler-only cards in the cube | 0 | 8 | 6 |
+| Payoff cards (mana / storm / tokens / triggers / lifegain / counters), payoff-only | 13 / 6 / 15 / 16 / 2 / 3, 12 | 13 / 6 / 16 / 16 / 2 / 3, 12 | 13 / 6 / 15 / 16 / 2 / 3, 7 |
+| Utilization min / max / std dev | 2 / 152 / 15.7 | 2 / 121 / 13.7 | 2 / 216 / 20.8 |
+| Lowest pair / lowest mono | WR 265 / W 157 | UB 257 / U 153 | RG 262 / R 155 |
+| Mana combos (share of distinct) | 578 (57%) | 486 (54%) | 624 (55%) |
+| Smallest outcome category | other 40 | other 40 | other 40 |
+| Reference solve / floor repair / Phase 2 proper | 72 s / 18 s / 270 s | 72 s / 22 s / 266 s | 363 s / 42 s / 360 s |
+
+The floor holds fast mana Everflowing Chalice, Lion's Eye Diamond, Lotus Petal and Paradise
+Mantle; rituals Cabal Ritual, Dark Ritual, Desperate Ritual and Seething Song; wheels Magus
+of the Wheel, Reforge the Soul, Timetwister and Wheel of Fortune; graveyard fillers Goblin
+Engineer, Thrill of Possibility, Tormenting Voice and Unmarked Grave. The named lists did
+what they were meant to: every wheel and filler is one somebody wants in the slot, and the
+run holds Lion's Eye Diamond, Dark Ritual, Seething Song and Wheel of Fortune, four of the
+cards the plan set out to add. Entomb and Buried Alive are still not chosen (Unmarked Grave
+and Goblin Engineer are the cheaper fill); a `cards`-only category of their own with
+`min_enablers` would force them.
+
+The reference solve on its own time limit is worth 12% of distinct combos against the
+tracked cube (1,141 against 1,019) and 26% against the first run, with the enabler floor
+met in both. The cost is the build time (three solves of 360 s and a repair, about 25
+minutes against 15) and a wider utilization spread (std dev 20.8 against 15.7: Phase 2 had
+the same 360 s but a window 13% higher to hold). The tracked cube is not replaced here;
+replacing it means copying this run's three output files over `data/current_best_cube*`
+and updating `data/current_best_cube_command.txt`.
+
 ## Open questions
 
 - **Demand-weighted floors.** Split the share by what the pool asks for instead of evenly:

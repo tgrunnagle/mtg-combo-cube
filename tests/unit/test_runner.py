@@ -14,7 +14,14 @@ import yaml
 from mtg_combo_cube import runner
 from mtg_combo_cube.config import ConfigError, CubeConfig, load_config
 from mtg_combo_cube.ilp import ilp_runner
+from mtg_combo_cube.ilp.enablers import (
+    EnablerFetchError,
+    EnablerTableError,
+    parse_enabler_table,
+)
 from mtg_combo_cube.ilp.ilp_models import (
+    ENABLER_ONLY,
+    PAYOFF_ONLY,
     CandidateCard,
     CardMixRules,
     ComboData,
@@ -55,9 +62,9 @@ def fake_payoff_queries(
     monkeypatch: pytest.MonkeyPatch, results: dict[str, list[str]] | None = None
 ) -> list[list[str]]:
     """
-    Replace the Scryfall lookup of the payoff queries (the default configuration is in the
-    working directory, so run_ilp would resolve its payoff queries live). Returns the queries asked
-    for, one list per call.
+    Replace the Scryfall lookup of the payoff queries and the enabler queries (the default
+    configuration is in the working directory, so run_ilp would resolve its queries live).
+    Returns the payoff queries asked for, one list per call.
     """
     calls: list[list[str]] = []
 
@@ -66,6 +73,21 @@ def fake_payoff_queries(
         return results or {}
 
     monkeypatch.setattr(ilp_runner, "fetch_payoff_queries", fake_fetch)
+    fake_enabler_queries(monkeypatch)
+    return calls
+
+
+def fake_enabler_queries(
+    monkeypatch: pytest.MonkeyPatch, results: dict[str, list[str]] | None = None
+) -> list[list[str]]:
+    """Replace the Scryfall lookup of the enabler queries; returns the queries asked for."""
+    calls: list[list[str]] = []
+
+    async def fake_fetch(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+        calls.append(list(queries))
+        return results or {}
+
+    monkeypatch.setattr(ilp_runner, "fetch_enabler_queries", fake_fetch)
     return calls
 
 
@@ -278,6 +300,8 @@ class TestCliPlumbing:
             config,
             "--payoff-inference-min",
             "3",
+            "--min-enablers",
+            "0",  # the configuration has no enabler table
         )
 
         assert received["min_payoffs"] == 2
@@ -319,7 +343,7 @@ class TestCliPlumbing:
             payoffs={"storm": {"cards": ["Grapeshot"]}, "x": {"cards": ["Y"]}},
         )
         with pytest.raises(SystemExit):
-            run_cli(monkeypatch, "--config", config, "--min-payoffs", "0")
+            run_cli(monkeypatch, "--config", config, "--min-payoffs", "0", "--min-enablers", "0")
         assert "payoff categories ['x'] are not in the outcome category table" in (
             capsys.readouterr().err
         )
@@ -333,7 +357,7 @@ class TestCliPlumbing:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):
         config = write_config(tmp_path, outcome_categories={"mana": ["infinite mana"]})
-        common = ("--config", config)
+        common = ("--config", config, "--min-enablers", "0")
 
         assert run_cli(monkeypatch, *common, "--min-payoffs", "0")
         with pytest.raises(SystemExit):
@@ -344,7 +368,7 @@ class TestCliPlumbing:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
     ):
         config = write_config(tmp_path, blocklist=["Sol Ring"])
-        common = ("--config", config, "--min-payoffs", "0")
+        common = ("--config", config, "--min-payoffs", "0", "--min-enablers", "0")
 
         assert run_cli(monkeypatch, *common, "--min-outcome-combos", "0")
         with pytest.raises(SystemExit):
@@ -354,8 +378,69 @@ class TestCliPlumbing:
             run_cli(monkeypatch, *common, "--min-outcome-combos", "0", "--max-outcome-share", "0.5")
         # The payoff floor needs the outcome table as well
         with pytest.raises(SystemExit):
-            run_cli(monkeypatch, "--config", config, "--min-outcome-combos", "0")
+            run_cli(
+                monkeypatch, "--config", config, "--min-outcome-combos", "0", "--min-enablers", "0"
+            )
         assert "no outcome_categories or payoffs section" in capsys.readouterr().err
+
+    def test_missing_enabler_table_is_a_usage_error_only_with_the_floor_on(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+    ):
+        config = write_config(
+            tmp_path,
+            outcome_categories={"mana": ["infinite mana"]},
+            payoffs={"mana": {"cards": ["Walking Ballista"]}},
+        )
+        common = ("--config", config)
+
+        assert run_cli(monkeypatch, *common, "--min-enablers", "0")
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *common)
+        assert "the configuration has no enablers section" in capsys.readouterr().err
+        # The enabler table needs no outcome table
+        config = write_config(tmp_path, enablers={"ritual": {"cards": ["Dark Ritual"]}})
+        assert run_cli(
+            monkeypatch, "--config", config, "--min-payoffs", "0", "--min-outcome-combos", "0"
+        )
+
+    def test_enabler_defaults_and_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        received = run_cli(monkeypatch)
+
+        assert received["min_enablers"] == 2
+        assert received["enabler_share"] == 0.05
+
+        config = write_config(tmp_path, enablers={"ritual": {"cards": ["Dark Ritual"]}})
+        received = run_cli(
+            monkeypatch,
+            "--min-enablers",
+            "3",
+            "--enabler-share",
+            "0.1",
+            "--config",
+            config,
+            "--min-payoffs",
+            "0",
+            "--min-outcome-combos",
+            "0",
+        )
+
+        assert received["min_enablers"] == 3
+        assert received["enabler_share"] == 0.1
+
+    @pytest.mark.parametrize(
+        "args",
+        [
+            ("--min-enablers", "-1"),
+            ("--enabler-share", "1"),
+            ("--enabler-share", "-0.1"),
+            ("--enabler-share", "nan"),
+        ],
+    )
+    def test_invalid_enabler_options_are_rejected(
+        self, monkeypatch: pytest.MonkeyPatch, args: tuple[str, str]
+    ):
+        with pytest.raises(SystemExit):
+            run_cli(monkeypatch, *args)
 
     def test_outcome_and_popularity_options(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
         # The configuration is validated up front, so it must exist
@@ -372,6 +457,8 @@ class TestCliPlumbing:
             "0.5",
             "--min-payoffs",
             "0",  # the configuration has no payoff table
+            "--min-enablers",
+            "0",  # nor an enabler table
         )
 
         assert received["min_outcome_combos"] == 7
@@ -409,6 +496,30 @@ class TestCliPlumbing:
             runpy.run_module("mtg_combo_cube", run_name="__main__")
 
         assert "payoff queries match no card on Scryfall: 'o:nothing'" in capsys.readouterr().err
+
+    def test_enabler_errors_from_the_run_are_handled_as_the_payoff_ones(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        async def failing_run(**kwargs: Any) -> None:
+            raise EnablerTableError("enabler queries match no card on Scryfall: 'o:nothing'")
+
+        monkeypatch.setattr(runner, "run", failing_run)
+        monkeypatch.setattr(sys, "argv", ["mtg_combo_cube"])
+        with pytest.raises(SystemExit) as exit_info:
+            runpy.run_module("mtg_combo_cube", run_name="__main__")
+        assert exit_info.value.code == 2
+        assert "enabler queries match no card on Scryfall: 'o:nothing'" in capsys.readouterr().err
+
+        async def unreachable_run(**kwargs: Any) -> None:
+            raise EnablerFetchError("enabler queries could not be fetched from Scryfall: 'q'")
+
+        monkeypatch.setattr(runner, "run", unreachable_run)
+        with pytest.raises(SystemExit) as exit_info:
+            runpy.run_module("mtg_combo_cube", run_name="__main__")
+        assert exit_info.value.code == 1
+        err = capsys.readouterr().err
+        assert "error: enabler queries could not be fetched from Scryfall: 'q'" in err
+        assert "usage:" not in err
 
     def test_payoff_fetch_failure_from_the_run_exits_one_without_the_usage_banner(
         self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
@@ -579,6 +690,7 @@ class TestRunnerPlumbing:
             card_mix=card_mix,
             min_outcome_combos=0,
             min_payoffs=0,
+            min_enablers=0,
         )
 
         assert len(created) == 1
@@ -643,6 +755,14 @@ class TestRunnerPlumbing:
         assert "payoff_floors" not in stats["phase2"]
         assert stats["phase2"]["payoffs"]["cards_per_category"]["mana"] == 0
         assert stats["payoffs"]["inference_threshold"] == 2
+        # And its enabler table, the same way
+        assert created[0].enablers is not None
+        assert created[0].min_enablers == 0
+        assert "enabler_floors" not in stats["phase2"]
+        assert stats["phase2"]["enablers"]["cards_per_category"]["ritual"] == 0
+        assert stats["enablers"]["cards_per_category"]["wheel"] == len(
+            created[0].enablers.cards("wheel")
+        )
 
     async def test_run_ilp_without_an_outcome_table_skips_the_outcome_statistics(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
@@ -694,6 +814,7 @@ class TestRunnerPlumbing:
                 config=CubeConfig(),
                 min_outcome_combos=0,
                 min_payoffs=0,
+                min_enablers=0,
             )
 
         assert created[0].outcome_categories is None
@@ -705,6 +826,10 @@ class TestRunnerPlumbing:
         assert queries == []
         assert "payoffs" not in stats
         assert "payoffs" not in stats["phase2"]
+        # Nor an enabler table
+        assert created[0].enablers is None
+        assert "enablers" not in stats
+        assert "enablers" not in stats["phase2"]
 
     async def test_run_ilp_fails_on_an_incomplete_config_before_loading_the_instance(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
@@ -717,8 +842,10 @@ class TestRunnerPlumbing:
 
         monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
 
-        # The default outcome minimum and payoff floor need both tables
-        with pytest.raises(ConfigError, match="no outcome_categories or payoffs section"):
+        # The default outcome minimum, payoff floor and enabler floor need the three tables
+        with pytest.raises(
+            ConfigError, match="no outcome_categories or payoffs or enablers section"
+        ):
             await ilp_runner.run_ilp(
                 cube_size=3, output_file=str(tmp_path / "cube.txt"), config=CubeConfig()
             )
@@ -787,6 +914,7 @@ class TestRunnerPlumbing:
             max_outcome_share=0.9,
             popularity_weight=0.5,
             min_payoffs=0,
+            min_enablers=0,
         )
 
         assert len(created) == 1
@@ -809,6 +937,161 @@ class TestRunnerPlumbing:
             > stats["phase2"]["reference_weighted_combo_count"]
         )
 
+    async def test_run_ilp_adds_enabler_only_cards_and_writes_the_enabler_blocks(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ):
+        # Two triangles (every card in two combos) and Dark Ritual, in one combo with A: the
+        # enabler floor makes it selectable under a utilization floor of 2; Petal comes
+        # from the query, Entomb from the table and Ballista is a payoff card too
+        mana = frozenset(["Infinite mana"])  # the payoff floor needs mana combos in the pool
+        combos = [
+            *(
+                ComboData(key, frozenset([key[0].upper(), key[1].upper()]), [], 100, features=mana)
+                for key in ("ab", "bc", "ca", "de", "ef", "fd")
+            ),
+            ComboData("r", frozenset(["Dark Ritual", "A"]), [], 10, features=mana),
+        ]
+        cards = {
+            name: CandidateCard(name, frozenset(), frozenset())
+            for name in ["A", "B", "C", "D", "E", "F", "Dark Ritual"]
+        }
+        config = CubeConfig(
+            blocklist=frozenset({"Blocked Rock"}),
+            outcome_categories=parse_outcome_categories({"mana": ["infinite mana"]}),
+            payoffs=parse_payoff_table({"mana": {"cards": ["Ballista"]}}),
+            enablers=parse_enabler_table(
+                {
+                    "ritual": {"queries": ["o:ritual"]},
+                    "fast_mana": {"cards": ["Entomb", "Ballista", "Petl"], "queries": ["o:petal"]},
+                }
+            ),
+        )
+        calls: list[str] = []
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            calls.append("load_instance")
+            return combos, dict(cards)
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> dict:
+            calls.append("attributes")
+            # Every candidate, the enabler-only cards included, is looked up; the misspelt
+            # table card is not known to Scryfall
+            assert set(card_names) == {
+                *"ABCDEF",
+                "Dark Ritual",
+                "Ballista",
+                "Petal",
+                "Entomb",
+                "Petl",
+            }
+            return {
+                name: CardAttributes("R", "Instant", 1) for name in card_names if name != "Petl"
+            }
+
+        async def fake_fetch_enabler_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+            calls.append("enabler_queries")
+            assert list(queries) == ["o:ritual", "o:petal"]
+            assert kwargs == {"enable_cache_write": True, "read_cache": True, "required": True}
+            return {"o:ritual": ["Dark Ritual"], "o:petal": ["Petal", "Blocked Rock"]}
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        fake_payoff_queries(monkeypatch)  # the payoff table has no queries
+        monkeypatch.setattr(ilp_runner, "fetch_enabler_queries", fake_fetch_enabler_queries)
+
+        # Nine cards hold the triangles, Dark Ritual, one fast mana card and the payoff
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            await ilp_runner.run_ilp(
+                cube_size=9,
+                output_file=str(tmp_path / "cube.txt"),
+                time_limit_seconds=10,
+                num_workers=1,
+                min_utilization_floor=2,
+                max_color_ratio=0,
+                min_pair_combos=0,
+                min_mono_combos=0,
+                max_wide_combo_share=0,
+                card_mix=CardMixRules(0, 0, 0, 5, 0, 0, 0),
+                read_cache=True,
+                config=config,
+                min_outcome_combos=0,
+                min_payoffs=1,
+                min_enablers=1,
+                enabler_share=0,
+            )
+
+        # The enabler queries are resolved with the payoff ones, before the instance
+        assert calls == ["enabler_queries", "load_instance", "attributes"]
+        assert len(created) == 1
+        optimizer = created[0]
+        assert optimizer.enablers is not None
+        assert optimizer.enablers.sources == {
+            "ritual": {"Dark Ritual": {"query"}},
+            "fast_mana": {"Ballista": {"card"}, "Entomb": {"card"}, "Petal": {"query"}},
+        }
+        # The misspelt table card was dropped from the pool and the table, the blocked
+        # query result never reached either, and the card in both tables is payoff-only
+        assert optimizer.enabler_only_cards == {"Dark Ritual", "Entomb", "Petal"}
+        assert optimizer.payoff_only_cards == {"Ballista"}
+        assert "Petl" not in optimizer.all_cards
+        assert "Blocked Rock" not in optimizer.all_cards
+        assert optimizer.min_enablers == 1
+        # Entomb, Petal and the misspelt card were added; Dark Ritual and Ballista (added
+        # for the payoff table first) were candidates already
+        assert "Added 3 enabler-only cards to the candidate pool; 2 enabler cards were" in (
+            caplog.text
+        )
+        assert "Enabler table: 1 cards are not known to Scryfall and are dropped" in caplog.text
+        assert "Enabler cards: ritual 1 (cards 0, queries 1); fast_mana 4 (cards 3, queries 1)" in (
+            caplog.text
+        )
+        # Ballista counts for fast_mana as well as for its payoff category
+        assert "Enablers, Phase 2: ritual=1, fast_mana=2" in caplog.text
+
+        cube = (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n")
+        assert set(cube) >= {*"ABCDEF", "Dark Ritual", "Ballista"}
+        assert len(cube) == 9
+
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["phase2"]["min_enablers"] == 1
+        assert "enabler_share" not in stats["phase2"]
+        assert stats["phase2"]["enabler_floors"] == {"ritual": 1, "fast_mana": 1}
+        assert stats["phase2"]["enablers"]["cards_per_category"] == {"ritual": 1, "fast_mana": 2}
+        assert stats["phase2"]["enablers"]["cards"]["ritual"] == {"Dark Ritual": ["query"]}
+        assert "Dark Ritual" in stats["phase2"]["enablers"]["enabler_only"]
+        assert stats["enablers"] == {
+            "cards_per_category": {"ritual": 1, "fast_mana": 3},
+            "source_counts": {
+                "ritual": {"card": 0, "query": 1},
+                "fast_mana": {"card": 2, "query": 1},
+            },
+            "cards": {
+                "ritual": {"Dark Ritual": ["query"]},
+                "fast_mana": {"Ballista": ["card"], "Entomb": ["card"], "Petal": ["query"]},
+            },
+        }
+        # The utilization statistics leave the enabler-only cards out
+        assert stats["phase2"]["min_utilization"] == 2
+        card_data = json.loads((tmp_path / "cube_card_data.json").read_text(encoding="utf-8"))
+        by_card = {entry["card"]: entry for entry in card_data["cards"]}
+        assert by_card["Dark Ritual"]["reason"] == "essential"
+        assert by_card["Dark Ritual"]["enabler_categories"] == ["ritual"]
+        assert by_card["Ballista"]["reason"] == PAYOFF_ONLY
+        assert by_card["Ballista"]["enabler_categories"] == ["fast_mana"]
+        # The fast mana card beside Ballista is in no combo: there for the floor
+        assert card_data["summary"]["cards_per_reason"][ENABLER_ONLY] == 1
+        assert [entry["card"] for entry in card_data["cards"] if entry["reason"] == ENABLER_ONLY][
+            0
+        ] in {"Entomb", "Petal"}
+
     @staticmethod
     def fake_payoff_fetcher(
         monkeypatch: pytest.MonkeyPatch, results: dict[str, list[str]], rejected: dict | None = None
@@ -821,6 +1104,25 @@ class TestRunnerPlumbing:
                 return dict(results)
 
         monkeypatch.setattr(ilp_runner, "PayoffFetcher", FakePayoffFetcher)
+
+    @pytest.mark.parametrize("required", [False, True])
+    async def test_fetch_enabler_queries_errors_are_the_enabler_ones(
+        self, monkeypatch: pytest.MonkeyPatch, required: bool
+    ):
+        self.fake_payoff_fetcher(monkeypatch, {"a": ["Card"], "b": []})  # "c" not fetched
+
+        if required:
+            with pytest.raises(EnablerTableError, match="enabler queries match no card .*'b'"):
+                await ilp_runner.fetch_enabler_queries(["a", "b"], required=True)
+            self.fake_payoff_fetcher(monkeypatch, {"a": ["Card"]})  # "c" could not be fetched
+            with pytest.raises(EnablerFetchError, match="enabler floor needs them.*--min-enablers"):
+                await ilp_runner.fetch_enabler_queries(["a", "c"], required=True)
+        else:
+            assert await ilp_runner.fetch_enabler_queries(["a", "b", "c"]) == {"a": ["Card"]}
+
+        self.fake_payoff_fetcher(monkeypatch, {}, rejected={"a": "HTTP 400"})
+        with pytest.raises(EnablerTableError, match="enabler queries rejected by Scryfall"):
+            await ilp_runner.fetch_enabler_queries(["a"], required=required)
 
     @pytest.mark.parametrize("required", [False, True])
     async def test_fetch_payoff_queries_treats_a_failed_query_as_an_error_only_when_required(
@@ -906,6 +1208,7 @@ class TestRunnerPlumbing:
                 config=config,
                 min_outcome_combos=0,
                 min_payoffs=0,
+                min_enablers=0,
             )
 
         assert queries == [[]]  # the table has no queries; the lookup is still asked
@@ -1001,6 +1304,7 @@ class TestRunnerPlumbing:
                 config=config,
                 min_outcome_combos=0,
                 min_payoffs=1,
+                min_enablers=0,
             )
 
         # The queries are resolved before the instance is loaded, so a bad table fails fast
@@ -1020,7 +1324,7 @@ class TestRunnerPlumbing:
         assert "Blocked Outlet" not in optimizer.all_cards
         assert "Blocked Outlet" not in optimizer.payoffs.all_cards
         assert optimizer.min_payoffs == 1
-        assert "Added 3 payoff-only cards to the candidate pool; 1 payoff cards were combo" in (
+        assert "Added 3 payoff-only cards to the candidate pool; 1 payoff cards were" in (
             caplog.text
         )
         assert "1 cards are not known to Scryfall and are dropped (check the spelling): " in (

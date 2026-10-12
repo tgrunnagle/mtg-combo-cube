@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 from mtg_combo_cube.ilp import evaluate_cube as module
+from mtg_combo_cube.ilp.enablers import parse_enabler_table
 from mtg_combo_cube.ilp.ilp_models import CandidateCard, ComboData
 from mtg_combo_cube.ilp.outcomes import parse_outcome_categories
 from mtg_combo_cube.ilp.payoffs import parse_payoff_table
@@ -133,6 +134,50 @@ class TestEvaluateCube:
 
         assert evaluation.payoffs is None
         assert evaluation.payoff_stats is None
+
+    async def test_enabler_table(self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+        received: dict[str, Any] = {}
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, dict(CARDS)
+
+        async def fake_fetch_enabler_queries(queries: Any, **kwargs: Any) -> dict[str, list[str]]:
+            received["queries"] = list(queries)
+            received.update(kwargs)
+            return {"o:ritual": ["Dark Ritual", "P2"]}
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        monkeypatch.setattr(module, "fetch_enabler_queries", fake_fetch_enabler_queries)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP1\nP2\nDark Ritual\nWindfall\n", encoding="utf-8")
+        enablers = parse_enabler_table(
+            {"ritual": {"queries": ["o:ritual"]}, "wheel": {"cards": ["Windfall", "A"]}}
+        )
+
+        evaluation = await module.evaluate_cube(
+            str(cube_file), enabler_definitions=enablers, min_utilization_floor=2
+        )
+
+        # The queries come from the cache only; the table needs no outcome table
+        assert received == {
+            "queries": ["o:ritual"],
+            "enable_cache_write": False,
+            "read_cache": True,
+        }
+        assert evaluation.enablers is not None
+        assert evaluation.enablers.cards("ritual") == {"Dark Ritual", "P2"}
+        assert evaluation.enablers.cards("wheel") == {"Windfall", "A"}
+        assert evaluation.enabler_stats is not None
+        assert evaluation.enabler_stats.cards == {
+            "ritual": {"Dark Ritual": ["query"], "P2": ["query"]},
+            "wheel": {"Windfall": ["card"]},
+        }
+        # Enabler-only: in no combo (the added cards) or below the floor (P2, one combo)
+        assert evaluation.enabler_stats.enabler_only == ["Dark Ritual", "P2", "Windfall"]
+        by_card = {card.card: card for card in evaluation.card_inclusion}
+        assert by_card["Windfall"].reason == "enabler_only"
+        assert by_card["P2"].reason == "redundant"
+        assert by_card["P2"].enabler_categories == ["ritual"]
 
     def test_read_cube_file_skips_blank_lines(self, tmp_path: Path):
         cube_file = tmp_path / "cube.txt"

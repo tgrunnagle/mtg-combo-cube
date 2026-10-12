@@ -4,12 +4,13 @@ Usage:
     uv run python -m mtg_combo_cube.precache -n 20000
 
 Downloads what an ILP build with the same settings reads: the Commander Spellbook variants,
-the blocklist's and the payoff table's Scryfall queries, the Scryfall template searches and the
-Scryfall card attributes (color identity, type line, mana value) of the candidate and payoff cards.
+the blocklist's, the payoff table's and the enabler table's Scryfall queries, the Scryfall
+template searches and the Scryfall card attributes (color identity, type line, mana value)
+of the candidate, payoff and enabler cards.
 
 Everything is fetched again and written over what the cache holds: the variants file is
-replaced, and so is every template, payoff query and card attribute entry of this
-configuration. Entries that only other configurations use are left alone. With
+replaced, and so is every template, payoff and enabler query and card attribute entry of
+this configuration. Entries that only other configurations use are left alone. With
 --keep-existing, entries already in the cache are kept instead, so an incomplete run can be
 finished without starting over.
 """
@@ -26,9 +27,11 @@ import aiohttp
 
 from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
 from mtg_combo_cube.config import ConfigError, load_config
+from mtg_combo_cube.ilp.card_table import CardTableDefinitions, CardTableError
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
+from mtg_combo_cube.ilp.enablers import EnablerDefinitions, resolve_enablers
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError
-from mtg_combo_cube.ilp.payoffs import PayoffDefinitions, PayoffTableError, resolve_payoffs
+from mtg_combo_cube.ilp.payoffs import PayoffDefinitions, resolve_payoffs
 from mtg_combo_cube.models import Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
@@ -55,21 +58,32 @@ class PrecacheResult:
     # Payoff queries a build with the table would reject (query -> why): no card matches,
     # or Scryfall rejected or only partly understood the query
     bad_payoff_queries: dict[str, str] = field(default_factory=dict)
+    # The same for the enabler table's queries
+    enabler_queries: int = 0
+    failed_enabler_queries: int = 0
+    bad_enabler_queries: dict[str, str] = field(default_factory=dict)
     cards: int = 0
     cards_without_attributes: int = 0
     failed_attribute_requests: int = 0
 
     @property
+    def bad_queries(self) -> bool:
+        """Whether a table has a query a build rejects."""
+        return bool(self.bad_payoff_queries or self.bad_enabler_queries)
+
+    @property
     def complete(self) -> bool:
         """
         True when the variants file is in place, no request was left failing and every
-        payoff query matches a card (a build with the same table fails otherwise).
+        payoff and enabler query matches a card (a build with the same tables fails
+        otherwise).
         """
         return (
             self.variants_cached
             and self.failed_templates == 0
             and self.failed_payoff_queries == 0
-            and not self.bad_payoff_queries
+            and self.failed_enabler_queries == 0
+            and not self.bad_queries
             and self.failed_attribute_requests == 0
         )
 
@@ -188,6 +202,50 @@ async def _precache_templates(
     return card_names, failures
 
 
+async def _precache_table(
+    definitions: CardTableDefinitions,
+    query_fetcher: PayoffFetcher,
+    fetcher: ScryfallFetcher,
+    max_passes: int,
+    retry_wait_seconds: float,
+    sleep: Sleep,
+) -> tuple[dict[str, list[str]], int, dict[str, str]]:
+    """
+    Resolve a card table's queries the way a build does, which fills the query cache.
+
+    Returns:
+        - The query results (query -> card names), for the table to be resolved from
+        - Number of queries whose fetch still failed in the last pass (a rejected query is
+          not one of them: it is a table error and is not asked for again)
+        - Queries a build would reject, with the reason: no card matches, or Scryfall
+          rejected or only partly understood the query
+    """
+    results: dict[str, list[str]] = {}
+
+    async def run_pass() -> int:
+        fetcher.clear_failures()
+        results.update(await query_fetcher.fetch_queries(definitions.queries))
+        return sum(
+            1
+            for query in definitions.queries
+            if query not in results and query not in query_fetcher.rejected
+        )
+
+    failures = await _run_passes(
+        f"Scryfall {definitions.KIND.label} queries",
+        run_pass,
+        max_passes,
+        retry_wait_seconds,
+        sleep,
+    )
+    bad = {query: "matches no card" for query, cards in results.items() if not cards}
+    bad.update(
+        (query, f"rejected by Scryfall ({reason})")
+        for query, reason in query_fetcher.rejected.items()
+    )
+    return results, failures, bad
+
+
 async def _precache_payoffs(
     definitions: PayoffDefinitions,
     blocklist: frozenset[str],
@@ -203,32 +261,35 @@ async def _precache_payoffs(
     Returns:
         - Names of the payoff cards a build adds to the candidates (the table's cards and the
           query results, after the blocklist and the per-query limit)
-        - Number of queries whose fetch still failed in the last pass (a rejected query is
-          not one of them: it is a table error and is not asked for again)
-        - Queries a build would reject, with the reason: no card matches, or Scryfall
-          rejected or only partly understood the query
+        - Number of queries whose fetch still failed in the last pass
+        - Queries a build would reject, with the reason (see _precache_table)
     """
-    results: dict[str, list[str]] = {}
-
-    async def run_pass() -> int:
-        fetcher.clear_failures()
-        results.update(await payoff_fetcher.fetch_queries(definitions.queries))
-        return sum(
-            1
-            for query in definitions.queries
-            if query not in results and query not in payoff_fetcher.rejected
-        )
-
-    failures = await _run_passes(
-        "Scryfall payoff queries", run_pass, max_passes, retry_wait_seconds, sleep
-    )
-    bad = {query: "matches no card" for query, cards in results.items() if not cards}
-    bad.update(
-        (query, f"rejected by Scryfall ({reason})")
-        for query, reason in payoff_fetcher.rejected.items()
+    results, failures, bad = await _precache_table(
+        definitions, payoff_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
     )
     payoffs = resolve_payoffs(definitions, {}, results, blocklist)
     return sorted(payoffs.all_cards), failures, bad
+
+
+async def _precache_enablers(
+    definitions: EnablerDefinitions,
+    blocklist: frozenset[str],
+    enabler_fetcher: PayoffFetcher,
+    fetcher: ScryfallFetcher,
+    max_passes: int,
+    retry_wait_seconds: float,
+    sleep: Sleep,
+) -> tuple[list[str], int, dict[str, str]]:
+    """
+    Resolve the enabler table's queries the way a build does, which fills the query cache
+    the enabler queries share with the payoff queries. Returns what _precache_payoffs does,
+    for the enabler cards.
+    """
+    results, failures, bad = await _precache_table(
+        definitions, enabler_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
+    )
+    enablers = resolve_enablers(definitions, results, blocklist)
+    return sorted(enablers.all_cards), failures, bad
 
 
 async def _precache_attributes(
@@ -273,10 +334,11 @@ async def precache(
     sleep: Sleep = asyncio.sleep,
     payoffs: PayoffDefinitions | None = None,
     blocklist_queries: Sequence[str] = (),
+    enablers: EnablerDefinitions | None = None,
 ) -> PrecacheResult:
     """
-    Fill the variants, Scryfall template, payoff query and card attribute caches for one
-    build configuration.
+    Fill the variants, Scryfall template, payoff and enabler query and card attribute
+    caches for one build configuration.
 
     Args:
         max_cards_in_combo: Largest combo size to fetch (part of the variants cache key)
@@ -294,6 +356,8 @@ async def precache(
             attributes of beside the candidate cards (None: no payoff stage)
         blocklist_queries: Scryfall queries whose cards are blocked too; resolved first,
             which fills their cache entries
+        enablers: The enabler table whose queries to resolve, and whose cards to look up the
+            attributes of beside the candidate cards (None: no enabler stage)
 
     Raises BlocklistQueryError for a blocklist query Scryfall rejects, BlocklistFetchError
     for one that could not be fetched (the templates a build needs depend on it).
@@ -352,6 +416,23 @@ async def precache(
             result.payoff_queries = len(payoffs.queries)
             # A build adds the payoff cards to the candidates and looks them up too
             card_names = sorted(set(card_names) | set(payoff_cards))
+        if enablers is not None:
+            enabler_fetcher = PayoffFetcher(
+                fetcher,
+                cache_dir=cache_dir,
+                enable_read=keep_existing,
+                enable_write=True,
+                label="Enabler",
+            )
+            (
+                enabler_cards,
+                result.failed_enabler_queries,
+                result.bad_enabler_queries,
+            ) = await _precache_enablers(
+                enablers, blocklist, enabler_fetcher, fetcher, max_passes, retry_wait_seconds, sleep
+            )
+            result.enabler_queries = len(enablers.queries)
+            card_names = sorted(set(card_names) | set(enabler_cards))
         result.cards = len(card_names)
 
         attribute_fetcher = CardAttributeFetcher(
@@ -390,8 +471,8 @@ if __name__ == "__main__":
         type=str,
         default=None,
         help="Path to the configuration file: its blocklist and blocklist queries decide what "
-        "is fetched, and its blocklist and payoff table's Scryfall queries are resolved "
-        "(default: config.yaml)",
+        "is fetched, and its blocklist, payoff table and enabler table Scryfall queries are "
+        "resolved (default: config.yaml)",
     )
     argparser.add_argument(
         "--cache-dir",
@@ -427,9 +508,10 @@ if __name__ == "__main__":
     # outcome table), so the cache this fills is one a build accepts
     try:
         config = load_config(args.config)
-    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, CardTableError) as e:
         argparser.error(str(e))
     payoffs = config.payoffs
+    enablers = config.enablers
 
     try:
         result = asyncio.run(
@@ -443,6 +525,7 @@ if __name__ == "__main__":
                 retry_wait_seconds=args.retry_wait,
                 payoffs=payoffs,
                 blocklist_queries=config.blocklist_queries,
+                enablers=enablers,
             )
         )
     except BlocklistQueryError as e:
@@ -460,12 +543,19 @@ if __name__ == "__main__":
         )
         for query, reason in result.bad_payoff_queries.items():
             print(f"Payoff query {reason} (fix the table): {query!r}")
+    if enablers is not None:
+        print(
+            f"Enabler queries: {result.enabler_queries}, {result.failed_enabler_queries} "
+            "still failing"
+        )
+        for query, reason in result.bad_enabler_queries.items():
+            print(f"Enabler query {reason} (fix the table): {query!r}")
     print(
         f"Card attributes: {result.cards - result.cards_without_attributes} of {result.cards} "
         f"cards, {result.failed_attribute_requests} requests still failing"
     )
-    if result.bad_payoff_queries:
-        print("The payoff table has queries a build rejects; fix them and run again.")
+    if result.bad_queries:
+        print("A table has queries a build rejects; fix them and run again.")
         sys.exit(1)
     if not result.complete:
         print("Cache is INCOMPLETE; run again with --keep-existing to fetch what is missing.")

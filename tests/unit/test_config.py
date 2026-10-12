@@ -1,5 +1,5 @@
-"""Tests for the configuration file: the blocklist, blocklist query, outcome and payoff
-sections."""
+"""Tests for the configuration file: the blocklist, blocklist query, outcome, payoff and
+enabler sections."""
 
 from pathlib import Path
 
@@ -14,6 +14,7 @@ from mtg_combo_cube.config import (
     parse_blocklist_queries,
     parse_config,
 )
+from mtg_combo_cube.ilp.enablers import EnablerTableError, parse_enabler_table
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, parse_outcome_categories
 from mtg_combo_cube.ilp.payoffs import PayoffTableError, parse_payoff_table
 
@@ -32,6 +33,11 @@ payoffs:
   mana:
     queries: ['o:"{X}" o:"X damage"']
     exclude: [Chromatic Orrery]
+enablers:
+  ritual:
+    queries: ['o:"Add {B}{B}{B}"']
+    cards: [Dark Ritual]
+    min_enablers: 1
 """
 
 
@@ -53,6 +59,10 @@ class TestLoad:
         assert config.payoffs is not None
         assert config.payoffs.names == ("mana",)
         assert config.payoffs.queries == ('o:"{X}" o:"X damage"',)
+        assert config.enablers is not None
+        assert config.enablers.names == ("ritual",)
+        assert config.enablers.queries == ('o:"Add {B}{B}{B}"',)
+        assert config.enablers.min_enablers == {"ritual": 1}
 
     def test_missing_file(self, tmp_path: Path):
         with pytest.raises(FileNotFoundError, match="Configuration file not found"):
@@ -73,12 +83,22 @@ class TestLoad:
         assert config.blocklist_queries == ()
         assert config.outcome_categories is None
         assert config.payoffs is None
+        assert config.enablers is None
 
     def test_table_errors_come_from_the_tables(self, tmp_path: Path):
         with pytest.raises(OutcomeCategoryError, match="invalid regex"):
             load_config(write(tmp_path, "outcome_categories: {mana: ['re:(']}\n"))
         with pytest.raises(PayoffTableError, match="no queries, cards or exclusions"):
             load_config(write(tmp_path, "outcome_categories: {mana: [x]}\npayoffs: {mana: {}}\n"))
+        with pytest.raises(EnablerTableError, match="enabler category 'ritual' has unknown keys"):
+            load_config(write(tmp_path, "enablers: {ritual: {min_payoffs: 1}}\n"))
+
+    def test_enabler_table_needs_no_other_section(self, tmp_path: Path):
+        config = load_config(write(tmp_path, "enablers: {ritual: {cards: [Dark Ritual]}}\n"))
+
+        assert config.enablers is not None
+        assert config.enablers.names == ("ritual",)
+        config.require(enablers=True)
 
 
 class TestParse:
@@ -147,25 +167,30 @@ class TestRequire:
         config = CubeConfig(
             outcome_categories=parse_outcome_categories({"mana": ["x"]}),
             payoffs=parse_payoff_table({"mana": {"cards": ["A"]}}),
+            enablers=parse_enabler_table({"ritual": {"cards": ["B"]}}),
         )
 
-        config.require(outcome_categories=True, payoffs=True)
+        config.require(outcome_categories=True, payoffs=True, enablers=True)
 
     def test_nothing_required_passes_without_tables(self):
         CubeConfig().require()
-        CubeConfig().require(outcome_categories=False, payoffs=False)
+        CubeConfig().require(outcome_categories=False, payoffs=False, enablers=False)
 
     @pytest.mark.parametrize(
-        ("outcomes", "payoffs", "message"),
+        ("outcomes", "payoffs", "enablers", "message"),
         [
-            (True, False, "no outcome_categories section"),
-            (False, True, "no payoffs section"),
-            (True, True, "no outcome_categories or payoffs section"),
+            (True, False, False, "no outcome_categories section"),
+            (False, True, False, "no payoffs section"),
+            (False, False, True, "no enablers section"),
+            (True, True, False, "no outcome_categories or payoffs section"),
+            (True, True, True, "no outcome_categories or payoffs or enablers section"),
         ],
     )
-    def test_missing_sections_are_named(self, outcomes: bool, payoffs: bool, message: str):
+    def test_missing_sections_are_named(
+        self, outcomes: bool, payoffs: bool, enablers: bool, message: str
+    ):
         with pytest.raises(ConfigError, match=message):
-            CubeConfig().require(outcome_categories=outcomes, payoffs=payoffs)
+            CubeConfig().require(outcome_categories=outcomes, payoffs=payoffs, enablers=enablers)
 
 
 class TestDefaultConfig:
@@ -177,4 +202,5 @@ class TestDefaultConfig:
         assert config.outcome_categories is not None
         assert config.outcome_categories.catch_all == "other"
         assert config.payoffs is not None
-        config.require(outcome_categories=True, payoffs=True)
+        assert config.enablers is not None
+        config.require(outcome_categories=True, payoffs=True, enablers=True)

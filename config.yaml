@@ -1,5 +1,5 @@
-# Cube configuration: the blocklist, the blocklist queries, the outcome category table and
-# the payoff table.
+# Cube configuration: the blocklist, the blocklist queries, the outcome category table, the
+# payoff table and the enabler table.
 # Read from the working directory by default; pass another file with --config.
 
 # Cards to always exclude from the cube
@@ -131,3 +131,57 @@ payoffs:
       - 'o:"+1/+1 counters are put on" o:"draw"'
     exclude:
       - Chromatic Orrery
+
+# The cards that set combos up, per free-form category: Scryfall `queries` (resolved as the
+# payoff queries are, the first 25 unblocked cards of each), explicit `cards`, and `exclude`.
+# A category may bound its own enabler floor with `min_enablers` and `max_enablers`. Left
+# out on purpose: ramp that is no combo piece (signets, talismans, Nature's Lore) and
+# tutors, which the slots added by hand to the cube cover. Ramp a query catches anyway
+# (Paradise Mantle, Everflowing Chalice) stays: it counts for its category like any card.
+enablers:
+  fast_mana:
+    # One-shot and zero-cost mana rocks: the Lotuses and the Moxen. Black Lotus and the five
+    # original Moxen match; block them in `blocklist` if the budget says so.
+    queries:
+      - 't:artifact mv<=1 o:/sacrifice ~: add/ -t:land -t:creature -o:"draw a card"'
+      - 't:artifact mv=0 o:/\{T\}: Add/ -t:land'
+    exclude:
+      - Sol Talisman  # suspend
+      - Mox Tantalite  # suspend
+      - Mox Jasper  # needs a dragon
+  ritual:
+    # Instants and sorceries that add two or more mana at once
+    queries:
+      - '(t:instant or t:sorcery) mv<=3 o:/^Add (\{[WUBRGC]\}){2,}/'
+    exclude:
+      - Blazing Firesinger // Seething Song  # a reprint of Seething Song as a double-faced card
+  wheel:
+    # Every player discards their hand and draws seven, or shuffles it away and draws seven.
+    # Named rather than queried: the floor treats every card of a category alike, and a query
+    # also finds wheels nobody wants in the slot (Day's Undoing ends the turn, Midnight Clock
+    # and Wheel of Fate are slow, Time Reversal costs five), which a build then used to meet
+    # the floor instead of these
+    cards:
+      - Wheel of Fortune
+      - Windfall
+      - Timetwister
+      - Time Spiral
+      - Echo of Eons
+      - Reforge the Soul
+      - Magus of the Wheel
+      - Wheel of Misfortune  # "each player secretly chooses a number"
+      - Memory Jar  # exiles the hand rather than discarding it
+  graveyard:
+    # Cheap ways to put a combo piece into the graveyard: Entomb effects and looting. Named
+    # for the same reason as the wheels
+    cards:
+      - Entomb
+      - Buried Alive
+      - Unmarked Grave
+      - Lively Dirge
+      - Goblin Engineer
+      - Faithless Looting
+      - Careful Study
+      - Cathartic Reunion
+      - Thrill of Possibility
+      - Tormenting Voice

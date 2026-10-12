@@ -1,5 +1,6 @@
 """Data structures for ILP optimization."""
 
+import dataclasses
 import math
 from dataclasses import dataclass, fields
 from fractions import Fraction
@@ -285,12 +286,27 @@ class PayoffStats:
     payoff_only: list[str]
 
 
+@dataclass
+class EnablerStats:
+    """Which enabler cards (fast mana, rituals, wheels, ...) a cube holds."""
+
+    # Enabler cards of each category of the enabler table in the cube, in table order
+    cards_per_category: dict[str, int]
+    # category -> card -> the sources that named it ("card", "query")
+    cards: dict[str, dict[str, list[str]]]
+    # The cube's enabler-only cards: enabler cards in fewer combos of the pool than the
+    # utilization floor, there for the enabler floor (the utilization statistics leave them
+    # out)
+    enabler_only: list[str]
+
+
 # Why a card is in a cube (CardInclusionStats.reason)
 ESSENTIAL = "essential"  # a completed combo would be lost without it
 REDUNDANT = "redundant"  # in completed combos, all of which other cards complete as well
 PAYOFF_ONLY = "payoff_only"  # in no completed combo; a payoff card, there for the payoff floor
-NO_COMBO = "no_combo"  # in no completed combo and no payoff: there for a cube rule
-INCLUSION_REASONS = (ESSENTIAL, REDUNDANT, PAYOFF_ONLY, NO_COMBO)
+ENABLER_ONLY = "enabler_only"  # in no completed combo; an enabler, there for the enabler floor
+NO_COMBO = "no_combo"  # in no completed combo, no payoff, no enabler: there for a cube rule
+INCLUSION_REASONS = (ESSENTIAL, REDUNDANT, PAYOFF_ONLY, ENABLER_ONLY, NO_COMBO)
 
 
 @dataclass
@@ -313,6 +329,8 @@ class CardInclusionStats:
     outcomes: dict[str, int]
     payoff_categories: list[str]  # the payoff table categories it is a payoff of
     reason: str  # one of INCLUSION_REASONS
+    # the enabler table categories it is an enabler of
+    enabler_categories: list[str] = dataclasses.field(default_factory=list)
 
     @property
     def essential_combo_count(self) -> int:
@@ -434,6 +452,9 @@ class OptimizationResult:
     # Payoff cards per category of each phase's cube (None without a payoff table)
     phase1_payoff_stats: PayoffStats | None = None
     phase2_payoff_stats: PayoffStats | None = None
+    # Enabler cards per category of each phase's cube (None without an enabler table)
+    phase1_enabler_stats: EnablerStats | None = None
+    phase2_enabler_stats: EnablerStats | None = None
     # Outcome rules applied in Phase 2, when enabled (None otherwise): the minimum completed
     # combos per category actually applied (the table's own minimum or the default), and the
     # largest share of the completed combos one category may hold
@@ -445,6 +466,12 @@ class OptimizationResult:
     phase2_min_payoffs: int | None = None
     phase2_payoff_share: float | None = None  # the share of the cube the floors add up to
     phase2_payoff_floors: dict[str, int] | None = None
+    # Enabler floor applied in Phase 2, when enabled (None otherwise): the configured minimum
+    # enabler cards per category, the share of the cube the floors add up to, and the floor
+    # actually applied to each category (lowered to the enabler cards it has)
+    phase2_min_enablers: int | None = None
+    phase2_enabler_share: float | None = None
+    phase2_enabler_floors: dict[str, int] | None = None
     # Popularity weight: each combo's value is scaled by 1 + weight x its popularity relative
     # to the most popular combo (log scale). The combo score is the weighted combo count under
     # that scaling; it equals weighted_combo_count when the weight is 0.

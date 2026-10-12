@@ -10,6 +10,7 @@ from itertools import combinations
 from statistics import median
 
 from mtg_combo_cube.ilp.ilp_models import (
+    ENABLER_ONLY,
     ESSENTIAL,
     NO_COMBO,
     PAYOFF_ONLY,
@@ -355,12 +356,29 @@ def _survives_without(combo: ComboData, card: str, fillers: list[frozenset[str]]
     return card not in combo.required_cards and all(opt - {card} for opt in fillers)
 
 
-def _inclusion_reason(essential: int, distinct: int, payoff_categories: list[str]) -> str:
+def _inclusion_reason(
+    essential: int, distinct: int, payoff_categories: list[str], enabler_categories: list[str]
+) -> str:
+    """A card in no completed combo is there for the payoff floor (a payoff card, even when
+    it is an enabler too), the enabler floor, or another cube rule."""
     if essential:
         return ESSENTIAL
     if distinct:
         return REDUNDANT
-    return PAYOFF_ONLY if payoff_categories else NO_COMBO
+    if payoff_categories:
+        return PAYOFF_ONLY
+    return ENABLER_ONLY if enabler_categories else NO_COMBO
+
+
+def _categories_of(
+    selected: set[str], table: Mapping[str, Collection[str]] | None
+) -> dict[str, list[str]]:
+    """Card -> the categories of a table (category -> cards) it is in, in table order."""
+    categories_of: dict[str, list[str]] = {card: [] for card in selected}
+    for name, cards in (table or {}).items():
+        for card in selected.intersection(cards):
+            categories_of[card].append(name)
+    return categories_of
 
 
 def card_inclusion(
@@ -369,15 +387,18 @@ def card_inclusion(
     completed_ids: Collection[str] | None = None,
     group_categories: Mapping[str, frozenset[str]] | None = None,
     payoff_cards: Mapping[str, Collection[str]] | None = None,
+    enabler_cards: Mapping[str, Collection[str]] | None = None,
 ) -> list[CardInclusionStats]:
     """
     Why each selected card is in the cube: the completed combos it takes part in (counted
     as utilization counts them), the templates it fills, the completed combos the cube
-    would lose without it, and its payoff categories. Cards come most-used first.
+    would lose without it, and its payoff and enabler categories. Cards come most-used
+    first.
 
     `completed_ids` saves recomputing the completed variants; `group_categories` (the
-    result of group_outcomes) adds the outcome categories of the card's combos, and
-    `payoff_cards` (payoff category -> cards) its payoff categories.
+    result of group_outcomes) adds the outcome categories of the card's combos,
+    `payoff_cards` (payoff category -> cards) its payoff categories and `enabler_cards`
+    (enabler category -> cards) its enabler categories.
     """
     selected = set(selected_cards)
     variants = _completed_variants(selected, combos, completed_ids)
@@ -408,10 +429,8 @@ def card_inclusion(
             fills[card] += 1
             groups[card].add(combo.group_key)
 
-    categories_of: dict[str, list[str]] = {card: [] for card in selected}
-    for name, cards in (payoff_cards or {}).items():
-        for card in selected.intersection(cards):
-            categories_of[card].append(name)
+    payoffs_of = _categories_of(selected, payoff_cards)
+    enablers_of = _categories_of(selected, enabler_cards)
 
     stats = []
     for card in selected:
@@ -437,8 +456,11 @@ def card_inclusion(
                 ),
                 essential_combos=essential,
                 outcomes=dict(sorted(outcomes.items(), key=lambda item: (-item[1], item[0]))),
-                payoff_categories=categories_of[card],
-                reason=_inclusion_reason(len(essential), len(groups[card]), categories_of[card]),
+                payoff_categories=payoffs_of[card],
+                enabler_categories=enablers_of[card],
+                reason=_inclusion_reason(
+                    len(essential), len(groups[card]), payoffs_of[card], enablers_of[card]
+                ),
             )
         )
     return sorted(stats, key=lambda s: (-s.combo_count, -s.essential_combo_count, s.card))

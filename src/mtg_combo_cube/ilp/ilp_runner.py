@@ -10,6 +10,13 @@ from pathlib import Path
 
 from mtg_combo_cube.blocklist import fetch_blocklist
 from mtg_combo_cube.config import CubeConfig, load_config
+from mtg_combo_cube.ilp.card_table import (
+    CardTable,
+    CardTableDefinitions,
+    CardTableFetchError,
+    TableKind,
+    check_query_results,
+)
 from mtg_combo_cube.ilp.combo_preprocessor import ComboPreprocessor
 from mtg_combo_cube.ilp.cube_evaluation import (
     COLOR_PAIRS,
@@ -18,6 +25,13 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     MONO_COLORS,
     compute_card_mix_stats,
     compute_color_stats,
+)
+from mtg_combo_cube.ilp.enablers import (
+    ENABLER_KIND,
+    EnablerDefinitions,
+    EnablerFetchError,
+    EnablerTable,
+    resolve_enablers,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
@@ -29,6 +43,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     CardMixStats,
     ColorStats,
     ComboData,
+    EnablerStats,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
@@ -38,11 +53,10 @@ from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, outcome_rules_requested
 from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
+    PAYOFF_KIND,
     PayoffDefinitions,
     PayoffFetchError,
     PayoffTable,
-    PayoffTableError,
-    check_query_results,
     infer_payoffs,
     resolve_payoffs,
 )
@@ -125,6 +139,12 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["payoff_share"] = result.phase2_payoff_share
     if result.phase2_payoff_floors is not None:
         info["payoff_floors"] = result.phase2_payoff_floors
+    if result.phase2_min_enablers is not None:
+        info["min_enablers"] = result.phase2_min_enablers
+    if result.phase2_enabler_share is not None:
+        info["enabler_share"] = result.phase2_enabler_share
+    if result.phase2_enabler_floors is not None:
+        info["enabler_floors"] = result.phase2_enabler_floors
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
@@ -335,16 +355,59 @@ def format_payoff_stats(stats: PayoffStats) -> str:
     return ", ".join(f"{name}={count}" for name, count in stats.cards_per_category.items())
 
 
+# How a table's sources are named in the log ("inferred" stays as it is)
+SOURCE_PLURALS = {"card": "cards", "query": "queries"}
+
+
+def _format_table(table: CardTable) -> str:
+    """'mana 31 (inferred 5, cards 0, queries 26); storm 15 (...)' for a resolved table."""
+    parts = []
+    for name in table.names:
+        counts = ", ".join(
+            f"{SOURCE_PLURALS.get(source, source)} {count}"
+            for source, count in table.source_counts(name).items()
+        )
+        parts.append(f"{name} {len(table.cards(name))} ({counts})")
+    return "; ".join(parts)
+
+
 def format_payoff_table(payoffs: PayoffTable) -> str:
     """'mana 31 (inferred 5, cards 0, queries 26); storm 15 (...)' for the resolved table."""
-    parts = []
-    for name in payoffs.names:
-        counts = payoffs.source_counts(name)
-        parts.append(
-            f"{name} {len(payoffs.cards(name))} (inferred {counts['inferred']}, cards "
-            f"{counts['card']}, queries {counts['query']})"
-        )
-    return "; ".join(parts)
+    return _format_table(payoffs)
+
+
+def _enablers_block(stats: EnablerStats | None) -> dict:
+    """The "enablers" entry of a phase block, empty when the result has no enabler data."""
+    return {"enablers": asdict(stats)} if stats is not None else {}
+
+
+def _enabler_table_block(enablers: EnablerTable | None) -> dict:
+    """
+    The top-level "enablers" entry of the stats file: the resolved enabler table (every
+    card per category with its sources, and how many each source named).
+    """
+    if enablers is None:
+        return {}
+    return {
+        "enablers": {
+            "cards_per_category": {name: len(enablers.cards(name)) for name in enablers.names},
+            "source_counts": {name: enablers.source_counts(name) for name in enablers.names},
+            "cards": {
+                name: {card: sorted(sources) for card, sources in by_card.items()}
+                for name, by_card in enablers.sources.items()
+            },
+        }
+    }
+
+
+def format_enabler_stats(stats: EnablerStats) -> str:
+    """One-line summary of the enabler cards per category."""
+    return ", ".join(f"{name}={count}" for name, count in stats.cards_per_category.items())
+
+
+def format_enabler_table(enablers: EnablerTable) -> str:
+    """'fast_mana 18 (cards 0, queries 18); ritual 8 (...)' for the resolved table."""
+    return _format_table(enablers)
 
 
 def format_popularity_stats(stats: PopularityStats) -> str:
@@ -399,6 +462,7 @@ def card_inclusion_entries(
             "templates": card.templates,
             "outcomes": card.outcomes,
             "payoff_categories": card.payoff_categories,
+            "enabler_categories": card.enabler_categories,
             **({"added_in_phase2": card.card not in phase1} if phase1 is not None else {}),
             "essential_combos": card.essential_combos,
         }
@@ -511,6 +575,11 @@ def log_phase_summary(
     if result.is_multi_objective and result.phase2_payoff_stats is not None:
         logger.info(f"Payoffs, Phase 2: {format_payoff_stats(result.phase2_payoff_stats)}")
 
+    if result.phase1_enabler_stats is not None:
+        logger.info(f"Enablers, Phase 1: {format_enabler_stats(result.phase1_enabler_stats)}")
+    if result.is_multi_objective and result.phase2_enabler_stats is not None:
+        logger.info(f"Enablers, Phase 2: {format_enabler_stats(result.phase2_enabler_stats)}")
+
     phase1_mix = _card_mix_stats(_phase1_cards(result), attributes)
     if phase1_mix is not None:
         logger.info(f"Card mix, Phase 1: {format_card_mix_stats(phase1_mix)}")
@@ -529,13 +598,15 @@ def write_stats(
     cube_size: int,
     attributes: Mapping[str, CardAttributes] | None = None,
     payoffs: PayoffTable | None = None,
+    enablers: EnablerTable | None = None,
 ) -> None:
     """
     Write utilization statistics to JSON file.
 
     attributes (card name -> Scryfall attributes) adds the color distribution and card mix
     of each phase's cube when given; payoffs (the resolved payoff table) adds a top-level
-    "payoffs" block with the table and what the inference found.
+    "payoffs" block with the table and what the inference found, and enablers (the
+    resolved enabler table) a top-level "enablers" block with the table.
     """
     # Derive stats filename: data/cube.txt -> data/cube_stats.json
     output_path = Path(output_file)
@@ -588,6 +659,7 @@ def write_stats(
             **_outcomes_block(result.phase1_outcome_stats),
             **_popularity_block(result.phase1_popularity_stats),
             **_payoffs_block(result.phase1_payoff_stats),
+            **_enablers_block(result.phase1_enabler_stats),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -612,6 +684,7 @@ def write_stats(
             **_outcomes_block(result.phase2_outcome_stats),
             **_popularity_block(result.phase2_popularity_stats),
             **_payoffs_block(result.phase2_payoff_stats),
+            **_enablers_block(result.phase2_enabler_stats),
         }
 
         # Calculate improvement metrics
@@ -741,6 +814,7 @@ def write_stats(
         }
 
     stats.update(_payoff_table_block(payoffs))
+    stats.update(_enabler_table_block(enablers))
 
     # Profiling data (when --profile was used)
     if result.profile_data:
@@ -802,6 +876,55 @@ async def fetch_card_attributes(
     return attributes or None
 
 
+async def fetch_table_queries(
+    queries: Sequence[str],
+    kind: TableKind,
+    fetch_error: type[CardTableFetchError],
+    flag: str,
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
+    required: bool = False,
+) -> dict[str, list[str]]:
+    """
+    Resolve a card table's Scryfall queries to card names (query -> ordered names).
+
+    A query Scryfall rejects or only partly understands is a table error (the kind's
+    error), whatever the settings. A query that matches no card is one too when the
+    results are `required` (the table's floor is on, so a missing query would change a hard
+    constraint and make the run incomparable), and so is a query whose request failed
+    (`fetch_error`, a transient problem; `flag` names the option that turns the floor off);
+    otherwise both are left out with a warning and their cards are missing from the table.
+    """
+    if not queries:
+        return {}
+    label = kind.label.capitalize()
+    async with ScryfallFetcher() as fetcher:
+        query_fetcher = PayoffFetcher(
+            fetcher, enable_read=read_cache, enable_write=enable_cache_write, label=label
+        )
+        results = await query_fetcher.fetch_queries(queries)
+    if query_fetcher.rejected:
+        raise kind.error(
+            f"{kind.label} queries rejected by Scryfall (fix the table): "
+            + "; ".join(f"{query!r} ({reason})" for query, reason in query_fetcher.rejected.items())
+        )
+    if required:
+        check_query_results(results, kind)
+    elif empty := [query for query, cards in results.items() if not cards]:
+        logger.warning(
+            f"{label} queries match no card on Scryfall and are skipped: "
+            + ", ".join(repr(q) for q in empty)
+        )
+        results = {query: cards for query, cards in results.items() if cards}
+    missing = [query for query in queries if query not in results]
+    if missing and required:
+        raise fetch_error(
+            f"{kind.label} queries could not be fetched from Scryfall (the {kind.label} floor "
+            f"needs them; run again, or pass {flag} 0): " + ", ".join(repr(q) for q in missing)
+        )
+    return results
+
+
 async def fetch_payoff_queries(
     queries: Sequence[str],
     enable_cache_write: bool = True,
@@ -809,44 +932,41 @@ async def fetch_payoff_queries(
     required: bool = False,
 ) -> dict[str, list[str]]:
     """
-    Resolve the payoff table's Scryfall queries to card names (query -> ordered names).
-
-    A query Scryfall rejects or only partly understands is a table error
-    (PayoffTableError), whatever the settings. A query that matches no card is one too when
-    the results are `required` (the payoff floor is on, so a missing query would change a
-    hard constraint and make the run incomparable), and so is a query whose request failed
-    (PayoffFetchError, a transient problem); otherwise both are left out with a warning and
-    their cards are missing from the payoff set.
+    Resolve the payoff table's Scryfall queries (fetch_table_queries): a rejected query is a
+    PayoffTableError, an empty or unfetchable one is an error when `required` (the payoff
+    floor is on; PayoffFetchError for the latter).
     """
-    if not queries:
-        return {}
-    async with ScryfallFetcher() as fetcher:
-        payoff_fetcher = PayoffFetcher(
-            fetcher, enable_read=read_cache, enable_write=enable_cache_write
-        )
-        results = await payoff_fetcher.fetch_queries(queries)
-    if payoff_fetcher.rejected:
-        raise PayoffTableError(
-            "payoff queries rejected by Scryfall (fix the table): "
-            + "; ".join(
-                f"{query!r} ({reason})" for query, reason in payoff_fetcher.rejected.items()
-            )
-        )
-    if required:
-        check_query_results(results)
-    elif empty := [query for query, cards in results.items() if not cards]:
-        logger.warning(
-            "Payoff queries match no card on Scryfall and are skipped: "
-            + ", ".join(repr(q) for q in empty)
-        )
-        results = {query: cards for query, cards in results.items() if cards}
-    missing = [query for query in queries if query not in results]
-    if missing and required:
-        raise PayoffFetchError(
-            "payoff queries could not be fetched from Scryfall (the payoff floor needs them; "
-            "run again, or pass --min-payoffs 0): " + ", ".join(repr(q) for q in missing)
-        )
-    return results
+    return await fetch_table_queries(
+        queries,
+        PAYOFF_KIND,
+        PayoffFetchError,
+        "--min-payoffs",
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+        required=required,
+    )
+
+
+async def fetch_enabler_queries(
+    queries: Sequence[str],
+    enable_cache_write: bool = True,
+    read_cache: bool = False,
+    required: bool = False,
+) -> dict[str, list[str]]:
+    """
+    Resolve the enabler table's Scryfall queries (fetch_table_queries): a rejected query is
+    an EnablerTableError, an empty or unfetchable one is an error when `required` (the
+    enabler floor is on; EnablerFetchError for the latter).
+    """
+    return await fetch_table_queries(
+        queries,
+        ENABLER_KIND,
+        EnablerFetchError,
+        "--min-enablers",
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
+        required=required,
+    )
 
 
 def build_payoff_table(
@@ -866,19 +986,82 @@ def build_payoff_table(
     return payoffs
 
 
+def build_enabler_table(
+    definitions: EnablerDefinitions,
+    query_results: Mapping[str, Sequence[str]],
+    blocklist: frozenset[str] = frozenset(),
+) -> EnablerTable:
+    """The resolved enabler table of a run: table cards and queries."""
+    enablers = resolve_enablers(definitions, query_results, blocklist)
+    logger.info(f"Enabler cards: {format_enabler_table(enablers)}")
+    return enablers
+
+
+def add_table_cards(
+    candidate_cards: dict[str, CandidateCard], table: CardTable, label: str
+) -> list[str]:
+    """
+    Add every card of a table the pool lacks to the candidate cards, as a card that
+    completes no combo (a payoff-only or enabler-only card, selectable for the table's
+    floor). `label` names the table in the log. Returns the names added.
+    """
+    added = sorted(table.all_cards - set(candidate_cards))
+    for name in added:
+        candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
+    logger.info(
+        f"Added {len(added)} {label}-only cards to the candidate pool; "
+        f"{len(table.all_cards) - len(added)} {label} cards were candidates already"
+    )
+    return added
+
+
 def add_payoff_cards(candidate_cards: dict[str, CandidateCard], payoffs: PayoffTable) -> list[str]:
     """
     Add every payoff card the pool lacks to the candidate cards, as a card that completes no
     combo (a payoff-only card, selectable for the payoff floor). Returns the names added.
     """
-    added = sorted(payoffs.all_cards - set(candidate_cards))
-    for name in added:
-        candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
-    logger.info(
-        f"Added {len(added)} payoff-only cards to the candidate pool; "
-        f"{len(payoffs.all_cards) - len(added)} payoff cards were combo pieces already"
+    return add_table_cards(candidate_cards, payoffs, "payoff")
+
+
+def add_enabler_cards(
+    candidate_cards: dict[str, CandidateCard], enablers: EnablerTable
+) -> list[str]:
+    """
+    Add every enabler card the pool lacks to the candidate cards, as a card that completes
+    no combo (an enabler-only card, selectable for the enabler floor). Returns the names
+    added.
+    """
+    return add_table_cards(candidate_cards, enablers, "enabler")
+
+
+def drop_unknown_table_cards[T: CardTable](
+    table: T,
+    candidate_cards: dict[str, CandidateCard],
+    card_attributes: Mapping[str, CardAttributes],
+    label: str,
+) -> T:
+    """
+    Remove the added cards of a table Scryfall does not know (a typo in the table's
+    `cards`) from the candidate cards and the table, with a warning; a combo piece is known
+    to exist. Returns the table to use.
+    """
+    unknown = sorted(
+        card
+        for card in table.all_cards
+        if card in candidate_cards
+        and not candidate_cards[card].combo_ids
+        and not candidate_cards[card].requirement_group_keys
+        and card not in card_attributes
     )
-    return added
+    if not unknown:
+        return table
+    logger.warning(
+        f"{label.capitalize()} table: {len(unknown)} cards are not known to Scryfall and are "
+        f"dropped (check the spelling): {unknown}"
+    )
+    for card in unknown:
+        del candidate_cards[card]
+    return table.without(unknown)
 
 
 def drop_unknown_payoff_cards(
@@ -891,23 +1074,30 @@ def drop_unknown_payoff_cards(
     the candidate cards and the table, with a warning; a combo piece is known to exist.
     Returns the table to use.
     """
-    unknown = sorted(
-        card
-        for card in payoffs.all_cards
-        if card in candidate_cards
-        and not candidate_cards[card].combo_ids
-        and not candidate_cards[card].requirement_group_keys
-        and card not in card_attributes
-    )
-    if not unknown:
-        return payoffs
-    logger.warning(
-        f"Payoff table: {len(unknown)} cards are not known to Scryfall and are dropped "
-        f"(check the spelling): {unknown}"
-    )
-    for card in unknown:
-        del candidate_cards[card]
-    return payoffs.without(unknown)
+    return drop_unknown_table_cards(payoffs, candidate_cards, card_attributes, "payoff")
+
+
+def drop_unknown_enabler_cards(
+    enablers: EnablerTable,
+    candidate_cards: dict[str, CandidateCard],
+    card_attributes: Mapping[str, CardAttributes],
+) -> EnablerTable:
+    """
+    Remove the enabler-only cards Scryfall does not know (a typo in the table's `cards`)
+    from the candidate cards and the table, with a warning. Returns the table to use.
+    """
+    return drop_unknown_table_cards(enablers, candidate_cards, card_attributes, "enabler")
+
+
+def _log_table(definitions: CardTableDefinitions | None, label: str) -> None:
+    """Say which categories a table of the configuration has, or that there is none."""
+    if definitions is None:
+        logger.info(f"The configuration has no {label} table; {label}s are skipped")
+    else:
+        logger.info(
+            f"Loaded {label} table with {len(definitions)} categories: "
+            f"{', '.join(definitions.names)}"
+        )
 
 
 async def build_cube_ilp(
@@ -940,21 +1130,30 @@ async def build_cube_ilp(
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
+    min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
+    enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
 ) -> tuple[
-    list[str], int, OptimizationResult, dict[str, CardAttributes] | None, PayoffTable | None
+    list[str],
+    int,
+    OptimizationResult,
+    dict[str, CardAttributes] | None,
+    PayoffTable | None,
+    EnablerTable | None,
 ]:
     """
     Build cube using ILP optimization with optional API caching.
 
-    config holds the blocklist, the blocklist queries, the outcome category table and the
-    payoff table (the default configuration file when None, see config.py); the cards the
-    blocklist queries match are blocked too (see blocklist.py). The outcome table is behind the
-    outcome statistics and the Phase 2 outcome rules; without it and with no rule on, the
-    build goes on without the outcome statistics. The payoff table is behind the payoff
-    statistics and the Phase 2 payoff floor (min_payoffs per category, payoff_share of the
-    cube in all); its Scryfall queries are resolved through the payoff cache, and the payoff
-    cards the pool lacks are added to the candidate cards. The configuration is read and
-    checked before the instance is loaded, so a bad or incomplete one fails fast.
+    config holds the blocklist, the blocklist queries, the outcome category table, the
+    payoff table and the enabler table (the default configuration file when None, see
+    config.py); the cards the blocklist queries match are blocked too (see blocklist.py). The
+    outcome table is behind the outcome statistics and the Phase 2 outcome rules; without it
+    and with no rule on, the build goes on without the outcome statistics. The payoff table
+    is behind the payoff statistics and the Phase 2 payoff floor (min_payoffs per category,
+    payoff_share of the cube in all); its Scryfall queries are resolved through the payoff
+    cache, and the payoff cards the pool lacks are added to the candidate cards. The enabler
+    table is behind the enabler statistics and the Phase 2 enabler floor (min_enablers,
+    enabler_share) the same way. The configuration is read and checked before the instance
+    is loaded, so a bad or incomplete one fails fast.
 
     Returns:
         - List of card names in cube
@@ -962,6 +1161,7 @@ async def build_cube_ilp(
         - Full optimization result with stats
         - Scryfall attributes of every candidate card (None when none could be fetched)
         - The resolved payoff table (None without one)
+        - The resolved enabler table (None without one)
     """
     logger.info(f"Building {cube_size}-card cube using ILP optimization...")
 
@@ -973,6 +1173,7 @@ async def build_cube_ilp(
         outcome_categories=outcome_rules_requested(min_outcome_combos, max_outcome_share)
         or min_payoffs > 0,
         payoffs=min_payoffs > 0,
+        enablers=min_enablers > 0,
     )
     blocklist = await fetch_blocklist(
         config.blocklist,
@@ -982,6 +1183,7 @@ async def build_cube_ilp(
     )
     outcome_categories = config.outcome_categories
     payoff_definitions = config.payoffs
+    enabler_definitions = config.enablers
     if outcome_categories is None:
         logger.warning(
             "The configuration has no outcome category table; the outcome statistics are skipped"
@@ -991,13 +1193,8 @@ async def build_cube_ilp(
             f"Loaded {len(outcome_categories)} outcome categories: "
             f"{', '.join(outcome_categories.names)}"
         )
-    if payoff_definitions is None:
-        logger.info("The configuration has no payoff table; payoffs are skipped")
-    else:
-        logger.info(
-            f"Loaded payoff table with {len(payoff_definitions)} categories: "
-            f"{', '.join(payoff_definitions.names)}"
-        )
+    _log_table(payoff_definitions, "payoff")
+    _log_table(enabler_definitions, "enabler")
     query_results: dict[str, list[str]] = {}
     if payoff_definitions is not None:
         query_results = await fetch_payoff_queries(
@@ -1005,6 +1202,14 @@ async def build_cube_ilp(
             enable_cache_write=enable_cache_write,
             read_cache=read_cache,
             required=min_payoffs > 0,
+        )
+    enabler_query_results: dict[str, list[str]] = {}
+    if enabler_definitions is not None:
+        enabler_query_results = await fetch_enabler_queries(
+            enabler_definitions.queries,
+            enable_cache_write=enable_cache_write,
+            read_cache=read_cache,
+            required=min_enablers > 0,
         )
 
     combo_data, candidate_cards = await load_instance(
@@ -1035,6 +1240,17 @@ async def build_cube_ilp(
                 "The payoff floor is off: payoff cards the pool lacks are not added to the "
                 "candidate cards"
             )
+    # The same for the enabler table and the enabler floor
+    enablers: EnablerTable | None = None
+    if enabler_definitions is not None:
+        enablers = build_enabler_table(enabler_definitions, enabler_query_results, blocklist)
+        if min_enablers > 0:
+            add_enabler_cards(candidate_cards, enablers)
+        else:
+            logger.info(
+                "The enabler floor is off: enabler cards the pool lacks are not added to the "
+                "candidate cards"
+            )
 
     if len(candidate_cards) < cube_size:
         logger.warning(
@@ -1049,8 +1265,8 @@ async def build_cube_ilp(
     )
     if payoffs is not None and card_attributes is not None:
         payoffs = drop_unknown_payoff_cards(payoffs, candidate_cards, card_attributes)
-    if payoffs is not None and card_attributes is not None:
-        payoffs = drop_unknown_payoff_cards(payoffs, candidate_cards, card_attributes)
+    if enablers is not None and card_attributes is not None:
+        enablers = drop_unknown_enabler_cards(enablers, candidate_cards, card_attributes)
 
     # Run ILP optimization
     optimizer = ILPOptimizer(
@@ -1080,6 +1296,9 @@ async def build_cube_ilp(
         payoffs=payoffs,
         min_payoffs=min_payoffs,
         payoff_share=payoff_share,
+        enablers=enablers,
+        min_enablers=min_enablers,
+        enabler_share=enabler_share,
     )
 
     # Run optimization (two-phase by default)
@@ -1108,7 +1327,14 @@ async def build_cube_ilp(
         f"status={result.phase1_status}, time={result.solve_time_seconds:.1f}s"
     )
 
-    return result.get_selected_card_names(), result.combo_count, result, card_attributes, payoffs
+    return (
+        result.get_selected_card_names(),
+        result.combo_count,
+        result,
+        card_attributes,
+        payoffs,
+        enablers,
+    )
 
 
 async def run_ilp(
@@ -1141,9 +1367,11 @@ async def run_ilp(
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
+    min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
+    enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
 ):
     """Entry point for ILP-based cube building with caching support."""
-    cards, combo_count, result, card_attributes, payoffs = await build_cube_ilp(
+    cards, combo_count, result, card_attributes, payoffs, enablers = await build_cube_ilp(
         cube_size=cube_size,
         time_limit_seconds=time_limit_seconds,
         max_variants=max_variants,
@@ -1172,6 +1400,8 @@ async def run_ilp(
         min_payoffs=min_payoffs,
         payoff_share=payoff_share,
         payoff_inference_min=payoff_inference_min,
+        min_enablers=min_enablers,
+        enabler_share=enabler_share,
     )
 
     logger.info(
@@ -1186,6 +1416,6 @@ async def run_ilp(
     log_phase_summary(result, card_attributes)
 
     # Write utilization stats
-    write_stats(result, output_file, cube_size, card_attributes, payoffs)
+    write_stats(result, output_file, cube_size, card_attributes, payoffs, enablers)
     if result.card_inclusion is not None:
         write_card_data(result.card_inclusion, output_file, _phase1_card_names(result))
