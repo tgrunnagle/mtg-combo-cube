@@ -395,9 +395,8 @@ The reference solve on its own time limit is worth 12% of distinct combos agains
 tracked cube (1,141 against 1,019) and 26% against the first run, with the enabler floor
 met in both. The cost is the build time (three solves of 360 s and a repair, about 25
 minutes against 15) and a wider utilization spread (std dev 20.8 against 15.7: Phase 2 had
-the same 360 s but a window 13% higher to hold). The tracked cube is not replaced here;
-replacing it means copying this run's three output files over `data/current_best_cube*`
-and updating `data/current_best_cube_command.txt`.
+the same 360 s but a window 13% higher to hold). This run is now the tracked
+`data/current_best_cube.txt`.
 
 ## Open questions
 

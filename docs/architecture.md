@@ -444,8 +444,9 @@ Phase 1 cube's overage instead.
 
 Phase 1 ignores the cube rules, and at full size they are expensive: coverage and color
 balance alone cost close to 10% of the combos, and with the archetype rules, the card mix,
-the outcome minimum and the payoff floor the reference cube scores nearly 30% below the Phase
-1 cube (1,140.0 against 1,582.8 weighted combos in the tracked run). Measuring the combo window from the
+the outcome minimum, the payoff floor and the enabler floor the reference cube scores more
+than 20% below the Phase 1 cube (1,316.3 against 1,677.4 weighted combos in the tracked run,
+with the reference solve on a time limit of its own). Measuring the combo window from the
 Phase 1 count would then leave no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
 is built, both in the small Phase 1 model with the cube rules added:
 
@@ -545,9 +546,9 @@ table (`enabler_only` in place of `payoff_only`).
 the popularity-weighted `combo_score` (the `phase2` block also `reference_combo_score`).
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
-settings of 10 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
-rules, the outcome minimum of 40 and the payoff share of 0.15; it predates the enabler floor)
-at 310 cards and 20,000 variants with 360 s per phase; `data/current_best_cube_command.txt`
+settings of 12 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
+rules, the outcome minimum of 40, the payoff share of 0.15 and the enabler share of 0.05)
+at 310 cards and 20,000 variants with 360 s per solve; `data/current_best_cube_command.txt`
 is the command that built it. Everything else
 under `data/` is ignored by git, including `data/cache/`.
 
