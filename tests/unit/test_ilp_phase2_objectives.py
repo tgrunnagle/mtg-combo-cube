@@ -354,7 +354,7 @@ class TestWarmStart:
         optimizer = make_optimizer(9)  # Phase 1 at 9 cards: every card in at least 2 combos
         phase1 = optimizer.solve()
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
 
         assert reference is warm_start
         assert len(reference.combo_ids) == phase1.combo_count
@@ -370,7 +370,7 @@ class TestWarmStart:
         assert phase1.utilization_per_card is not None
         assert min(phase1.utilization_per_card.values()) < 2
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
         reference_count = len(reference.combo_ids)
 
         # The Phase 1 cube breaks only the floor, so the window is still measured from it
@@ -393,7 +393,7 @@ class TestWarmStart:
         phase1 = optimizer.solve()
         assert optimizer._coverage_violations(set(phase1.get_selected_card_names())) == 1
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
         reference_count = len(reference.combo_ids)
 
         assert optimizer._coverage_violations(warm_start.cards) == 0
@@ -414,7 +414,7 @@ class TestWarmStart:
         optimizer = make_optimizer(8, min_utilization_floor=2)
         phase1 = optimizer.solve()
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
         reference_count = len(reference.combo_ids)
 
         assert reference_count == phase1.combo_count

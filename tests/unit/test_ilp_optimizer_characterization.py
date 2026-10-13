@@ -100,8 +100,9 @@ def phase_profile(result: OptimizationResult, phase: str) -> dict[str, Any]:
 
 
 def phase2_timing_names(profile: dict[str, Any]) -> set[str]:
-    """Timing names of a Phase 2 profile, without the optional warm-start repair (Stage 4)."""
-    return set(profile["timings"]) - {"warm_start_repair"}
+    """Timing names of a Phase 2 profile, without the optional reference solve and warm-start
+    repair (Stage 4)."""
+    return set(profile["timings"]) - {"reference_solve", "warm_start_repair"}
 
 
 def phase2_counts(

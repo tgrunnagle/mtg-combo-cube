@@ -9,12 +9,14 @@ from pathlib import Path
 import pytest
 
 from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES, compute_card_mix_stats
+from mtg_combo_cube.ilp.enablers import EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CandidateCard,
     CardInclusionStats,
     CardMixRules,
     ComboGroupStats,
+    EnablerStats,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
@@ -27,6 +29,8 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_card_inclusion,
     format_card_mix_stats,
     format_combo_count,
+    format_enabler_stats,
+    format_enabler_table,
     format_outcome_stats,
     format_payoff_stats,
     format_payoff_table,
@@ -84,7 +88,13 @@ class TestCardData:
         assert path == tmp_path / "out/cube_card_data.json"
         data = json.loads(path.read_text(encoding="utf-8"))
         assert data["summary"] == {
-            "cards_per_reason": {"essential": 1, "redundant": 1, "payoff_only": 1, "no_combo": 0},
+            "cards_per_reason": {
+                "essential": 1,
+                "redundant": 1,
+                "payoff_only": 1,
+                "enabler_only": 0,
+                "no_combo": 0,
+            },
             "cards_in_one_combo": 1,
         }
         assert [entry["card"] for entry in data["cards"]] == ["Card A", "Card B", "Card C"]
@@ -93,6 +103,8 @@ class TestCardData:
         assert first["combo_count"] == 3
         assert first["essential_combo_count"] == 1
         assert first["essential_combos"] == ["c1"]
+        assert first["payoff_categories"] == []
+        assert first["enabler_categories"] == []
         assert "added_in_phase2" not in first
 
     def test_write_card_data_marks_phase2_additions(self, tmp_path):
@@ -119,7 +131,8 @@ class TestCardData:
 
     def test_format_card_inclusion(self):
         assert format_card_inclusion(INCLUSION) == (
-            "essential 1, redundant 1, payoff_only 1, no_combo 0; 1 cards in a single combo"
+            "essential 1, redundant 1, payoff_only 1, enabler_only 0, no_combo 0; "
+            "1 cards in a single combo"
         )
 
 
@@ -1090,6 +1103,97 @@ class TestWriteStatsPayoffs:
         assert format_payoff_stats(PayoffStats({"mana": 2}, {"mana": {}}, [])) == "mana=2"
         assert format_payoff_table(self.TABLE) == (
             "mana 2 (inferred 1, cards 0, queries 2); storm 1 (inferred 0, cards 1, queries 1)"
+        )
+
+
+class TestWriteStatsEnablers:
+    """Per-phase enabler counts, the enabler floor settings and the resolved table."""
+
+    TABLE = EnablerTable(
+        sources={
+            "ritual": {"Dark Ritual": frozenset(["query"]), "Seething Song": frozenset(["query"])},
+            "wheel": {"Windfall": frozenset(["card", "query"])},
+        },
+        minimums={"wheel": 1},
+    )
+
+    def _result(self) -> OptimizationResult:
+        return replace(
+            TestWriteStatsCombosAndColors._two_phase_result(),
+            phase1_enabler_stats=EnablerStats(
+                {"ritual": 0, "wheel": 0}, {"ritual": {}, "wheel": {}}, enabler_only=[]
+            ),
+            phase2_enabler_stats=EnablerStats(
+                {"ritual": 1, "wheel": 1},
+                {"ritual": {"Dark Ritual": ["query"]}, "wheel": {"Windfall": ["card", "query"]}},
+                enabler_only=["Windfall"],
+            ),
+            phase2_min_enablers=2,
+            phase2_enabler_share=0.05,
+            phase2_enabler_floors={"ritual": 1, "wheel": 1},
+        )
+
+    def test_enablers_per_phase_and_the_settings(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path)
+
+        assert stats["phase1"]["enablers"] == {
+            "cards_per_category": {"ritual": 0, "wheel": 0},
+            "cards": {"ritual": {}, "wheel": {}},
+            "enabler_only": [],
+        }
+        assert stats["phase2"]["enablers"]["cards_per_category"] == {"ritual": 1, "wheel": 1}
+        assert stats["phase2"]["enablers"]["enabler_only"] == ["Windfall"]
+        assert stats["phase2"]["enablers"]["cards"]["wheel"]["Windfall"] == ["card", "query"]
+        assert stats["phase2"]["min_enablers"] == 2
+        assert stats["phase2"]["enabler_share"] == 0.05
+        assert stats["phase2"]["enabler_floors"] == {"ritual": 1, "wheel": 1}
+        assert "enablers" not in stats
+
+    def test_resolved_table_is_a_top_level_block(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path, enablers=self.TABLE)
+
+        assert stats["enablers"] == {
+            "cards_per_category": {"ritual": 2, "wheel": 1},
+            "source_counts": {
+                "ritual": {"card": 0, "query": 2},
+                "wheel": {"card": 1, "query": 1},
+            },
+            "cards": {
+                "ritual": {"Dark Ritual": ["query"], "Seething Song": ["query"]},
+                "wheel": {"Windfall": ["card", "query"]},
+            },
+        }
+
+    def test_left_out_without_data(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(
+            TestWriteStatsCombosAndColors._two_phase_result(), tmp_path
+        )
+
+        for phase in ("phase1", "phase2"):
+            assert "enablers" not in stats[phase]
+        for key in ("min_enablers", "enabler_share", "enabler_floors"):
+            assert key not in stats["phase2"]
+        assert "enablers" not in stats
+
+    def test_fallback_records_the_settings(self, tmp_path: Path):
+        result = replace(
+            self._result(), is_multi_objective=False, phase2_fell_back=True, phase2_status="TIMEOUT"
+        )
+
+        stats = TestWriteStatsCombosAndColors._write(result, tmp_path)
+
+        assert stats["phase2"]["fell_back_to_phase1"]
+        assert stats["phase2"]["enabler_floors"] == {"ritual": 1, "wheel": 1}
+
+    def test_log_lines_and_formats(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._result(), None)
+
+        assert "Enablers, Phase 1: ritual=0, wheel=0" in caplog.text
+        assert "Enablers, Phase 2: ritual=1, wheel=1" in caplog.text
+        assert format_enabler_stats(EnablerStats({"ritual": 2}, {"ritual": {}}, [])) == "ritual=2"
+        assert format_enabler_table(self.TABLE) == (
+            "ritual 2 (cards 0, queries 2); wheel 1 (cards 1, queries 1)"
         )
 
 

@@ -40,6 +40,8 @@ async def run(
     min_payoffs: int = ILPOptimizer.DEFAULT_MIN_PAYOFFS,
     payoff_share: float = ILPOptimizer.DEFAULT_PAYOFF_SHARE,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
+    min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
+    enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
 ):
     """
     Build a cube with the ILP optimizer.
@@ -55,8 +57,8 @@ async def run(
         combo_tolerance: Tolerance of the phase 2 combo window, on the combo score (weighted
             combos when variant_weight is below 1)
         min_coverage_ratio: Minimum coverage ratio for requirement templates in phase 2
-        config_path: The configuration file with the blocklist, the outcome category table
-            and the payoff table (default: config.yaml)
+        config_path: The configuration file with the blocklist, the outcome category table,
+            the payoff table and the enabler table (default: config.yaml)
         profile: Enable detailed profiling of ILP optimization
         gap_limit: Relative gap limit for Phase 2 early termination (0.05 = 5%)
         phase2_objective: Phase 2 objective: "minmax", "mad", "maxutil", "softcap" or "tiered"
@@ -87,6 +89,10 @@ async def run(
             among the categories by their combos in the pool (0: the minimum alone)
         payoff_inference_min: Bundled Spellbook variants a card must be the outlet of before
             the inference counts it as a payoff
+        min_enablers: Phase 2 minimum number of enabler cards of every category in the
+            enabler table (0 disables)
+        enabler_share: Share of the cube's cards the Phase 2 enabler floors add up to, split
+            evenly among the categories (0: the minimum alone)
     """
     config = load_config(config_path)
 
@@ -119,4 +125,6 @@ async def run(
         min_payoffs=min_payoffs,
         payoff_share=payoff_share,
         payoff_inference_min=payoff_inference_min,
+        min_enablers=min_enablers,
+        enabler_share=enabler_share,
     )

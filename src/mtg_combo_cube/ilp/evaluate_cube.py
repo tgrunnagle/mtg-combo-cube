@@ -16,6 +16,7 @@ from pathlib import Path
 
 from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
 from mtg_combo_cube.config import ConfigError, load_config
+from mtg_combo_cube.ilp.card_table import CardTableError
 from mtg_combo_cube.ilp.cube_evaluation import (
     card_inclusion,
     card_utilization,
@@ -31,25 +32,32 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     popularity_stats,
     weighted_combo_count,
 )
+from mtg_combo_cube.ilp.enablers import EnablerDefinitions, EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
     ArchetypeStats,
     CardInclusionStats,
     ComboGroupStats,
+    EnablerStats,
     OutcomeStats,
     PayoffStats,
     PopularityStats,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
+    add_enabler_cards,
     add_payoff_cards,
+    build_enabler_table,
     build_payoff_table,
     fetch_card_attributes,
+    fetch_enabler_queries,
     fetch_payoff_queries,
     format_archetype_stats,
     format_card_inclusion,
     format_card_mix_stats,
     format_color_stats,
     format_combo_count,
+    format_enabler_stats,
+    format_enabler_table,
     format_outcome_stats,
     format_payoff_stats,
     format_payoff_table,
@@ -62,7 +70,6 @@ from mtg_combo_cube.ilp.payoffs import (
     DEFAULT_INFERENCE_THRESHOLD,
     PayoffDefinitions,
     PayoffTable,
-    PayoffTableError,
 )
 
 logger = logging.getLogger(__name__)
@@ -90,6 +97,8 @@ class CubeEvaluation:
     card_inclusion: list[CardInclusionStats]  # why each card is in the cube, most-used first
     payoff_stats: PayoffStats | None = None  # payoff cards per category, with a payoff table
     payoffs: PayoffTable | None = None  # the resolved payoff table, with one
+    enabler_stats: EnablerStats | None = None  # enabler cards per category, with a table
+    enablers: EnablerTable | None = None  # the resolved enabler table, with one
 
 
 async def evaluate_cube(
@@ -100,6 +109,8 @@ async def evaluate_cube(
     outcome_categories: OutcomeCategories | None = None,
     payoff_definitions: PayoffDefinitions | None = None,
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
+    enabler_definitions: EnablerDefinitions | None = None,
+    min_utilization_floor: int = 2,
 ) -> CubeEvaluation:
     """
     Evaluate a cube list against the instance built from the cached API data.
@@ -109,7 +120,9 @@ async def evaluate_cube(
     the table the combos are categorized by; without one no outcome counts are reported.
     payoff_definitions is the payoff table, resolved as a build resolves it (its queries
     from the cache); it needs the outcome table, and without one no payoff counts are
-    reported.
+    reported. enabler_definitions is the enabler table, resolved the same way; its
+    enabler-only cards are the enabler cards in fewer combos of the pool than
+    min_utilization_floor (a build's --min-util-floor), as a build reports them.
     """
     cards = read_cube_file(cube_file)
     query_results: dict[str, list[str]] = {}
@@ -117,6 +130,11 @@ async def evaluate_cube(
         payoff_definitions.check_categories(outcome_categories)
         query_results = await fetch_payoff_queries(
             payoff_definitions.queries, enable_cache_write=False, read_cache=True
+        )
+    enabler_query_results: dict[str, list[str]] = {}
+    if enabler_definitions is not None:
+        enabler_query_results = await fetch_enabler_queries(
+            enabler_definitions.queries, enable_cache_write=False, read_cache=True
         )
     combos, candidate_cards = await load_instance(
         max_variants=max_variants,
@@ -136,6 +154,28 @@ async def evaluate_cube(
             inference_threshold=payoff_inference_min,
         )
         payoff_only = add_payoff_cards(candidate_cards, payoffs)
+    enablers: EnablerTable | None = None
+    enabler_only: list[str] = []
+    if enabler_definitions is not None:
+        enablers = build_enabler_table(enabler_definitions, enabler_query_results, blocklist)
+        add_enabler_cards(candidate_cards, enablers)
+        # As the optimizer defines them: below the utilization floor, or in no combo, and
+        # not a payoff card
+        payoff_names = payoffs.all_cards if payoffs is not None else frozenset()
+        combos_of = dict.fromkeys(enablers.all_cards, 0)
+        for combo in combos:
+            for card in combo.required_cards:
+                if card in combos_of:
+                    combos_of[card] += 1
+            for option in combo.requirement_options:
+                for card in option.cards:
+                    if card in combos_of:
+                        combos_of[card] += 1
+        enabler_only = sorted(
+            card
+            for card, count in combos_of.items()
+            if card not in payoff_names and count < max(min_utilization_floor, 1)
+        )
 
     unknown = [card for card in cards if card not in candidate_cards]
     if unknown:
@@ -169,14 +209,13 @@ async def evaluate_cube(
                 if outcome_categories is not None
                 else None
             ),
-            payoff_cards=(
-                {name: payoffs.cards(name) for name in payoffs.names}
-                if payoffs is not None
-                else None
-            ),
+            payoff_cards=payoffs.cards_by_category() if payoffs is not None else None,
+            enabler_cards=enablers.cards_by_category() if enablers is not None else None,
         ),
         payoff_stats=payoffs.stats(cards, payoff_only) if payoffs is not None else None,
         payoffs=payoffs,
+        enabler_stats=enablers.stats(cards, enabler_only) if enablers is not None else None,
+        enablers=enablers,
     )
 
 
@@ -196,8 +235,8 @@ if __name__ == "__main__":
         "--config",
         type=str,
         default=None,
-        help="Path to the configuration file with the blocklist, the outcome category table "
-        "and the payoff table, as used for the build (default: config.yaml)",
+        help="Path to the configuration file with the blocklist, the outcome category table, "
+        "the payoff table and the enabler table, as used for the build (default: config.yaml)",
     )
     argparser.add_argument(
         "--variant-weight",
@@ -214,6 +253,13 @@ if __name__ == "__main__":
         f"used for the build (default: {DEFAULT_INFERENCE_THRESHOLD})",
     )
     argparser.add_argument(
+        "--min-util-floor",
+        type=int,
+        default=2,
+        help="Phase 2 utilization floor of the build (default: 2); an enabler card below it "
+        "is reported as enabler-only, as the build reports it",
+    )
+    argparser.add_argument(
         "--card-data",
         action="store_true",
         help="Also write why each card is in the cube to <cube>_card_data.json beside the "
@@ -222,11 +268,13 @@ if __name__ == "__main__":
     args = argparser.parse_args()
     if args.payoff_inference_min < 1:
         argparser.error("--payoff-inference-min must be at least 1")
-    # A missing or invalid configuration is a usage error; without an outcome or payoff
-    # table the outcome and payoff counts are left out
+    if args.min_util_floor < 0:
+        argparser.error("--min-util-floor must be 0 or more")
+    # A missing or invalid configuration is a usage error; without an outcome, payoff or
+    # enabler table the outcome, payoff and enabler counts are left out
     try:
         config = load_config(args.config)
-    except (FileNotFoundError, ConfigError, OutcomeCategoryError, PayoffTableError) as e:
+    except (FileNotFoundError, ConfigError, OutcomeCategoryError, CardTableError) as e:
         argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
 
@@ -248,10 +296,12 @@ if __name__ == "__main__":
                 outcome_categories=config.outcome_categories,
                 payoff_definitions=config.payoffs,
                 payoff_inference_min=args.payoff_inference_min,
+                enabler_definitions=config.enablers,
+                min_utilization_floor=args.min_util_floor,
             )
         )
-    except (PayoffTableError, BlocklistQueryError) as e:
-        argparser.error(str(e))  # a payoff query that matches no card, a rejected query
+    except (CardTableError, BlocklistQueryError) as e:
+        argparser.error(str(e))  # a table query that matches no card, a rejected query
     except BlocklistFetchError as e:
         print(f"error: {e}", file=sys.stderr)
         sys.exit(1)
@@ -286,6 +336,13 @@ if __name__ == "__main__":
         print("Payoff table: " + format_payoff_table(evaluation.payoffs))
         for name, found in evaluation.payoff_stats.cards.items():
             print(f"  {name}: {', '.join(found) if found else '(none)'}")
+    if evaluation.enabler_stats is not None and evaluation.enablers is not None:
+        print("Enabler cards in the cube: " + format_enabler_stats(evaluation.enabler_stats))
+        print("Enabler table: " + format_enabler_table(evaluation.enablers))
+        for name, found in evaluation.enabler_stats.cards.items():
+            print(f"  {name}: {', '.join(found) if found else '(none)'}")
+        if evaluation.enabler_stats.enabler_only:
+            print(f"  enabler-only: {', '.join(evaluation.enabler_stats.enabler_only)}")
 
     cube_cards = read_cube_file(args.cube_file)
     attributes = asyncio.run(fetch_card_attributes(cube_cards, read_cache=True))

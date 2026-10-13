@@ -37,6 +37,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     template_display_name,
     weighted_combo_count,
 )
+from mtg_combo_cube.ilp.enablers import EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
     ArchetypeStats,
@@ -46,6 +47,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboData,
     ComboGroupStats,
     CrossTemplateStats,
+    EnablerStats,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
@@ -134,6 +136,7 @@ class _Solution:
     archetype_stats: ArchetypeStats | None  # None when the combos carry no color identities
     outcome_stats: OutcomeStats | None  # None without an outcome category table
     payoff_stats: PayoffStats | None  # None without a payoff table
+    enabler_stats: EnablerStats | None  # None without an enabler table
     popularity_stats: PopularityStats
     combo_score: float  # the combo score in combo units (see ILPOptimizer)
     requirement_type_stats: list[RequirementTypeStats]
@@ -215,9 +218,10 @@ class ILPOptimizer:
     DEFAULT_TIME_LIMIT = 300  # 5 minutes
     TIEBREAK_EPSILON = 0.001  # Small weight for popularity tiebreaker
     VERSATILITY_EPSILON = 0.0001  # Small bonus for multi-template cards
-    # Shares of the Phase 2 time limit for the two warm-start repair stages
-    WARM_START_MAXIMIZE_FRACTION = 0.2
-    WARM_START_FLOOR_FRACTION = 0.2
+    # The warm-start preparation (the reference solve and the floor repair) runs outside the
+    # Phase 2 time limit, each stage with the whole limit of its own: with every cube rule on,
+    # a fifth of the limit left the reference well short of the best cube, and the repair of
+    # the better reference then found no cube in its fifth
     # Share of the candidate cards that may lack Scryfall data before the card mix rules are
     # skipped: with more, the cards' colors, types and mana values are too uncertain
     MAX_UNKNOWN_CARD_SHARE = 0.05
@@ -228,6 +232,10 @@ class ILPOptimizer:
     # Default minimum payoff cards per category of the payoff table (every layer declares it)
     DEFAULT_MIN_PAYOFFS = 2
     DEFAULT_PAYOFF_SHARE = 0.15
+    # Default minimum enabler cards per category of the enabler table, and the share of the
+    # cube the enabler floors add up to (every layer declares them)
+    DEFAULT_MIN_ENABLERS = 2
+    DEFAULT_ENABLER_SHARE = 0.05
 
     def __init__(
         self,
@@ -258,6 +266,9 @@ class ILPOptimizer:
         payoffs: PayoffTable | None = None,
         min_payoffs: int = DEFAULT_MIN_PAYOFFS,
         payoff_share: float = DEFAULT_PAYOFF_SHARE,
+        enablers: EnablerTable | None = None,
+        min_enablers: int = DEFAULT_MIN_ENABLERS,
+        enabler_share: float = DEFAULT_ENABLER_SHARE,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -346,6 +357,20 @@ class ILPOptimizer:
         self.payoffs = payoffs
         self.min_payoffs = min_payoffs
         self.payoff_share = payoff_share
+        # Phase 2 enabler floor: enabler cards (fast mana, rituals, wheels, graveyard
+        # fillers, from the enabler table) the cube must hold per category: at least
+        # min_enablers each, and enabler_share of the cube in all, split evenly among the
+        # categories (_compute_enabler_floors). min_enablers 0 disables it; without an
+        # enabler table it is skipped.
+        if min_enablers < 0:
+            raise ValueError(f"min_enablers must be >= 0, got {min_enablers}")
+        if not math.isfinite(enabler_share) or not 0 <= enabler_share < 1:
+            raise ValueError(f"enabler_share must be in [0, 1), got {enabler_share}")
+        self.enablers = enablers
+        self.min_enablers = min_enablers
+        self.enabler_share = enabler_share
+        # Whether the enabler floor applies (a table and a minimum); fixed from here on
+        self.enabler_floor_active: bool = enablers is not None and min_enablers > 0
 
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
@@ -372,26 +397,66 @@ class ILPOptimizer:
             and self.unknown_candidate_cards <= self.MAX_UNKNOWN_CARD_SHARE * len(self.all_cards)
         )
         self.card_to_combos: dict[str, list[ComboData]] = self._build_participation_graph()
-        # Candidate cards in no combo: payoff-only cards (outlets the pool has no combo for),
-        # added for the payoff floor. They score nothing and have utilization 0 by
-        # definition, so the utilization floor and the objectives leave them alone.
-        self.payoff_only_cards: frozenset[str] = frozenset(
-            card for card in self.all_cards if not self.card_to_combos[card]
+        # Enabler-only cards: with the enabler floor on, the enabler cards in fewer combos
+        # than the utilization floor (or in none), there for the enabler floor. They are
+        # exempt from the utilization floor so that the few combos they have still score,
+        # left out of the utilization statistics, and capped in number by the floors
+        # (_enabler_only_cap). An enabler card the payoff table names too stays a payoff
+        # card: payoff-only when it is in no combo, an ordinary combo piece otherwise. With
+        # the floor off there are none, and such a card is excluded as any other.
+        enabler_names = (
+            enablers.all_cards
+            if enablers is not None and self.enabler_floor_active
+            else frozenset()
         )
+        payoff_names = payoffs.all_cards if payoffs is not None else frozenset()
+        self.enabler_only_cards: frozenset[str] = frozenset(
+            card
+            for card in enabler_names
+            if card in self.card_to_combos
+            and card not in payoff_names
+            and len(self.card_to_combos[card]) < max(min_utilization_floor, 1)
+        )
+        # Candidate cards in no combo that are not enabler-only: payoff-only cards (outlets
+        # the pool has no combo for), added for the payoff floor. They score nothing and
+        # have utilization 0 by definition, so the utilization floor and the objectives
+        # leave them alone.
+        self.payoff_only_cards: frozenset[str] = frozenset(
+            card
+            for card in self.all_cards
+            if not self.card_to_combos[card] and card not in self.enabler_only_cards
+        )
+        # The cards exempt from the utilization floor (_add_utilization_floor) and left out
+        # of the utilization statistics and of the objectives that balance utilization
+        self.exempt_cards: frozenset[str] = self.payoff_only_cards | self.enabler_only_cards
         # The payoff cards of each category that Phase 2 can select: candidates (the runner
         # adds every payoff card to the pool; an optimizer built directly may be given a table
-        # naming others) that are payoff-only or in at least min_utilization_floor combos,
-        # since _add_utilization_floor excludes a combo piece that can never reach the floor
+        # naming others) that are exempt or in at least min_utilization_floor combos, since
+        # _add_utilization_floor excludes a combo piece that can never reach the floor
         self.payoff_cards: dict[str, frozenset[str]] = (
             {
                 name: frozenset(
                     card
                     for card in payoffs.cards(name)
-                    if card in self.card_to_combos and self._payoff_card_selectable(card)
+                    if card in self.card_to_combos and self._floor_card_selectable(card)
                 )
                 for name in payoffs.names
             }
             if payoffs is not None
+            else {}
+        )
+        # The enabler cards of each category that Phase 2 can select, likewise (with the
+        # floor on every enabler card is selectable, being exempt or at the floor)
+        self.enabler_cards: dict[str, frozenset[str]] = (
+            {
+                name: frozenset(
+                    card
+                    for card in enablers.cards(name)
+                    if card in self.card_to_combos and self._floor_card_selectable(card)
+                )
+                for name in enablers.names
+            }
+            if enablers is not None
             else {}
         )
         # Whether the payoff floor applies (a table, an outcome table and a minimum), and the
@@ -403,6 +468,9 @@ class ILPOptimizer:
         # selectable payoff cards cap it (for _check_payoff_pool's warnings)
         self.payoff_targets: dict[str, int] = {}
         self.payoff_floors: dict[str, int] = self._compute_payoff_floors()
+        # The same for the enabler floor (see _compute_enabler_floors)
+        self.enabler_targets: dict[str, int] = {}
+        self.enabler_floors: dict[str, int] = self._compute_enabler_floors()
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
         # a group's first completed variant scores group_scale + variant_scale = WEIGHT_SCALE,
@@ -434,20 +502,29 @@ class ILPOptimizer:
             for key, popularity in self.group_popularity.items()
         }
 
-        payoff_only = (
-            f" ({len(self.payoff_only_cards)} payoff-only)" if self.payoff_only_cards else ""
-        )
+        special = [
+            f"{len(cards)} {label}"
+            for cards, label in (
+                (self.payoff_only_cards, "payoff-only"),
+                (self.enabler_only_cards, "enabler-only"),
+            )
+            if cards
+        ]
+        special_text = f" ({', '.join(special)})" if special else ""
         logger.info(
             f"ILP Optimizer initialized: {len(self.combos)} variants in "
-            f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards{payoff_only}, cube "
+            f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards{special_text}, cube "
             f"size {cube_size}, variant weight {variant_weight:g}, popularity weight "
             f"{popularity_weight:g}"
         )
 
-    def _payoff_card_selectable(self, card: str) -> bool:
-        """Whether a candidate payoff card can be in a Phase 2 cube under the utilization floor."""
+    def _floor_card_selectable(self, card: str) -> bool:
+        """
+        Whether a candidate card of a table can be in a Phase 2 cube under the utilization
+        floor: exempt from it, or in enough combos to reach it.
+        """
         return (
-            card in self.payoff_only_cards
+            card in self.exempt_cards
             or len(self.card_to_combos[card]) >= self.min_utilization_floor
         )
 
@@ -1015,9 +1092,11 @@ class ILPOptimizer:
         """
         Every selected card takes part in at least min_utilization_floor completed combos.
 
-        Payoff-only cards (payoff_only_cards) are exempt: they complete no combo by
-        definition and are in the pool as outlets, so the floor would otherwise exclude
-        every one of them and the payoff floor could never be met.
+        Payoff-only and enabler-only cards (exempt_cards) are exempt: a payoff-only card
+        completes no combo by definition and is in the pool as an outlet, so the floor
+        would otherwise exclude every one of them and the payoff floor could never be met;
+        an enabler-only card is below the floor by definition and in the pool for the
+        enabler floor, and its few combos still score.
         """
         floor = self.min_utilization_floor
         if floor <= 0:
@@ -1025,7 +1104,7 @@ class ILPOptimizer:
 
         constraints = 0
         for card in self.all_cards:
-            if card in self.payoff_only_cards:
+            if card in self.exempt_cards:
                 continue
             if len(self.card_to_combos[card]) < floor:
                 # The card can never reach the floor, so it cannot be selected
@@ -1095,8 +1174,8 @@ class ILPOptimizer:
 
         mad_constraint_count = 0
         for card in self.all_cards:
-            if card in self.payoff_only_cards:
-                continue  # utilization 0 by definition, no deviation (see _payoff_only_cap)
+            if card in self.exempt_cards:
+                continue  # exempt from the balance, no deviation (see _payoff_only_cap)
             # Deviations are bounded by the card's utilization range [0, combos it is in]
             max_plus = max(0, len(self.card_to_combos[card]) * 100 - mean_scaled)
             max_minus = max(0, mean_scaled)
@@ -1148,8 +1227,8 @@ class ILPOptimizer:
         # M = min_bound (the upper bound of min_util) switches the constraint off when x=0.
         minmax_constraint_count = 0
         for card in self.all_cards:
-            if card in self.payoff_only_cards:
-                continue  # utilization 0 by definition, outside the range (see _payoff_only_cap)
+            if card in self.exempt_cards:
+                continue  # exempt from the balance, outside the range (see _payoff_only_cap)
             model.add(max_util >= u[card])
             model.add(min_util <= u[card] + min_bound * (1 - x[card]))
             minmax_constraint_count += 2
@@ -1340,7 +1419,7 @@ class ILPOptimizer:
     def _warm_start_for(self, cards: set[str]) -> _WarmStart:
         """
         The warm start for a cube, with its true combos and the utilization of its combo
-        cards (payoff-only cards, utilization 0 by definition, are left out so they do not
+        cards (the exempt payoff-only and enabler-only cards are left out so they do not
         count as floor violations or as the hinted minimum).
         """
         return _WarmStart(
@@ -1349,7 +1428,7 @@ class ILPOptimizer:
             utilization={
                 card: value
                 for card, value in card_utilization(cards, self.combos).items()
-                if card not in self.payoff_only_cards
+                if card not in self.exempt_cards
             },
         )
 
@@ -2009,8 +2088,9 @@ class ILPOptimizer:
     def _describe_shortfalls(self, cards: Collection[str]) -> str:
         """
         ' (archetypes below their minimum: ...; outcomes below their minimum: ...; payoffs
-        below their floor: ...)' for the archetype and outcome minimums and the payoff floors
-        a cube breaks, or '' when it breaks none.
+        below their floor: ...; enablers below their floor: ...)' for the archetype and
+        outcome minimums and the payoff and enabler floors a cube breaks, or '' when it
+        breaks none.
         """
         parts = []
         if archetypes := self._describe_archetype_shortfalls(cards):
@@ -2019,6 +2099,8 @@ class ILPOptimizer:
             parts.append(f"outcomes below their minimum: {outcomes}")
         if payoffs := self._describe_payoff_shortfalls(cards):
             parts.append(f"payoffs below their floor: {payoffs}")
+        if enablers := self._describe_enabler_shortfalls(cards):
+            parts.append(f"enablers below their floor: {enablers}")
         return f" ({'; '.join(parts)})" if parts else ""
 
     def _outcome_info(self) -> dict[str, Any]:
@@ -2070,22 +2152,12 @@ class ILPOptimizer:
         names = [name for name in self.payoff_cards if self.outcome_groups.get(name)]
         available = {name: len(self.payoff_cards[name]) for name in names}
         lower = {name: self.payoffs.min_payoffs.get(name, self.min_payoffs) for name in names}
+        weights = {name: len(self.outcome_groups[name]) for name in names}
         total = round(self.payoff_share * self.cube_size)
+        self.payoff_targets = self._floor_targets(
+            names, available, lower, self.payoffs.max_payoffs, weights, total
+        )
         if total and names:
-            even_cap = math.ceil(2 * total / len(names))
-            upper = {
-                name: max(self.payoffs.max_payoffs.get(name, even_cap), lower[name])
-                for name in names
-            }
-            weights = {name: len(self.outcome_groups[name]) for name in names}
-            # A category cannot get more cards than it has; a lower bound above what it has
-            # stays as configured, so the shortfall is warned about and not made up elsewhere
-            capped_lower = {name: min(lower[name], available[name]) for name in names}
-            capped_upper = {name: min(upper[name], available[name]) for name in names}
-            self.payoff_targets = _apportion(total, weights, capped_lower, capped_upper)
-            for name in names:
-                if available[name] < lower[name]:
-                    self.payoff_targets[name] = lower[name]
             described = ", ".join(
                 f"{name} {self.payoff_targets[name]} ({weights[name]} combos)" for name in names
             )
@@ -2093,11 +2165,43 @@ class ILPOptimizer:
                 f"Phase 2: payoff share {self.payoff_share:.0%} of {self.cube_size} cards is "
                 f"{total} payoff cards, split by the pool's combos per category: {described}"
             )
-        else:
-            self.payoff_targets = dict(lower)
-        floors: dict[str, int] = {}
+        return self._applied_floors(self.payoff_targets, available)
+
+    @staticmethod
+    def _floor_targets(
+        names: list[str],
+        available: Mapping[str, int],
+        lower: Mapping[str, int],
+        maximums: Mapping[str, int],
+        weights: Mapping[str, int],
+        total: int,
+    ) -> dict[str, int]:
+        """
+        The floor each category of a table gets from the settings, before the pool caps it:
+        its lower bound when there is no total to split, otherwise its share of the total
+        by _apportion, between its lower bound and twice the even split of the total (or
+        the table's own maximum for it, `maximums`). A category cannot get more cards than
+        it has (`available`); a lower bound above what it has stays as configured, so the
+        shortfall is warned about and not made up elsewhere.
+        """
+        if not (total and names):
+            return dict(lower)
+        even_cap = math.ceil(2 * total / len(names))
+        upper = {name: max(maximums.get(name, even_cap), lower[name]) for name in names}
+        capped_lower = {name: min(lower[name], available[name]) for name in names}
+        capped_upper = {name: min(upper[name], available[name]) for name in names}
+        targets = _apportion(total, dict(weights), capped_lower, capped_upper)
         for name in names:
-            applied = min(self.payoff_targets[name], available[name])
+            if available[name] < lower[name]:
+                targets[name] = lower[name]
+        return targets
+
+    @staticmethod
+    def _applied_floors(targets: Mapping[str, int], available: Mapping[str, int]) -> dict[str, int]:
+        """The floors actually applied: each target lowered to what the category has, if any."""
+        floors: dict[str, int] = {}
+        for name, target in targets.items():
+            applied = min(target, available[name])
             if applied > 0:
                 floors[name] = applied
         return floors
@@ -2111,40 +2215,63 @@ class ILPOptimizer:
         """
         return sum(self.payoff_floors.values())
 
+    def _add_floor_rule(
+        self,
+        base: _BaseModel,
+        label: str,
+        floors: Mapping[str, int],
+        cards: Mapping[str, frozenset[str]],
+        only_cards: frozenset[str],
+    ) -> None:
+        """
+        At least the floor's number of the category's cards in the cube, per category with
+        a floor, and at most the floors' sum of the table's "only" cards (the ones in the
+        pool for the floor alone; none when no floor applies). `label` names the table in
+        the log and the profile counts.
+        """
+        for name, floor in floors.items():
+            base.model.add(sum(base.x[card] for card in sorted(cards[name])) >= floor)
+        if floors:
+            described = ", ".join(f"{name} {floor}" for name, floor in floors.items())
+            logger.info(f"Phase 2: Added {len(floors)} {label} floor constraints ({described})")
+            base.counts[f"{label}_floor"] = len(floors)
+        if only_cards:
+            cap = sum(floors.values())
+            only = [base.x[card] for card in sorted(only_cards)]
+            if cap:
+                base.model.add(sum(only) <= cap)
+                base.counts[f"{label}_only_cap"] = 1
+            else:
+                for x in only:
+                    base.model.add(x == 0)
+                base.counts[f"{label}_only_cap"] = len(only)
+
     def _add_payoff_floor(self, base: _BaseModel) -> None:
         """
         At least the floor's number of the category's payoff cards in the cube, per
         category, and at most the floors' sum of payoff-only cards (none when no floor
         applies).
         """
-        for name, floor in self.payoff_floors.items():
-            base.model.add(sum(base.x[card] for card in sorted(self.payoff_cards[name])) >= floor)
-        if self.payoff_floors:
-            described = ", ".join(f"{name} {floor}" for name, floor in self.payoff_floors.items())
-            logger.info(
-                f"Phase 2: Added {len(self.payoff_floors)} payoff floor constraints ({described})"
-            )
-            base.counts["payoff_floor"] = len(self.payoff_floors)
-        if self.payoff_only_cards:
-            cap = self._payoff_only_cap()
-            payoff_only = [base.x[card] for card in sorted(self.payoff_only_cards)]
-            if cap:
-                base.model.add(sum(payoff_only) <= cap)
-                base.counts["payoff_only_cap"] = 1
-            else:
-                for x in payoff_only:
-                    base.model.add(x == 0)
-                base.counts["payoff_only_cap"] = len(payoff_only)
+        self._add_floor_rule(
+            base, "payoff", self.payoff_floors, self.payoff_cards, self.payoff_only_cards
+        )
 
-    def _payoff_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
-        """The payoff floors (_add_payoff_floor) a cube breaks: category -> (payoffs, floor)."""
+    @staticmethod
+    def _floor_shortfalls(
+        cards: Collection[str], floors: Mapping[str, int], table_cards: Mapping[str, frozenset[str]]
+    ) -> dict[str, tuple[int, int]]:
+        """The floors of a table a cube breaks: category -> (cards it has, floor)."""
         selected = set(cards)
         shortfalls: dict[str, tuple[int, int]] = {}
-        for name, floor in self.payoff_floors.items():
-            have = len(self.payoff_cards[name] & selected)
+        for name, floor in floors.items():
+            have = len(table_cards[name] & selected)
             if have < floor:
                 shortfalls[name] = (have, floor)
         return shortfalls
+
+    def _payoff_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
+        """The payoff floors (_add_payoff_floor) a cube breaks: category -> (payoffs, floor)."""
+        return self._floor_shortfalls(cards, self.payoff_floors, self.payoff_cards)
 
     def _payoff_violations(self, cards: Collection[str]) -> int:
         """
@@ -2220,6 +2347,124 @@ class ILPOptimizer:
             "phase2_payoff_floors": self.payoff_floors or None,
         }
 
+    # --- Enabler support: the cards that set combos up ---
+
+    def _compute_enabler_floors(self) -> dict[str, int]:
+        """
+        The enabler cards per category that Phase 2 requires, for the categories with a
+        floor; without an enabler table or with min_enablers 0 there is none.
+
+        Every category gets at least min_enablers (or the table's own `min_enablers`). With
+        an enabler_share above 0, the floors add up to that share of the cube, split evenly
+        among the categories (every category weighs the same in _floor_targets: nothing in
+        the pool says how much of each kind of enabler the combos want), no category above
+        twice the even split (or the table's own `max_enablers`). A floor is then lowered to
+        the enabler cards the category can select when that is smaller
+        (_check_enabler_pool warns); a category that is full this way gets no more and the
+        rest goes on to the others.
+        """
+        if not self.enabler_floor_active:
+            return {}
+        assert self.enablers is not None
+        names = list(self.enabler_cards)
+        available = {name: len(self.enabler_cards[name]) for name in names}
+        lower = {name: self.enablers.min_enablers.get(name, self.min_enablers) for name in names}
+        total = round(self.enabler_share * self.cube_size)
+        self.enabler_targets = self._floor_targets(
+            names, available, lower, self.enablers.max_enablers, dict.fromkeys(names, 1), total
+        )
+        if total and names:
+            described = ", ".join(f"{name} {self.enabler_targets[name]}" for name in names)
+            logger.info(
+                f"Phase 2: enabler share {self.enabler_share:.0%} of {self.cube_size} cards is "
+                f"{total} enabler cards, split evenly among the categories: {described}"
+            )
+        return self._applied_floors(self.enabler_targets, available)
+
+    def _enabler_only_cap(self) -> int:
+        """
+        The most enabler-only cards a cube may hold: the floors added up. They are exempt
+        from the utilization floor and the balance, so without a bound the "mad" and
+        "minmax" objectives would fill the cube with them, as with payoff-only cards.
+        """
+        return sum(self.enabler_floors.values())
+
+    def _add_enabler_floor(self, base: _BaseModel) -> None:
+        """
+        At least the floor's number of the category's enabler cards in the cube, per
+        category, and at most the floors' sum of enabler-only cards (none when no floor
+        applies).
+        """
+        self._add_floor_rule(
+            base, "enabler", self.enabler_floors, self.enabler_cards, self.enabler_only_cards
+        )
+
+    def _enabler_shortfalls(self, cards: Collection[str]) -> dict[str, tuple[int, int]]:
+        """The enabler floors (_add_enabler_floor) a cube breaks: category -> (enablers, floor)."""
+        return self._floor_shortfalls(cards, self.enabler_floors, self.enabler_cards)
+
+    def _enabler_violations(self, cards: Collection[str]) -> int:
+        """
+        Number of enabler floor constraints a cube breaks, plus one when it holds more
+        enabler-only cards than the cap allows.
+        """
+        over_cap = len(self.enabler_only_cards & set(cards)) > self._enabler_only_cap()
+        return len(self._enabler_shortfalls(cards)) + int(over_cap)
+
+    def _describe_enabler_shortfalls(self, cards: Collection[str]) -> str:
+        """'ritual 1 < 4, wheel 0 < 4' for the enabler floors a cube breaks, or ''."""
+        return ", ".join(
+            f"{name} {have} < {floor}"
+            for name, (have, floor) in self._enabler_shortfalls(cards).items()
+        )
+
+    def _check_enabler_pool(self) -> None:
+        """
+        Warn about enabler floors the pool cannot meet, before solving: a category with
+        fewer selectable enabler cards than the minimum has its floor lowered to what it has.
+        """
+        if not self.enabler_floor_active:
+            return
+        for name, cards in self.enabler_cards.items():
+            if not cards:
+                logger.warning(
+                    f"Phase 2: the pool has no selectable enabler cards for {name}; no enabler "
+                    "floor for it"
+                )
+            elif len(cards) < self.enabler_targets.get(name, 0):
+                logger.warning(
+                    f"Phase 2: the pool has only {len(cards)} selectable enabler cards for "
+                    f"{name}, below the minimum of {self.enabler_targets[name]}; the floor is "
+                    f"lowered to {len(cards)} (every such card must be in the cube)"
+                )
+
+    def _enabler_stats_of(self, cards: Collection[str]) -> EnablerStats | None:
+        """The enabler cards per category of a cube; None without an enabler table."""
+        if self.enablers is None:
+            return None
+        return self.enablers.stats(cards, enabler_only=self.enabler_only_cards)
+
+    def _enabler_info(self) -> dict[str, Any]:
+        """
+        The enabler floor Phase 2 applies, for the result (None where disabled). Without an
+        enabler table the rule is off by construction; that is a warning only when the
+        caller asked for a floor beyond the default.
+        """
+        if self.enablers is None:
+            message = "Phase 2: no enabler table; the enabler floor is not enforced"
+            if self.min_enablers not in (0, self.DEFAULT_MIN_ENABLERS):
+                logger.warning(message)
+            else:
+                logger.info(message)
+            return {}
+        return {
+            "phase2_min_enablers": self.min_enablers if self.enabler_floors else None,
+            "phase2_enabler_share": (
+                self.enabler_share if self.enabler_floors and self.enabler_share else None
+            ),
+            "phase2_enabler_floors": self.enabler_floors or None,
+        }
+
     # --- The Phase 2 cube rules together ---
 
     def _cube_rules(self) -> list[_CubeRule]:
@@ -2245,6 +2490,7 @@ class ILPOptimizer:
                 "outcome share cap", self._add_outcome_share_cap, self._outcome_cap_violations
             ),
             _CubeRule("payoff floor", self._add_payoff_floor, self._payoff_violations),
+            _CubeRule("enabler floor", self._add_enabler_floor, self._enabler_violations),
         ]
 
     def _add_cube_rules(self, base: _BaseModel) -> None:
@@ -2309,11 +2555,12 @@ class ILPOptimizer:
     def _solve_repair(
         self,
         base: _BaseModel,
-        time_fraction: float,
+        time_limit: float,
         callback: cp_model.CpSolverSolutionCallback | None = None,
     ) -> tuple[_WarmStart | None, str]:
-        """Solve a repair model. Returns the cube found (None if none) and the solver status."""
-        solver = self._make_solver(time_limit=self.time_limit * time_fraction)
+        """Solve a repair model for at most time_limit seconds. Returns the cube found (None
+        if none) and the solver status."""
+        solver = self._make_solver(time_limit=time_limit)
         # CpSolverStatus is int at runtime, type stubs are incomplete
         status_str = self._status_to_string(solver.solve(base.model, callback))
         if status_str not in ("OPTIMAL", "FEASIBLE"):
@@ -2323,11 +2570,11 @@ class ILPOptimizer:
 
     def _satisfies_window_and_floor(self, cube: _WarmStart, min_score: int) -> bool:
         """Whether a cube is inside the combo window and meets the utilization floor
-        (payoff-only cards are exempt from the floor, as in _add_utilization_floor)."""
+        (the exempt cards are exempt from the floor, as in _add_utilization_floor)."""
         return self._combo_score(cube.combo_ids) >= min_score and all(
             value >= self.min_utilization_floor
             for card, value in cube.utilization.items()
-            if card not in self.payoff_only_cards
+            if card not in self.exempt_cards
         )
 
     def _best_constrained_cube(self, phase1_start: _WarmStart) -> tuple[_WarmStart | None, str]:
@@ -2335,13 +2582,11 @@ class ILPOptimizer:
         Find the cube with the highest combo score that satisfies the Phase 2 cube rules.
 
         Solved in the small Phase 1 model (one-sided y), hinted with the Phase 1 cube, for at
-        most WARM_START_MAXIMIZE_FRACTION of the time limit, so the result is the best cube
-        found and not a proven maximum. Returns the cube (None if none was found) and the
-        solver status.
+        most the time limit, so the result is the best cube found and not a proven maximum.
+        The time is its own: it is not counted against the Phase 2 time limit. Returns the
+        cube (None if none was found) and the solver status.
         """
-        return self._solve_repair(
-            self._repair_model(phase1_start), self.WARM_START_MAXIMIZE_FRACTION
-        )
+        return self._solve_repair(self._repair_model(phase1_start), self.time_limit)
 
     def _repair_floor(self, hint: _WarmStart, min_score: int) -> tuple[_WarmStart | None, str]:
         """
@@ -2351,8 +2596,9 @@ class ILPOptimizer:
         lower edge of the combo window (min_score, in WEIGHT_SCALE units),
         and a soft floor on y:
         floor * x[c] <= sum(y over the combos of c) + shortfall[c]. The total shortfall is
-        minimized and the search stops at the first cube with none. With one-sided y the sum
-        never exceeds the true utilization, so zero shortfall means the true floor holds.
+        minimized and the search stops at the first cube with none, within the whole time
+        limit (its own, outside the Phase 2 budget). With one-sided y the sum never exceeds
+        the true utilization, so zero shortfall means the true floor holds.
 
         As a hard constraint the floor makes even a first solution hard to find; as a penalty
         a cube that satisfies everything else is a valid start and the solver only has to
@@ -2364,7 +2610,7 @@ class ILPOptimizer:
         base.model.add(self._combo_score_expr(base) >= min_score)
         shortfalls = []
         for card in self.all_cards:
-            if card in self.payoff_only_cards:
+            if card in self.exempt_cards:
                 continue  # exempt from the floor
             shortfall = base.model.new_int_var(0, self.min_utilization_floor, f"short_{card}")
             base.model.add(
@@ -2377,7 +2623,7 @@ class ILPOptimizer:
         base.model.minimize(sum(shortfalls))
 
         repaired, status_str = self._solve_repair(
-            base, self.WARM_START_FLOOR_FRACTION, _StopAtZero(sum(shortfalls))
+            base, self.time_limit, _StopAtZero(sum(shortfalls))
         )
         if repaired is None or not self._satisfies_window_and_floor(repaired, min_score):
             return None, status_str
@@ -2404,15 +2650,16 @@ class ILPOptimizer:
         self,
         phase1_result: OptimizationResult,
         profile_result: ProfileResult | None,
-    ) -> tuple[_WarmStart, _WarmStart]:
+    ) -> tuple[_WarmStart, _WarmStart, float]:
         """
         Choose the cube Phase 2 is hinted with and the reference cube its window is measured
-        from. Returns (warm start, reference).
+        from. Returns (warm start, reference, seconds the preparation took). The preparation
+        runs outside the Phase 2 time limit, each of its two solves with the whole limit.
 
         The reference is the cube with the highest combo score found under the Phase 2 cube
         rules (_cube_rules: coverage, color balance, archetype support, card mix, outcome
-        rules, payoff floor). Phase 1 ignores them, so measuring the combo tolerance from the
-        Phase 1 score can leave no feasible cube at all.
+        rules, payoff floor, enabler floor). Phase 1 ignores them, so measuring the combo
+        tolerance from the Phase 1 score can leave no feasible cube at all.
 
         - The Phase 1 cube satisfies every cube rule: it is the reference.
         - Otherwise the best constrained cube is searched for (_best_constrained_cube) and
@@ -2428,10 +2675,18 @@ class ILPOptimizer:
         repair_start = time.perf_counter()
 
         reference = phase1_start
+        reference_seconds = 0.0
         if broken:
             problem = f"Phase 1 cube breaks {broken} constraints"
             problem += self._describe_shortfalls(phase1_start.cards)
             best, status_str = self._best_constrained_cube(phase1_start)
+            reference_seconds = time.perf_counter() - repair_start
+            logger.info(
+                f"Phase 2: reference solve took {reference_seconds:.1f}s ({status_str}), "
+                f"outside the Phase 2 time limit"
+            )
+            if profile_result:
+                profile_result.timings["reference_solve"] = reference_seconds
             # The rules are checked on the true completions of the cube found: the repair
             # model is one-sided in y, so a rule not written to be exact there could be met
             # by the solver's y rather than by the cards
@@ -2462,7 +2717,7 @@ class ILPOptimizer:
             below_floor = sum(
                 1
                 for card, value in reference.utilization.items()
-                if value < self.min_utilization_floor and card not in self.payoff_only_cards
+                if value < self.min_utilization_floor and card not in self.exempt_cards
             )
             repaired, status_str = self._repair_floor(reference, min_score)
             if repaired is None:
@@ -2477,12 +2732,16 @@ class ILPOptimizer:
                     f"repaired warm start has {self._describe_combos(repaired.combo_ids)}"
                 )
 
+        prep_seconds = time.perf_counter() - repair_start
         if warm_start is not phase1_start:
-            repair_time = time.perf_counter() - repair_start
-            logger.info(f"Phase 2: warm start preparation took {repair_time:.1f}s")
+            logger.info(
+                f"Phase 2: warm start preparation took {prep_seconds:.1f}s "
+                f"({reference_seconds:.1f}s of it the reference solve), "
+                f"outside the Phase 2 time limit"
+            )
             if profile_result:
-                profile_result.timings["warm_start_repair"] = repair_time
-        return warm_start, reference
+                profile_result.timings["warm_start_repair"] = prep_seconds
+        return warm_start, reference, prep_seconds
 
     def _add_warm_start(
         self,
@@ -2583,13 +2842,10 @@ class ILPOptimizer:
 
         utilization = self._calculate_utilization(selected_names, completed)
         # The statistics describe the combo cards; a payoff-only card is 0 by definition and
-        # is reported in the payoff statistics instead
+        # an enabler-only card below the floor by definition, and both are reported in the
+        # payoff and enabler statistics instead
         utilization_stats = self._compute_utilization_stats(
-            {
-                card: value
-                for card, value in utilization.items()
-                if card not in self.payoff_only_cards
-            }
+            {card: value for card, value in utilization.items() if card not in self.exempt_cards}
         )
 
         # Calculate requirement type stats
@@ -2606,6 +2862,7 @@ class ILPOptimizer:
         )
         outcome_stats = self._outcome_stats_of(selected_name_set, completed_set)
         payoff_stats = self._payoff_stats_of(selected_name_set)
+        enabler_stats = self._enabler_stats_of(selected_name_set)
         req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
 
@@ -2632,15 +2889,17 @@ class ILPOptimizer:
                 completed_set,
                 group_categories=self.group_categories,
                 payoff_cards=(
-                    {name: self.payoffs.cards(name) for name in self.payoffs.names}
-                    if self.payoffs is not None
-                    else None
+                    self.payoffs.cards_by_category() if self.payoffs is not None else None
+                ),
+                enabler_cards=(
+                    self.enablers.cards_by_category() if self.enablers is not None else None
                 ),
             ),
             utilization_stats=utilization_stats,
             archetype_stats=archetype_stats,
             outcome_stats=outcome_stats,
             payoff_stats=payoff_stats,
+            enabler_stats=enabler_stats,
             popularity_stats=popularity_stats(selected_name_set, self.combos, completed_set),
             combo_score=self._combo_score_value(completed_set),
             requirement_type_stats=req_stats,
@@ -2760,6 +3019,7 @@ class ILPOptimizer:
             phase1_archetype_stats=solution.archetype_stats,
             phase1_outcome_stats=solution.outcome_stats,
             phase1_payoff_stats=solution.payoff_stats,
+            phase1_enabler_stats=solution.enabler_stats,
             phase1_popularity_stats=solution.popularity_stats,
             phase1_solve_time=solve_time,
             phase1_combo_count=len(solution.completable_combo_ids),
@@ -2861,8 +3121,8 @@ class ILPOptimizer:
         - The Phase 2 cube rules (_cube_rules): coverage, color balance when card data and a
           ratio are configured, the archetype minimums and wide combo cap when set, the
           card mix rules (card_mix) when set and card data is available, the outcome rules
-          when set and a table is given, and the payoff floor when set and a payoff table
-          is given
+          when set and a table is given, the payoff floor when set and a payoff table is
+          given, and the enabler floor when set and an enabler table is given
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j
         - Utilization variables: u[c] = completed combos card c participates in
         - The utilization floor for selected cards
@@ -2896,8 +3156,10 @@ class ILPOptimizer:
         self._check_outcome_pool()
         payoff_info = self._payoff_info()
         self._check_payoff_pool()
+        enabler_info = self._enabler_info()
+        self._check_enabler_pool()
 
-        warm_start, reference = self._build_warm_start(phase1_result, profile_result)
+        warm_start, reference, prep_seconds = self._build_warm_start(phase1_result, profile_result)
         reference_score = self._combo_score(reference.combo_ids)
         reference_info: dict[str, Any] = {
             "phase2_reference_combo_count": len(reference.combo_ids),
@@ -2924,11 +3186,13 @@ class ILPOptimizer:
             profile_result.counts = base.counts
             profile_result.timings["model_build"] = time.perf_counter() - build_start
 
-        # The time limit covers all of Phase 2, including a warm-start repair
+        # The time limit covers all of Phase 2 but the warm-start preparation, which has
+        # its own
+        elapsed = time.perf_counter() - start_time - prep_seconds
         solver = self._make_solver(
             gap_limit=self.gap_limit,
             absolute_gap_limit=base.absolute_gap_limit,
-            time_limit=max(1.0, self.time_limit - (time.perf_counter() - start_time)),
+            time_limit=max(1.0, self.time_limit - elapsed),
         )
         status_str = self._run_solver(solver, base, profile_result)
         phase2_time = time.perf_counter() - start_time
@@ -2954,6 +3218,7 @@ class ILPOptimizer:
                 **card_mix_info,
                 **outcome_info,
                 **payoff_info,
+                **enabler_info,
                 **reference_info,
                 profile_data=profile_data,
             )
@@ -2992,6 +3257,8 @@ class ILPOptimizer:
             phase2_outcome_stats=solution.outcome_stats,
             phase1_payoff_stats=phase1_result.phase1_payoff_stats,
             phase2_payoff_stats=solution.payoff_stats,
+            phase1_enabler_stats=phase1_result.phase1_enabler_stats,
+            phase2_enabler_stats=solution.enabler_stats,
             phase1_popularity_stats=phase1_result.phase1_popularity_stats,
             phase2_popularity_stats=solution.popularity_stats,
             phase1_solve_time=phase1_solve_time,
@@ -3004,6 +3271,7 @@ class ILPOptimizer:
             **card_mix_info,
             **outcome_info,
             **payoff_info,
+            **enabler_info,
             **reference_info,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,

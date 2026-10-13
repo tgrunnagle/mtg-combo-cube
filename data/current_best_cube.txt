@@ -1,79 +1,78 @@
+Abdel Adrian, Gorion's Ward
 Academy Manufactor
 Activated Sleeper
 Adrix and Nev, Twincasters
-Aerie Ouphes
 Aetherflux Reservoir
 Agatha of the Vile Cauldron
-Aggravated Assault
+Agatha's Soul Cauldron
 Akroma's Will
 Altar of Dementia
-Altar of the Brood
-Aminatou, the Fateshifter
+Ancestral Statue
+Angelic Renewal
+Animate Dead
 Animation Module
 Anointed Procession
 Aphetto Alchemist
-Apocalypse Hydra
-Arcbound Crusher
+Archaeomancer
 Archfiend of Despair
-Argothian Elder
 Arixmethes, Slumbering Isle
 Ashaya, Soul of the Wild
 Ashnod's Altar
 Astarion, the Decadent
-Astral Dragon
-Avenger of the Fallen
 Azor, the Lawbringer
 Azorius Chancery
 Badgermole Cub
-Banishing Knack
 Basalt Monolith
 Basilisk Collar
 Basking Broodscale
 Basri's Lieutenant
-Battered Golem
 Berta, Wise Extrapolator
 Biomancer's Familiar
+Biotransference
 Blade of the Bloodchief
 Blasting Station
 Blitzwing, Cruel Tormentor // Blitzwing, Adaptive Assailant
 Blood Artist
-Blood Tribute
 Bloodletter of Aclazotz
 Bloom Tender
-Boromir, Warden of the Tower
 Brain Freeze
+Branching Evolution
 Breath of Fury
+Bristly Bill, Spine Sower
 Broodhatch Nantuko
-Capsize
+Butcher Ghoul
+Cabal Ritual
 Carnival of Souls
 Carrion Feeder
 Cathars' Crusade
 Cathodion
-Cayth, Famed Mechanist
+Cauldron Familiar
+Chatterfang, Squirrel General
 Chromatic Orrery
-Chrome Dome
+Chronomantic Escape
 Clock of Omens
 Cogwork Assembler
-Concordant Crossroads
-Contagion Engine
-Contaminated Drink
-Coral Atoll
-Coretapper
+Conclave Mentor
+Conjurer's Closet
+Corpse Knight
 Crackdown Construct
 Crime Novelist
-Crookshank Kobolds
+Cryptic Trilobite
 Cryptolith Rite
-Cursed Mirror
-Deadeye Navigator
+Crystal Shard
+Crystalline Crawler
+Dark Ritual
 Death's Presence
 Deathbringer Thoctar
+Deathrender
 Derevi, Empyrial Tactician
-Deserted Temple
+Desperate Ritual
 Devoted Druid
 Dimir Aqueduct
-Dionus, Elvish Archdruid
+Displacer Kitten
 Doubling Season
 Dross Scorpion
+Duergar Mine-Captain
 Earthcraft
 Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
@@ -82,93 +81,83 @@ Empowered Autogenerator
 Emry, Lurker of the Loch
 Encroaching Mycosynth
 Enduring Renewal
+Eternal Witness
+Everflowing Chalice
 Exalted Flamer of Tzeentch
-Experiment Kraj
-Ezuri, Renegade Leader
 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
-Faeburrow Elder
 Faerie Mastermind
-Fatestitcher
-Feldon of the Third Path
 Felidar Guardian
 Fiend Hunter
 Fiery Inscription
 First Day of Class
-Flawless Maneuver
-Forsaken Miner
+Folio of Fancies
 Fraying Omnipotence
 Freed from the Real
-Gaea's Cradle
-Garna, Bloodfist of Keld
-Gauntlets of Light
-Geralf's Messenger
 Ghave, Guru of Spores
 Gleaming Splendor
 Glen Elendra Archmage
 Goblin Bombardment
+Goblin Engineer
 Goblin Sharpshooter
-Goblin Welder
-Gogo, Master of Mimicry
+Good-Fortune Unicorn
 Gravecrawler
 Grievous Wound
 Grim Monolith
 Grinding Station
 Gwenna, Eyes of Gaea
-Hellkite Tyrant
+Hardened Scales
+Hateflayer
 Hellraiser Goblin
 Helm of the Host
 Herd Baloth
-High Alert
-Hope Tender
+Heroic Feast
 Horseshoe Crab
 Illusionist's Bracers
 Imotekh the Stormlord
 Incubation Druid
+Infantry Shield
 Intruder Alarm
 Ioreth of the Healing House
 Ivy Lane Denizen
 Izzet Boilerworks
-Jeskai Ascendancy
+Jan Jansen, Chaos Crafter
+Junk Diver
 Karmic Guide
-Karn's Bastion
-Karn, Silver Golem
 Karn, the Great Creator
-Kefnet the Mindful
+Kenrith, the Returned King
 Kiki-Jiki, Mirror Breaker
 Kinnan, Bonder Prodigy
 Knacksaw Clique
 Kodama of the East Tree
 Koll, the Forgemaster
 Krark-Clan Ironworks
-Krenko, Baron of Tin Street
 Krenko, Mob Boss
-Krosan Restorer
-Kurkesh, Onakke Ancient
+Leech Bonder
 Lesser Masticore
 Leyline of Abundance
-Light of Promise
 Lightning Crafter
 Lightning Greaves
-Lithoform Engine
-Lonis, Cryptozoologist
-Lotus Field
+Lion's Eye Diamond
 Lotus Petal
+Lotus Vale
 Luminous Broodmoth
+Machine God's Effigy
 Magda, Brazen Outlaw
-Magistrate's Scepter
-Magosi, the Waterveil
 Magus of the Candelabra
+Magus of the Wheel
 Mana Echoes
 Mana Reflection
 Marath, Will of the Wild
-March of the Machines
-Maze of Ith
+Marvin, Murderous Mimic
+Mazirek, Kraul Death Priest
 Memnite
+Metallic Mimic
 Metalworker
-Midnight Guard
 Mikaeus, the Unhallowed
 Mirror Entity
 Mishra's Bauble
+Mizzix of the Izmagnus
+Mnemonic Wall
 Molten Echoes
 Mondrak, Glory Dominus
 Murderous Redcap
@@ -177,18 +166,17 @@ Mycosynth Lattice
 Myr Battlesphere
 Myr Retriever
 Myr Turbine
-Mystic Sanctuary
-Najeela, the Blade-Blossom
+Myr Welder
 Nim Deathmantle
 Nuka-Cola Vending Machine
 Nyxbloom Ancient
-Nyxborn Hydra
-Old Gnawbone
-Orthion, Hero of Lavabrink
+One with the Kami
+Ornithopter
 Palladium Myr
 Paradise Mantle
 Parallel Lives
 Patrol Signaler
+Peer into the Abyss
 Pemmin's Aura
 Pentavus
 Peregrin Took
@@ -197,114 +185,126 @@ Phelddagrif
 Phyrexian Altar
 Phyrexian Triniform
 Pili-Pala
-Pious Evangel // Wayward Disciple
 Pitiless Plunderer
-Presence of Gond
-Priest of Urabrask
 Primal Vigor
+Prize Pig
 Prototype Portal
+Prowling Geistcatcher
 Puppeteer Clique
 Putrid Goblin
 Quietus Spike
 Rampaging Ferocidon
 Raving Dead
 Reassembling Skeleton
-Renata, Called to the Hunt
+Reckless Barbarian
+Reforge the Soul
+Reiterate
+Renegade Rallier
 Retrofitter Foundry
 Reveillark
-Rings of Brighthearth
+Rising of the Day
 Rite of Passage
-Rite of Replication
 River Kelpie
 Roaming Throne
 Rosie Cotton of South Lane
 Rousing Refrain
-Salvaging Station
+Sadistic Glee
+Safehold Elite
+Saffi Eriksdotter
+Sai of the Shinobi
+Sakashima of a Thousand Faces
+Salvager of Ruin
 Scourge of the Skyclaves
 Scrap Trawler
 Scurry Oak
-Scute Swarm
-Scytheclaw
-Seeker of Skybreak
-Selvala, Heart of the Wilds
+Seething Song
+Sequence Engine
+Serra's Sanctum
 Shard of the Nightbringer
-Shifting Wall
 Simic Growth Chamber
 Skirk Prospector
-Sky Crier
+Skullclamp
+Slimefoot, the Stowaway
 Sliver Queen
 Smothering Tithe
-Sol Ring
 Solemnity
+Soulherder
+South Wind Avatar
 Spark Double
 Spawning Pit
+Spawnsire of Ulamog
 Spiteful Prankster
 Splinter Twin
+Springheart Nantuko
 Sprout Swarm
+Stadium Headliner
 Staff of Domination
-Stonybrook Schoolmaster
+Stimulus Package
+Strangleroot Geist
 Stridehangar Automaton
 Su-Chi Cave Guard
 Summoning Station
-Suspended Sentence
+Sun Titan
 Suture Priest
-Swiftfoot Boots
-Sword of Feast and Famine
 Taigam, Master Opportunist
-Tameshi, Reality Architect
-Tamiyo's Journal
+Tamiyo's Safekeeping
+Tarrian's Soulcleaver
 Tazri, Stalwart Survivor
+Teleportation Circle
 Temporal Manipulation
-Temur Sabertooth
+Tendrils of Agony
 Teshar, Ancestor's Apostle
-The Enigma Jewel // Locus of Enlightenment
+Thassa, Deep-Dwelling
 The Fire Crystal
-The Jolly Balloon Man
-The Legend of Kyoshi // Avatar Kyoshi
+The Locust God
 The Meathook Massacre
-The Reaver Cleaver
 The Tenth Doctor
+There and Back Again
+Thermopod
 Thornbite Staff
 Thousand-Year Elixir
+Thrill of Possibility
 Thunder of Unity
 Thunderblust
 Tidewater Minion
-Time Sieve
 Time Warp
 Timestream Navigator
-Tivit, Seller of Secrets
-Torgaar, Famine Incarnate
+Timetwister
+Tireless Provisioner
+Toph, the First Metalbender
+Tormenting Voice
 Training Grounds
-Transmutation Font
 Trazyn the Infinite
 Tribute to the World Tree
 Twilight Shepherd
+Ulasht, the Hate Seed
 Umbral Mantle
 Unctus, Grand Metatect
 Underworld Breach
-Universal Automaton
-Universal Surveillance
+Unmarked Grave
 Urza, Lord High Artificer
 Urza, Prince of Kroog
-Uthros Research Craft
-Vhal, Candlekeep Researcher
-Vigean Graftmage
+Utopia Mycon
+Venerated Stormsinger
+Vesperlark
 Village Bell-Ringer
 Virtus the Veiled
 Viscera Seer
-Vito, Thorn of the Dusk Rose
-Vivi Ornitier
 Vizier of Tumbling Sands
-Voice of Victory
 Voltaic Construct
 Voyaging Satyr
 Walking Ballista
 Warlock Class
 Warren Soultrader
-Well of Lost Dreams
+Wheel of Fortune
+Witch's Oven
 Woodfall Primus
+Workhorse
 Workshop Assistant
 Wound Reflection
-Yurlok of Scorch Thrash
+Wren's Run Hydra
+Yawgmoth, Thran Physician
+Young Wolf
+Zaxara, the Exemplary
+Zirda, the Dawnwaker
 Zulaport Cutthroat
-Zurgo, Thunder's Decree

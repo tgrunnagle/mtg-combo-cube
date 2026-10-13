@@ -10,6 +10,7 @@ import aiohttp
 import pytest
 
 from mtg_combo_cube.blocklist import BlocklistQueryError
+from mtg_combo_cube.ilp.enablers import parse_enabler_table
 from mtg_combo_cube.ilp.payoffs import parse_payoff_table
 from mtg_combo_cube.ilp.requirement_normalizer import prepare_scryfall_url
 from mtg_combo_cube.models import Variant
@@ -26,6 +27,11 @@ COLLECTION_URL = CardAttributeFetcher.COLLECTION_URL
 STORM_QUERY = "keyword:storm f:commander"
 STORM_URL = PayoffFetcher.search_url(STORM_QUERY)
 PAYOFFS = parse_payoff_table({"storm": {"queries": [STORM_QUERY], "cards": ["Aetherflux"]}})
+RITUAL_QUERY = "o:ritual"
+RITUAL_URL = PayoffFetcher.search_url(RITUAL_QUERY)
+ENABLERS = parse_enabler_table(
+    {"ritual": {"queries": [RITUAL_QUERY]}, "wheel": {"cards": ["Windfall"]}}
+)
 SCRYFALL_MAX_ATTEMPTS = 5  # ScryfallFetcher default: attempts before a request counts as failed
 
 CARD_STATES = {
@@ -494,6 +500,64 @@ class TestPrecache:
             cache = json.load(f)
         assert cache["queries"][STORM_URL]["cards"] == ["Grapeshot", "Card B"]
         assert read_colors(tmp_path)["Grapeshot"] == "R"
+
+    @pytest.mark.asyncio
+    async def test_enabler_queries_are_resolved_and_their_cards_looked_up(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                RITUAL_URL: [FakeResponse(200, card_names=["Dark Ritual", "Card A"])],
+                COLLECTION_URL: [
+                    colors_response(
+                        {
+                            "Card A": ["W"],
+                            "Card B": ["U"],
+                            "Creature X": ["G"],
+                            "Dark Ritual": ["B"],
+                            "Windfall": ["U"],
+                        }
+                    )
+                ],
+            }
+        )
+
+        result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, enablers=ENABLERS)
+
+        assert result.complete
+        assert result.enabler_queries == 1
+        assert result.failed_enabler_queries == 0
+        assert result.bad_enabler_queries == {}
+        assert result.payoff_queries == 0
+        # The enabler cards (query results and table cards) join the candidates
+        assert result.cards == 5
+        assert session.bodies == [
+            {
+                "identifiers": [
+                    {"name": name}
+                    for name in ["Card A", "Card B", "Creature X", "Dark Ritual", "Windfall"]
+                ]
+            }
+        ]
+        with open(tmp_path / PayoffFetcher.CACHE_FILENAME, encoding="utf-8") as f:
+            cache = json.load(f)
+        assert cache["queries"][RITUAL_URL]["cards"] == ["Dark Ritual", "Card A"]
+
+    @pytest.mark.asyncio
+    async def test_enabler_query_matching_no_card_is_reported(self, tmp_path):
+        session = FakeSession(
+            {
+                CREATURE_URL: [FakeResponse(200, card_names=["Creature X"])],
+                RITUAL_URL: [FakeResponse(200, card_names=[])],
+                COLLECTION_URL: [colors_response({"Card A": ["W"], "Card B": ["U"]})],
+            }
+        )
+
+        result = await run_precache(tmp_path, FakeSpellbook(VARIANTS), session, enablers=ENABLERS)
+
+        assert not result.complete
+        assert result.bad_queries
+        assert result.failed_enabler_queries == 0
+        assert result.bad_enabler_queries == {RITUAL_QUERY: "matches no card"}
 
     @pytest.mark.asyncio
     async def test_failed_payoff_query_is_fetched_in_a_later_pass(self, tmp_path):

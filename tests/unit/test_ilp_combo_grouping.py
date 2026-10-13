@@ -323,7 +323,7 @@ class TestGroupedWarmStart:
         # Phase 1 takes one outlet at most: the coverage rule wants two
         assert optimizer._coverage_violations(set(phase1.get_selected_card_names())) == 1
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
 
         assert optimizer._coverage_violations(reference.cards) == 0
         assert optimizer._coverage_violations(warm_start.cards) == 0
@@ -405,7 +405,7 @@ class TestGroupedWarmStart:
         assert phase1.utilization_per_card is not None
         assert min(phase1.utilization_per_card.values()) < 2
 
-        warm_start, reference = optimizer._build_warm_start(phase1, None)
+        warm_start, reference, _ = optimizer._build_warm_start(phase1, None)
 
         assert reference.combo_ids == set(phase1.completable_combo_ids)
         assert warm_start is not reference
