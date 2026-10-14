@@ -191,8 +191,9 @@ table that does not fit the outcome table is an error on load, whatever the sett
 ### Enabler cards
 
 `ilp/enablers.py` turns the enabler table (the `enablers` section of `config.yaml`) into the
-`EnablerTable` of a run: for each category (fast mana, rituals, wheels and graveyard fillers
-by default; the names are free, not tied to the outcome table), the cards that set combos up,
+`EnablerTable` of a run: for each category (fast mana, rituals, wheels, graveyard fillers and
+the recursion engine Underworld Breach by default; the names are free, not tied to the outcome
+table), the cards that set combos up,
 each with its sources. The table has the shape of the payoff table and is parsed and resolved
 by the same code (`ilp/card_table.py`: `parse_card_table`, `resolve_sources`, with
 `min_enablers` / `max_enablers` as the bound keys and `EnablerTableError` as the error), with
@@ -201,7 +202,9 @@ the same cache as the payoff queries. There is no inference: nothing in the Spel
 marks a card as an enabler; a ritual or a wheel appears in a variant only when it is a piece.
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
-wants in the slot, which a build then used to meet the floor.
+wants in the slot, which a build then used to meet the floor. Wheel of Fortune and Underworld
+Breach are required; the recursion category holds Underworld Breach alone, with a floor of 0
+(`min_enablers` and `max_enablers` 0), so the enabler share is split among the other four.
 
 `build_cube_ilp` resolves the enabler table after the payoff table and, with the enabler
 floor on, adds every enabler card the pool lacks to the candidate cards as a `CandidateCard`
@@ -457,7 +460,7 @@ Phase 1 cube's overage instead.
 Phase 1 ignores the cube rules, and at full size they are expensive: coverage and color
 balance alone cost close to 10% of the combos, and with the archetype rules, the card mix,
 the outcome minimum, the payoff floor and the enabler floor the reference cube scores more
-than 20% below the Phase 1 cube (1,204.3 against 1,663.4 weighted combos in the tracked run,
+than 20% below the Phase 1 cube (1,201.7 against 1,678.7 weighted combos in the tracked run,
 with the reference solve on a time limit of its own). Measuring the combo window from the
 Phase 1 count would then leave no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
 is built, both in the small Phase 1 model with the cube rules added:

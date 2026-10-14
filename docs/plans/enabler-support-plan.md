@@ -397,7 +397,8 @@ met in both. The cost is the build time (three solves of 360 s and a repair, abo
 minutes against 15) and a wider utilization spread (std dev 20.8 against 15.7: Phase 2 had
 the same 360 s but a window 13% higher to hold). This run was the tracked
 `data/current_best_cube.txt` until 13 October 2026, when the build with the required mana
-and storm payoffs (`require` in the payoff table) replaced it at 1,045 distinct combos.
+and storm payoffs, Wheel of Fortune and Underworld Breach (`require` in the tables) replaced
+it at 1,037 distinct combos.
 
 ## Open questions
 

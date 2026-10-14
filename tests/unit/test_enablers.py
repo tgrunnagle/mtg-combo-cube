@@ -53,22 +53,28 @@ class TestParse:
 
 
 class TestDefaultTable:
-    def test_default_table_has_the_four_classes(self):
+    def test_default_table_has_the_five_classes(self):
         definitions = load_config().enablers
 
         assert definitions is not None
-        assert definitions.names == ("fast_mana", "ritual", "wheel", "graveyard")
+        assert definitions.names == ("fast_mana", "ritual", "wheel", "graveyard", "recursion")
         # Fast mana and rituals come from queries; the wheels and graveyard fillers are
         # named, since a query also finds cards nobody wants in the slot
-        fast_mana, ritual, wheel, graveyard = definitions
+        fast_mana, ritual, wheel, graveyard, recursion = definitions
         assert fast_mana.queries and ritual.queries
         assert not wheel.queries and not graveyard.queries
-        assert {"Wheel of Fortune", "Windfall", "Memory Jar"} <= set(wheel.cards)
+        assert wheel.require == ("Wheel of Fortune",)
+        assert {"Windfall", "Memory Jar"} <= set(wheel.cards)
         assert {"Entomb", "Buried Alive", "Faithless Looting"} <= set(graveyard.cards)
+        # The recursion engine is required and is the whole category, with no floor of its own
+        assert recursion.require == ("Underworld Breach",)
+        assert recursion.minimum == 0 and recursion.maximum == 0
+        assert definitions.required == {"Wheel of Fortune", "Underworld Breach"}
         # The suspend rocks and the double-faced reprint are excluded, not re-queried
         assert {"Sol Talisman", "Mox Tantalite"} <= fast_mana.exclude
         assert "Blazing Firesinger // Seething Song" in ritual.exclude
-        assert definitions.min_enablers == {} and definitions.max_enablers == {}
+        assert definitions.min_enablers == {"recursion": 0}
+        assert definitions.max_enablers == {"recursion": 0}
 
 
 class TestResolve:

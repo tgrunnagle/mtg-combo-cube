@@ -197,9 +197,11 @@ enablers:
     # Named rather than queried: the floor treats every card of a category alike, and a query
     # also finds wheels nobody wants in the slot (Day's Undoing ends the turn, Midnight Clock
     # and Wheel of Fate are slow, Time Reversal costs five), which a build then used to meet
-    # the floor instead of these
-    cards:
+    # the floor instead of these. Wheel of Fortune is required: the floor treats the wheels
+    # alike and a build filled it with the other four
+    require:
       - Wheel of Fortune
+    cards:
       - Windfall
       - Timetwister
       - Time Spiral
@@ -222,3 +224,11 @@ enablers:
       - Cathartic Reunion
       - Thrill of Possibility
       - Tormenting Voice
+  recursion:
+    # Casting combo pieces from the graveyard: Underworld Breach is required and is the whole
+    # category, so it has no floor of its own (min and max 0) and the enabler share is split
+    # among the other four as before
+    min_enablers: 0
+    max_enablers: 0
+    require:
+      - Underworld Breach
