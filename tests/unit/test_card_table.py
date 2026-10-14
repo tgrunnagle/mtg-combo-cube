@@ -102,6 +102,55 @@ class TestParse:
             CardTableCategory("a", cards=("X",), minimum=2, maximum=1)
 
 
+class TestQueryLimit:
+    def test_a_query_may_give_its_own_limit(self):
+        table = parse_card_table(
+            {"a": {"queries": ["q1", {"query": " q2", "limit": 3}, "q2", {"query": "q3"}]}},
+            PayoffDefinitions,
+        )
+
+        (category,) = table
+        assert category.queries == ("q1", "q2", "q3")
+        assert category.query_limits == {"q2": 3}
+        assert table.queries == ("q1", "q2", "q3")
+
+    @pytest.mark.parametrize(
+        ("queries", "message"),
+        [
+            ([{"limit": 3}], "as non-empty strings or as {query: ..., limit: N}"),
+            ([{"query": " ", "limit": 3}], "as non-empty strings or as {query: ..., limit: N}"),
+            ([{"query": "q", "cap": 3}], "as non-empty strings or as {query: ..., limit: N}"),
+            ([{"query": "q", "limit": 0}], "whole number of 1 or more, got 0"),
+            ([{"query": "q", "limit": True}], "whole number of 1 or more, got True"),
+            ([{"query": "q", "limit": "3"}], "whole number of 1 or more, got '3'"),
+            ([{"query": "q", "limit": 2}, {"query": "q", "limit": 3}], "'q' two limits"),
+        ],
+    )
+    def test_a_bad_query_entry_is_an_error(self, queries: list[object], message: str):
+        with pytest.raises(PayoffTableError, match="payoff category 'a' ") as e:
+            parse_card_table({"a": {"queries": queries}}, PayoffDefinitions)
+
+        assert message in str(e.value)
+
+    def test_a_limit_must_name_a_listed_query(self):
+        with pytest.raises(CardTableError, match=r"'a' limits queries it does not list: \['q2'\]"):
+            CardTableCategory("a", queries=("q1",), query_limits={"q2": 3})
+
+    def test_the_limit_applies_to_its_query_alone(self):
+        definitions = parse_card_table(
+            {"a": {"queries": [{"query": "short", "limit": 1}, "long"]}}, EnablerDefinitions
+        )
+
+        sources = resolve_sources(
+            definitions,
+            {"short": ["Blocked", "S1", "S2"], "long": ["L1", "L2", "L3"]},
+            blocklist=frozenset(["Blocked"]),
+            query_limit=2,
+        )
+
+        assert set(sources["a"]) == {"S1", "L1", "L2"}
+
+
 class TestQueryResults:
     @pytest.mark.parametrize(("definitions", "error", "label", "min_key", "max_key"), KINDS)
     def test_empty_results_are_an_error_of_the_kind(
@@ -178,3 +227,36 @@ class TestResolve:
         smaller = table.without(["X", "Z"])
         assert smaller.cards("a") == {"Y"}
         assert smaller.minimums == {"a": 1}
+
+
+class TestRequire:
+    @pytest.mark.parametrize(("definitions", "error", "label", "min_key", "max_key"), KINDS)
+    def test_required_cards_are_cards_of_their_category(
+        self,
+        definitions: type[CardTableDefinitions],
+        error: type[CardTableError],
+        label: str,
+        min_key: str,
+        max_key: str,
+    ):
+        table = parse_card_table(
+            {"a": {"queries": ["q"], "require": ["Must", " Must"]}, "b": {"cards": ["Other"]}},
+            definitions,
+        )
+
+        assert table.cards == {"Must", "Other"}
+        assert table.required == {"Must"}
+        resolved = resolve_sources(table, {"q": ["Found", "Must"]})
+        assert resolved["a"] == {"Found": {"query"}, "Must": {"card", "query"}}
+        with pytest.raises(error, match=f"{label} category 'a' both requires and excludes"):
+            parse_card_table({"a": {"require": ["X"], "exclude": ["X"]}}, definitions)
+        with pytest.raises(error, match=f"the {label} table requires cards the blocklist"):
+            resolve_sources(table, {"q": []}, blocklist=frozenset(["Must"]))
+
+    def test_the_resolved_table_keeps_the_required_set(self):
+        table = CardTable(
+            sources={"a": {"X": frozenset(["card"]), "Y": frozenset(["card"])}},
+            required=frozenset(["X", "Y"]),
+        )
+
+        assert table.without(["X"]).required == {"Y"}

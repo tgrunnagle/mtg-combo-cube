@@ -153,29 +153,31 @@ async def evaluate_cube(
             blocklist,
             inference_threshold=payoff_inference_min,
         )
-        payoff_only = add_payoff_cards(candidate_cards, payoffs)
+        add_payoff_cards(candidate_cards, payoffs)
     enablers: EnablerTable | None = None
     enabler_only: list[str] = []
     if enabler_definitions is not None:
         enablers = build_enabler_table(enabler_definitions, enabler_query_results, blocklist)
         add_enabler_cards(candidate_cards, enablers)
-        # As the optimizer defines them: below the utilization floor, or in no combo, and
-        # not a payoff card
-        payoff_names = payoffs.all_cards if payoffs is not None else frozenset()
-        combos_of = dict.fromkeys(enablers.all_cards, 0)
-        for combo in combos:
-            for card in combo.required_cards:
+    # As the optimizer defines them with the floors on: a payoff card in fewer combos than
+    # the utilization floor (or in none) is payoff-only, and an enabler card below it that
+    # is no payoff card is enabler-only
+    payoff_names = payoffs.all_cards if payoffs is not None else frozenset()
+    enabler_names = enablers.all_cards if enablers is not None else frozenset()
+    combos_of = dict.fromkeys(payoff_names | enabler_names, 0)
+    for combo in combos:
+        for card in combo.required_cards:
+            if card in combos_of:
+                combos_of[card] += 1
+        for option in combo.requirement_options:
+            for card in option.cards:
                 if card in combos_of:
                     combos_of[card] += 1
-            for option in combo.requirement_options:
-                for card in option.cards:
-                    if card in combos_of:
-                        combos_of[card] += 1
-        enabler_only = sorted(
-            card
-            for card, count in combos_of.items()
-            if card not in payoff_names and count < max(min_utilization_floor, 1)
-        )
+    floor = max(min_utilization_floor, 1)
+    payoff_only = sorted(card for card in payoff_names if combos_of[card] < floor)
+    enabler_only = sorted(
+        card for card in enabler_names if card not in payoff_names and combos_of[card] < floor
+    )
 
     unknown = [card for card in cards if card not in candidate_cards]
     if unknown:

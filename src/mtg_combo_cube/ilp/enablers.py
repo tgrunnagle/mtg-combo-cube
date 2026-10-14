@@ -15,7 +15,7 @@ of the configuration file (see config.py):
       wheel: {cards: [Wheel of Misfortune, Memory Jar]}
 
 A category gives Scryfall `queries` (resolved by the PayoffFetcher in EDHREC order; the first
-QUERY_CARD_LIMIT cards count), explicit `cards`, and `exclude`, names dropped from the
+QUERY_CARD_LIMIT cards count, or a query's own `limit`), explicit `cards`, and `exclude`, names dropped from the
 category whatever their source; it needs at least one of the three. It may also bound its
 Phase 2 enabler floor with `min_enablers` and `max_enablers`, in place of the range the
 optimizer applies to every category (see ILPOptimizer._compute_enabler_floors). The
@@ -143,4 +143,5 @@ def resolve_enablers(
         sources=resolve_sources(definitions, query_results, blocklist, query_limit),
         minimums=definitions.minimums,
         maximums=definitions.maximums,
+        required=definitions.required,
     )

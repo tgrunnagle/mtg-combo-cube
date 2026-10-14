@@ -380,27 +380,39 @@ class TestPayoffFloor:
 
         assert optimizer.payoff_cards == {"mana": frozenset(["Ballista"])}
 
-    def test_combo_pieces_below_the_utilization_floor_do_not_count_toward_the_floor(
+    def test_combo_pieces_below_the_utilization_floor_are_payoff_only(
         self, caplog: pytest.LogCaptureFixture
     ):
-        # Q1 is in one combo: with a utilization floor of 2 it can never be selected, so a
-        # floor it is the only payoff card for would be unsatisfiable; a payoff-only card
-        # is exempt from the utilization floor and still counts
+        # Q1 and Q2 are in one combo each: a utilization floor of 2 would exclude them
+        # outright, and a payoff floor they are the only cards for would be unsatisfiable
+        # (or met by a card with no combo at all). With the payoff floor on they are
+        # payoff-only instead: exempt from the utilization floor and counted for the
+        # payoff floor, their one combo still scoring
         optimizer = make_optimizer(
             payoffs=payoff_table({"mana": ["Q1", "Ballista"], "damage": ["Q2"]}),
             min_payoffs=2,
             min_utilization_floor=2,
         )
 
-        assert optimizer.payoff_cards == {"mana": frozenset(["Ballista"]), "damage": frozenset()}
-        assert optimizer.payoff_floors == {"mana": 1}
+        assert optimizer.payoff_only_cards == OUTLETS | {"Q1", "Q2"}
+        assert optimizer.payoff_cards == {
+            "mana": frozenset(["Q1", "Ballista"]),
+            "damage": frozenset(["Q2"]),
+        }
+        assert optimizer.payoff_floors == {"mana": 2, "damage": 1}
         with caplog.at_level(logging.WARNING, logger="mtg_combo_cube.ilp.ilp_optimizer"):
             optimizer._check_payoff_pool()
         assert (
-            "the pool has only 1 selectable payoff cards for mana, below the minimum of 2"
+            "the pool has only 1 selectable payoff cards for damage, below the minimum of 2"
         ) in caplog.text
-        assert "the pool has no selectable payoff cards for damage; no payoff floor" in caplog.text
-        # Without a utilization floor the combo piece counts
+        assert optimizer._floor_card_selectable("Q1")
+        # Without a payoff floor the pieces are excluded by the utilization floor as any
+        # other card, and without a utilization floor they are ordinary payoff cards
+        off = make_optimizer(
+            payoffs=payoff_table({"mana": ["Q1", "Ballista"]}), min_utilization_floor=2
+        )
+        assert off.payoff_only_cards == OUTLETS
+        assert off.payoff_cards == {"mana": frozenset(["Ballista"])}
         assert make_optimizer(
             payoffs=payoff_table({"mana": ["Q1", "Ballista"]}), min_utilization_floor=0
         ).payoff_cards == {"mana": frozenset(["Q1", "Ballista"])}
@@ -536,6 +548,64 @@ class TestViolations:
     def test_floor_is_a_cube_rule(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-2:] == ["payoff floor", "enabler floor"]
+        assert labels[-3:] == ["payoff floor", "enabler floor", "required cards"]
         violations = make_optimizer(min_payoffs=1)._cube_rule_violations(HUB | {"Q1", "Q2"})
         assert violations["payoff floor"] == 1
+
+
+class TestRequiredCards:
+    """A table's `require` cards are in every Phase 2 cube while its floor is on."""
+
+    # Comet is required; Ballista is a plain table card
+    REQUIRING = resolve_payoffs(
+        parse_payoff_table({"mana": {"cards": ["Ballista"], "require": ["Comet"]}}), {}, {}
+    )
+
+    def test_required_cards_are_a_cube_rule_with_the_floor_on(self, caplog):
+        optimizer = make_optimizer(payoffs=self.REQUIRING, min_payoffs=1)
+
+        assert optimizer.required_cards == {"Comet"}
+        assert optimizer.payoff_cards == {"mana": frozenset(["Ballista", "Comet"])}
+        assert optimizer._required_violations(HUB | {"Ballista"}) == 1
+        assert optimizer._required_violations(HUB | {"Comet"}) == 0
+        assert optimizer._cube_rule_violations(HUB | {"Ballista"})["required cards"] == 1
+        # Required cards are exempt from the utilization floor, exempt cards or not
+        assert optimizer.floor_free_cards == optimizer.exempt_cards | {"Comet"}
+        pieces = resolve_payoffs(parse_payoff_table({"mana": {"require": ["H"]}}), {}, {})
+        with_piece = make_optimizer(payoffs=pieces, min_payoffs=1)
+        assert "H" not in with_piece.exempt_cards
+        assert "H" in with_piece.floor_free_cards
+        # The hub without a partner completes nothing, below the floor of 1, yet the cube
+        # passes the floor check because the hub is required; it fails when it is not
+        lonely = {"H", "D1", "D2"}
+        cube = with_piece._warm_start_for(lonely)
+        assert cube.utilization["H"] == 0
+        assert with_piece._satisfies_window_and_floor(cube, 0)
+        plain = make_optimizer(min_payoffs=1)
+        assert not plain._satisfies_window_and_floor(plain._warm_start_for(lonely), 0)
+
+        # Six slots: the hub's four cards score, the floor of 1 asks for an outlet, and the
+        # required Comet is that outlet even though Ballista would do as well
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_optimizer"):
+            result = optimizer.solve_two_phase(profile=True)
+
+        assert "Comet" in [card.name for card in result.selected_cards]
+        assert "Added 1 required card constraints" in caplog.text
+        assert result.profile_data is not None
+        assert result.profile_data["phase2"]["counts"]["required_cards"] == 1
+
+    def test_required_cards_wait_for_the_floor(self, caplog):
+        # With the floor off, the required card is an ordinary candidate (it is not even in
+        # the pool of a real build, where the runner adds table cards for the floor alone)
+        assert make_optimizer(payoffs=self.REQUIRING, min_payoffs=0).required_cards == set()
+        assert (
+            make_optimizer(payoffs=self.REQUIRING, categories=None, min_payoffs=1).required_cards
+            == set()
+        )
+        # A required card the pool lacks is ignored with a warning
+        with caplog.at_level(logging.WARNING):
+            optimizer = make_optimizer(
+                payoffs=self.REQUIRING, extra_cards={"Ballista"}, min_payoffs=1
+            )
+        assert optimizer.required_cards == set()
+        assert "required cards not in the pool are ignored: ['Comet']" in caplog.text

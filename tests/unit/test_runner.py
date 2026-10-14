@@ -1355,3 +1355,27 @@ class TestRunnerPlumbing:
             },
             "inferred": {"mana": {"X": 2}},
         }
+
+
+class TestRequiredTableCards:
+    def test_an_unknown_required_card_is_an_error(self, caplog):
+        from mtg_combo_cube.ilp.card_table import CardTableError
+        from mtg_combo_cube.ilp.ilp_models import CandidateCard
+        from mtg_combo_cube.ilp.payoffs import parse_payoff_table, resolve_payoffs
+
+        table = resolve_payoffs(
+            parse_payoff_table({"mana": {"cards": ["Balista"], "require": ["Commet"]}}), {}, {}
+        )
+        cards = {
+            name: CandidateCard(name, frozenset(), frozenset()) for name in ("Balista", "Commet")
+        }
+        known = {"Ballista": CardAttributes("C", "Artifact Creature", 0)}
+
+        # A misspelt plain card is dropped with a warning; a misspelt required card cannot be
+        with pytest.raises(CardTableError, match=r"requires cards not known to Scryfall .*Commet"):
+            ilp_runner.drop_unknown_payoff_cards(table, cards, known)
+        plain = resolve_payoffs(parse_payoff_table({"mana": {"cards": ["Balista"]}}), {}, {})
+        with caplog.at_level(logging.WARNING):
+            kept = ilp_runner.drop_unknown_payoff_cards(plain, dict(cards), known)
+        assert kept.all_cards == set()
+        assert "1 cards are not known to Scryfall and are dropped" in caplog.text

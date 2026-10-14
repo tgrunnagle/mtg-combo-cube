@@ -516,9 +516,9 @@ class TestViolations:
         assert make_optimizer()._enabler_violations(HUB) == 0
         assert make_optimizer(enablers=None, min_enablers=2)._enabler_violations(HUB) == 0
 
-    def test_floor_is_the_last_cube_rule(self):
+    def test_floor_is_a_cube_rule(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-1] == "enabler floor"
+        assert labels[-2] == "enabler floor"
         violations = make_optimizer(min_enablers=1)._cube_rule_violations(HUB | {"Q1", "Q2"})
         assert violations["enabler floor"] == 1

@@ -4,9 +4,11 @@ Card tables: named categories of cards found by Scryfall queries and explicit na
 The payoff table (ilp/payoffs.py) and the enabler table (ilp/enablers.py) have the same
 shape in the configuration file: a mapping of category name to `queries` (Scryfall
 searches, resolved by the PayoffFetcher in EDHREC order; the first QUERY_CARD_LIMIT cards
-count), explicit `cards`, `exclude` (names dropped whatever their source) and an optional
-lower and upper bound for the category's Phase 2 floor, under keys named for the table
-(`min_payoffs` / `max_payoffs`, `min_enablers` / `max_enablers`). This module holds what the
+count, or the first `limit` cards of a query written as `{query: ..., limit: N}`),
+explicit `cards`, `require` (cards the cube must hold, named like `cards`),
+`exclude` (names dropped whatever their source) and an optional lower and upper bound for
+the category's Phase 2 floor, under keys named for the table (`min_payoffs` / `max_payoffs`,
+`min_enablers` / `max_enablers`). This module holds what the
 two share: the category and table definitions with their validation, the parsing, the check
 of the query results and the resolution of each category's card set with the source of
 every card. A table names its kind (TableKind: the label of its error messages, its error
@@ -62,6 +64,57 @@ def _names(
     return tuple(dict.fromkeys(str(value).strip() for value in values))
 
 
+def _queries(
+    entry: Mapping[str, object], kind: TableKind, category: str
+) -> tuple[tuple[str, ...], dict[str, int]]:
+    """
+    The queries listed under `queries`, each a non-empty string or a mapping of `query` (the
+    string) and `limit` (the whole number of cards kept from its results, 1 or more), as
+    the query strings once each and the limits of the queries that give one; or an error
+    naming the category. A query listed twice with different limits is an error too.
+    """
+    values = entry.get("queries", [])
+    if not isinstance(values, list):
+        raise kind.error(f"{kind.label} category {category!r} must list its queries")
+    problem = (
+        f"{kind.label} category {category!r} must list its queries as non-empty strings or as "
+        "{query: ..., limit: N}"
+    )
+    queries: dict[str, None] = {}
+    limits: dict[str, int] = {}
+    for value in values:
+        query: object = value
+        limit: int | None = None
+        if isinstance(value, dict):
+            given: dict[str, object] = {str(key): item for key, item in value.items()}
+            if set(given) - {"query", "limit"} or "query" not in given:
+                raise kind.error(problem)
+            query = given["query"]
+            given_limit = given.get("limit")
+            if given_limit is not None:
+                if (
+                    isinstance(given_limit, bool)
+                    or not isinstance(given_limit, int)
+                    or given_limit < 1
+                ):
+                    raise kind.error(
+                        f"{kind.label} category {category!r} must give the limit of a query "
+                        f"as a whole number of 1 or more, got {given_limit!r}"
+                    )
+                limit = given_limit
+        if not isinstance(query, str) or not query.strip():
+            raise kind.error(problem)
+        query = query.strip()
+        queries[query] = None
+        if limit is not None:
+            if limits.get(query, limit) != limit:
+                raise kind.error(
+                    f"{kind.label} category {category!r} gives the query {query!r} two limits"
+                )
+            limits[query] = limit
+    return tuple(queries), limits
+
+
 def _bound(entry: Mapping[str, object], key: str, kind: TableKind, category: str) -> int | None:
     """The non-negative integer under `key`, None when absent, or an error naming the category."""
     value = entry.get(key)
@@ -83,16 +136,27 @@ class CardTableCategory:
 
     name: str
     queries: tuple[str, ...] = ()  # Scryfall queries
+    # The cards kept from a query's results in place of the resolver's limit, by query
+    query_limits: Mapping[str, int] = field(default_factory=dict)
     cards: tuple[str, ...] = ()  # explicit card names
+    require: tuple[str, ...] = ()  # explicit card names the cube must hold
     exclude: frozenset[str] = frozenset()  # names dropped whatever their source
     minimum: int | None = None  # the category's own lower bound for its floor
     maximum: int | None = None  # the category's own upper bound for its floor
 
     def __post_init__(self) -> None:
         kind = self.KIND
-        if not (self.queries or self.cards or self.exclude):
+        if not (self.queries or self.cards or self.require or self.exclude):
             raise kind.error(
                 f"{kind.label} category {self.name!r} has no queries, cards or exclusions"
+            )
+        if unknown := sorted(set(self.query_limits) - set(self.queries)):
+            raise kind.error(
+                f"{kind.label} category {self.name!r} limits queries it does not list: {unknown}"
+            )
+        if both := sorted(self.exclude.intersection(self.require)):
+            raise kind.error(
+                f"{kind.label} category {self.name!r} both requires and excludes {both}"
             )
         if self.minimum is not None and self.maximum is not None and self.minimum > self.maximum:
             raise kind.error(
@@ -129,8 +193,15 @@ class CardTableDefinitions:
 
     @property
     def cards(self) -> frozenset[str]:
-        """Every card the table names explicitly."""
-        return frozenset(card for category in self.categories for card in category.cards)
+        """Every card the table names explicitly, the required ones among them."""
+        return frozenset(
+            card for category in self.categories for card in (*category.cards, *category.require)
+        )
+
+    @property
+    def required(self) -> frozenset[str]:
+        """Every card the table requires the cube to hold."""
+        return frozenset(card for category in self.categories for card in category.require)
 
     @property
     def minimums(self) -> dict[str, int]:
@@ -161,7 +232,7 @@ def parse_card_table[D: CardTableDefinitions](table: object, definitions: type[D
             f"the {kind.label} table must be a mapping of category name to its queries, cards "
             "and exclude"
         )
-    known = {"queries", "cards", "exclude", kind.min_key, kind.max_key}
+    known = {"queries", "cards", "require", "exclude", kind.min_key, kind.max_key}
     categories = []
     for name, entry in table.items():
         if not isinstance(name, str) or not name:
@@ -174,11 +245,14 @@ def parse_card_table[D: CardTableDefinitions](table: object, definitions: type[D
         unknown = set(entry_dict) - known
         if unknown:
             raise kind.error(f"{kind.label} category {name!r} has unknown keys {sorted(unknown)}")
+        queries, query_limits = _queries(entry_dict, kind, name)
         categories.append(
             definitions.CATEGORY(
                 name,
-                queries=_names(entry_dict, "queries", kind, name),
+                queries=queries,
+                query_limits=query_limits,
                 cards=_names(entry_dict, "cards", kind, name),
+                require=_names(entry_dict, "require", kind, name),
                 exclude=frozenset(_names(entry_dict, "exclude", kind, name)),
                 minimum=_bound(entry_dict, kind.min_key, kind, name),
                 maximum=_bound(entry_dict, kind.max_key, kind, name),
@@ -208,6 +282,8 @@ class CardTable:
     # The table's own bounds for the floor, for the categories that give one
     minimums: dict[str, int] = field(default_factory=dict)
     maximums: dict[str, int] = field(default_factory=dict)
+    # The cards the table requires the cube to hold (each a card of its category)
+    required: frozenset[str] = frozenset()
 
     @property
     def names(self) -> tuple[str, ...]:
@@ -242,6 +318,7 @@ class CardTable:
                 name: {card: s for card, s in by_card.items() if card not in dropped}
                 for name, by_card in self.sources.items()
             },
+            required=self.required - dropped,
         )
 
     def selected_sources(self, selected_cards: Collection[str]) -> dict[str, dict[str, list[str]]]:
@@ -266,14 +343,19 @@ def resolve_sources(
 ) -> dict[str, dict[str, frozenset[str]]]:
     """
     The card set of each category with the source of every card (CardTable.sources): the
-    table's cards and the first `query_limit` cards of each query that are neither blocked
-    nor excluded (a query missing from `query_results` adds nothing), plus any
-    `extra_sources` of the category (name lists with their source label, named before the
-    table's cards), minus the exclusions and the blocklist. An exclusion that matches no
-    card of its category is a warning (a typo excludes nothing).
+    table's cards (the required ones among them) and the first `query_limit` cards of each
+    query that are neither blocked nor excluded (the query's own limit where the table gives
+    one; a query missing from `query_results` adds nothing), plus any `extra_sources` of the category (name lists with their source label,
+    named before the table's cards), minus the exclusions and the blocklist. An exclusion
+    that matches no card of its category is a warning (a typo excludes nothing); a required
+    card the blocklist blocks is an error.
     """
     kind = definitions.KIND
     blocked = set(blocklist)
+    if blocked_required := sorted(definitions.required & blocked):
+        raise kind.error(
+            f"the {kind.label} table requires cards the blocklist blocks: {blocked_required}"
+        )
     sources: dict[str, dict[str, frozenset[str]]] = {}
     for category in definitions:
         found: dict[str, set[str]] = {}
@@ -281,12 +363,13 @@ def resolve_sources(
         named: list[tuple[Iterable[str], str]] = [
             *(extra_sources or {}).get(category.name, ()),
             (category.cards, SOURCE_CARD),
+            (category.require, SOURCE_CARD),
         ]
         for query in category.queries:
             result = query_results.get(query, [])
             seen.update(result)
             kept = [c for c in result if c not in blocked and c not in category.exclude]
-            named.append((kept[:query_limit], SOURCE_QUERY))
+            named.append((kept[: category.query_limits.get(query, query_limit)], SOURCE_QUERY))
         for names, source in named:
             for name in names:
                 seen.add(name)
