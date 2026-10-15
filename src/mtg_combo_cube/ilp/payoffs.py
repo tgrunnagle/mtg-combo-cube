@@ -16,11 +16,12 @@ find its outlets. It is the `payoffs` section of the configuration file (see con
 Every category must be a category of the outcome table; the categories the payoff table
 leaves out (damage, draw, mill, ...) are terminal and are their own payoff. A category gives
 Scryfall `queries` (resolved by the PayoffFetcher in EDHREC order; the first QUERY_CARD_LIMIT
-cards count, or a query's own `limit`), explicit `cards`, and `exclude`, names dropped from the category whatever
-their source. A category needs at least one of the three. It may also bound its Phase 2
-payoff floor with `min_payoffs` and `max_payoffs`, in place of the range the optimizer
-applies to every category (see ILPOptimizer._compute_payoff_floors). The table's shape and
-its parsing are the generic card table of ilp/card_table.py, shared with the enabler table.
+cards count, or a query's own `limit`), explicit `cards`, and `exclude`, names dropped from the
+category whatever their source. A category needs at least one of the three. It may also bound
+its Phase 2 payoff floor with `min_payoffs` and `max_payoffs`, in place of the range the
+optimizer applies to every category (see ILPOptimizer._compute_payoff_floors). The table's
+shape and its parsing are the generic card table of ilp/card_table.py, shared with the
+enabler table.
 
 The payoff set of a category is the union of the inferred cards (infer_payoffs: the cards a
 bundled Spellbook variant adds to the engine it includes, kept from the confidence

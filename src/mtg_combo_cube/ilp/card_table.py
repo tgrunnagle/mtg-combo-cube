@@ -345,10 +345,10 @@ def resolve_sources(
     The card set of each category with the source of every card (CardTable.sources): the
     table's cards (the required ones among them) and the first `query_limit` cards of each
     query that are neither blocked nor excluded (the query's own limit where the table gives
-    one; a query missing from `query_results` adds nothing), plus any `extra_sources` of the category (name lists with their source label,
-    named before the table's cards), minus the exclusions and the blocklist. An exclusion
-    that matches no card of its category is a warning (a typo excludes nothing); a required
-    card the blocklist blocks is an error.
+    one; a query missing from `query_results` adds nothing), plus any `extra_sources` of the
+    category (name lists with their source label, named before the table's cards), minus the
+    exclusions and the blocklist. An exclusion that matches no card of its category is a
+    warning (a typo excludes nothing); a required card the blocklist blocks is an error.
     """
     kind = definitions.KIND
     blocked = set(blocklist)
