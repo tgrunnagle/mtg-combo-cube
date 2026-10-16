@@ -181,6 +181,63 @@ class TestEvaluateCube:
 
     def test_read_cube_file_skips_blank_lines(self, tmp_path: Path):
         cube_file = tmp_path / "cube.txt"
-        cube_file.write_text("A\n\n  B  \n", encoding="utf-8")
+        cube_file.write_text("A\n\n  B  \n# comment\nA\n", encoding="utf-8")
 
         assert module.read_cube_file(str(cube_file)) == ["A", "B"]
+
+    async def test_fixed_cards_count_for_combos_not_for_utilization(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, dict(CARDS)
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP1\nA\n", encoding="utf-8")
+
+        evaluation = await module.evaluate_cube(
+            str(cube_file), fixed_cards=frozenset({"B", "Island"}), staple_combos=2
+        )
+
+        # B completes ab with A: counted, though B is not a card of the list
+        assert evaluation.card_count == 3
+        assert evaluation.combo_count == 2
+        assert evaluation.distinct_combo_count == 2
+        assert evaluation.utilization_stats.max_utilization == 1  # H, P1 and A: 1 each
+        assert evaluation.fixed_card_stats is not None
+        assert evaluation.fixed_card_stats.cards == ["B", "Island"]
+        assert evaluation.fixed_card_stats.candidate_cards == ["B"]
+        assert evaluation.fixed_card_stats.combo_count == 1
+        by_card = {card.card: card for card in evaluation.card_inclusion}
+        assert by_card["B"].reason == "fixed"
+        assert by_card["A"].reason == "essential"
+        assert "Island" not in by_card
+        # One card away: P2 would add h2 (a second variant of big, no new combo); C and D
+        # are two away
+        assert evaluation.one_card_away is not None
+        assert [(p.piece, p.new_combo_count) for p in evaluation.one_card_away.pieces] == [
+            ("P2", 0)
+        ]
+        # The staples of the two most popular variants: h2 (30) and one of the 10s by id
+        assert evaluation.staple_stats is not None
+        assert [(s.cards, s.completed) for s in evaluation.staple_stats] == [
+            (["H", "P2"], False),
+            (["A", "B"], True),
+        ]
+
+    async def test_without_fixed_cards_or_staples(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return COMBOS, dict(CARDS)
+
+        monkeypatch.setattr(module, "load_instance", fake_load_instance)
+        cube_file = tmp_path / "cube.txt"
+        cube_file.write_text("H\nP1\n", encoding="utf-8")
+
+        evaluation = await module.evaluate_cube(str(cube_file))
+
+        assert evaluation.fixed_card_stats is None
+        assert evaluation.staple_stats is None
+        assert evaluation.one_card_away is not None
+        assert {p.piece for p in evaluation.one_card_away.pieces} == {"P2"}

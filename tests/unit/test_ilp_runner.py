@@ -11,16 +11,21 @@ import pytest
 from mtg_combo_cube.ilp.cube_evaluation import ARCHETYPES, compute_card_mix_stats
 from mtg_combo_cube.ilp.enablers import EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
+    FIXED,
     ArchetypeStats,
     CandidateCard,
     CardInclusionStats,
     CardMixRules,
     ComboGroupStats,
     EnablerStats,
+    FixedCardStats,
+    OneCardAwayPiece,
+    OneCardAwayReport,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
     PopularityStats,
+    StapleStats,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_runner import (
@@ -31,11 +36,16 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_combo_count,
     format_enabler_stats,
     format_enabler_table,
+    format_fixed_card_stats,
+    format_one_card_away,
     format_outcome_stats,
     format_payoff_stats,
     format_payoff_table,
+    format_staple_stats,
     log_phase_summary,
+    potential_combos_path,
     write_card_data,
+    write_potential_combos,
     write_stats,
 )
 from mtg_combo_cube.ilp.payoffs import PayoffTable
@@ -1291,3 +1301,205 @@ class TestWriteStatsArchetypes:
         )
 
         assert format_archetype_stats(stats).endswith("colorless 0; 3+ colors 0 of 0")
+
+
+def make_piece(
+    piece: str, variants: int, new: int, popularity: int, ids: list[str]
+) -> OneCardAwayPiece:
+    return OneCardAwayPiece(
+        piece=piece,
+        kind="candidate",
+        variant_count=variants,
+        distinct_combo_count=variants,
+        new_combo_count=new,
+        popularity=popularity,
+        max_popularity=popularity,
+        example_cards=["Hullbreaker Horror", piece],
+        variant_ids=ids,
+    )
+
+
+REPORT = OneCardAwayReport(
+    variant_count=40,
+    piece_count=12,
+    pieces=[
+        make_piece(f"Piece {i}", 12 - i, 1, 1000 - i, [f"v{i}-{j}" for j in range(12)])
+        for i in range(12)
+    ],
+)
+FIXED_STATS = FixedCardStats(
+    cards=["Island", "Mox Pearl", "Sol Ring"],
+    candidate_cards=["Mox Pearl", "Sol Ring"],
+    combo_count=10,
+    distinct_combo_count=5,
+    payoff_categories={},
+    enabler_categories={"fast_mana": ["Mox Pearl", "Sol Ring"]},
+)
+STAPLES = [
+    StapleStats(["Hullbreaker Horror", "Sol Ring"], 500, True, []),
+    StapleStats(["Exquisite Blood", "Sanguine Bond"], 400, False, ["Sanguine Bond"]),
+]
+
+
+class TestWriteStatsFixedCardsStaplesAndOneCardAway:
+    def _result(self) -> OptimizationResult:
+        return replace(
+            TestWriteStatsCombosAndColors._two_phase_result(),
+            fixed_card_stats=FIXED_STATS,
+            staple_stats=STAPLES,
+            phase1_staples_completed=0,
+            phase2_staples_completed=1,
+            phase2_staple_combos=2,
+            phase2_min_staple_combos=1,
+            one_card_away=REPORT,
+        )
+
+    def test_blocks(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(self._result(), tmp_path)
+
+        assert stats["fixed_cards"] == {
+            "cards": ["Island", "Mox Pearl", "Sol Ring"],
+            "candidate_cards": ["Mox Pearl", "Sol Ring"],
+            "combo_count": 10,
+            "distinct_combo_count": 5,
+            "payoff_categories": {},
+            "enabler_categories": {"fast_mana": ["Mox Pearl", "Sol Ring"]},
+        }
+        assert stats["staples"] == [
+            {
+                "cards": ["Hullbreaker Horror", "Sol Ring"],
+                "popularity": 500,
+                "completed": True,
+                "missing_cards": [],
+            },
+            {
+                "cards": ["Exquisite Blood", "Sanguine Bond"],
+                "popularity": 400,
+                "completed": False,
+                "missing_cards": ["Sanguine Bond"],
+            },
+        ]
+        assert stats["phase1"]["staples_completed"] == 0
+        assert stats["phase2"]["staples_completed"] == 1
+        assert stats["phase2"]["staple_combos"] == 2
+        assert stats["phase2"]["min_staple_combos"] == 1
+        block = stats["one_card_away"]
+        assert (block["variant_count"], block["piece_count"]) == (40, 12)
+        assert len(block["top_pieces"]) == 10  # the top ten of the twelve, no links
+        assert block["top_pieces"][0] == {
+            "piece": "Piece 0",
+            "kind": "candidate",
+            "variant_count": 12,
+            "distinct_combo_count": 12,
+            "new_combo_count": 1,
+            "popularity": 1000,
+            "max_popularity": 1000,
+            "example_cards": ["Hullbreaker Horror", "Piece 0"],
+        }
+
+    def test_left_out_without_data(self, tmp_path: Path):
+        stats = TestWriteStatsCombosAndColors._write(
+            TestWriteStatsCombosAndColors._two_phase_result(), tmp_path
+        )
+
+        for key in ("fixed_cards", "staples", "one_card_away"):
+            assert key not in stats
+        for key in ("staple_combos", "min_staple_combos", "staples_completed"):
+            assert key not in stats["phase2"]
+        assert "staples_completed" not in stats["phase1"]
+
+    def test_fallback_records_the_staple_settings(self, tmp_path: Path):
+        result = replace(
+            self._result(), is_multi_objective=False, phase2_fell_back=True, phase2_status="TIMEOUT"
+        )
+
+        stats = TestWriteStatsCombosAndColors._write(result, tmp_path)
+
+        assert stats["phase2"]["staple_combos"] == 2
+
+    def test_log_lines_and_formats(self, caplog: pytest.LogCaptureFixture):
+        with caplog.at_level(logging.INFO, logger="mtg_combo_cube.ilp.ilp_runner"):
+            log_phase_summary(self._result(), None)
+
+        assert (
+            "Fixed cards: 3 cards, 2 candidates, in 10 variants in 5 combos; fast_mana 2"
+            in caplog.text
+        )
+        assert (
+            "Staples (Phase 1 0, Phase 2 1 of 2): 1 of 2 staples completed; missing: "
+            "Exquisite Blood + Sanguine Bond (lacks Sanguine Bond)"
+        ) in caplog.text
+        assert (
+            "One card away: 40 variants one piece short, 12 pieces; top: Piece 0 12 variants "
+            "(1 new combos), Piece 1 11 variants (1 new combos), "
+        ) in caplog.text
+        assert format_one_card_away(REPORT, limit=1) == (
+            "40 variants one piece short, 12 pieces; top: Piece 0 12 variants (1 new combos)"
+        )
+        assert format_one_card_away(OneCardAwayReport(0, 0, [])) == (
+            "0 variants one piece short, 0 pieces"
+        )
+        assert format_staple_stats([STAPLES[0]]) == "1 of 1 staples completed"
+        assert (
+            format_fixed_card_stats(FixedCardStats(["Island"], [], 0, 0, {}, {}))
+            == "1 cards, 0 candidates, in 0 variants in 0 combos"
+        )
+
+
+class TestPotentialCombosFile:
+    def test_path(self):
+        assert potential_combos_path("data/cube.txt") == Path("data/cube_potential_combos.json")
+
+    def test_write(self, tmp_path: Path):
+        path = write_potential_combos(
+            REPORT, str(tmp_path / "out/cube.txt"), ["Card A", "Card B"], ["Sol Ring", "Card B"]
+        )
+
+        assert path == tmp_path / "out/cube_potential_combos.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert (data["variant_count"], data["piece_count"]) == (40, 12)
+        assert data["fixed_card_count"] == 1  # Card B is in the cube already
+        assert data["spellbook_find_my_combos_url"] == (
+            "https://commanderspellbook.com/find-my-combos/?decklist=Card%20A%0ACard%20B%0ASol%20Ring"
+        )
+        assert len(data["pieces"]) == 12  # every piece of the report, with links
+        first = data["pieces"][0]
+        assert first["piece"] == "Piece 0"
+        assert first["example_cards"] == ["Hullbreaker Horror", "Piece 0"]
+        # Twelve variants: ten in the first link, two in the second
+        assert len(first["spellbook_urls"]) == 2
+        assert first["spellbook_urls"][1] == (
+            "https://commanderspellbook.com/search/?q=sid%3Av0-10%20OR%20sid%3Av0-11"
+        )
+
+
+class TestCardDataWithFixedCards:
+    FIXED_ENTRY = make_inclusion("Sol Ring", FIXED, 2, 2, ["c9"], ["v9"])
+
+    def test_fixed_entries_are_not_the_cubes_cards(self, tmp_path: Path):
+        path = write_card_data(
+            [*INCLUSION, self.FIXED_ENTRY],
+            str(tmp_path / "cube.txt"),
+            ["Card A", "Card X"],
+            fixed_cards=["Sol Ring", "Island"],
+        )
+
+        data = json.loads(path.read_text(encoding="utf-8"))
+        # The summary counts the cube's cards only; the link covers the cube and every fixed card
+        assert data["summary"]["cards_per_reason"]["essential"] == 1
+        assert "fixed" not in data["summary"]["cards_per_reason"]
+        assert data["summary"]["cards_in_one_combo"] == 1
+        assert data["spellbook_find_my_combos_url"].endswith(
+            "decklist=Card%20A%0ACard%20B%0ACard%20C%0AIsland%0ASol%20Ring"
+        )
+        last = data["cards"][-1]
+        assert (last["card"], last["reason"]) == ("Sol Ring", "fixed")
+        assert "added_in_phase2" not in last  # a fixed card is in neither phase's cube
+        assert data["cards"][1]["added_in_phase2"] is True
+        assert last["spellbook_urls"] == ["https://commanderspellbook.com/search/?q=sid%3Av9"]
+
+    def test_format_mentions_the_fixed_cards(self):
+        assert format_card_inclusion([*INCLUSION, self.FIXED_ENTRY]).endswith(
+            "1 cards in a single combo; 1 fixed cards in a combo"
+        )
+        assert format_card_inclusion(INCLUSION).endswith("1 cards in a single combo")

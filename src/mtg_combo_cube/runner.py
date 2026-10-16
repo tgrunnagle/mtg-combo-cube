@@ -42,6 +42,9 @@ async def run(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
+    fixed_cards_file: str | None = None,
+    staple_combos: int = 0,
+    min_staple_combos: int = 0,
 ):
     """
     Build a cube with the ILP optimizer.
@@ -93,8 +96,13 @@ async def run(
             enabler table (0 disables)
         enabler_share: Share of the cube's cards the Phase 2 enabler floors add up to, split
             evenly among the categories (0: the minimum alone)
+        fixed_cards_file: A card list file naming the fixed cards (the cube's cards outside
+            the slots the optimizer fills) in place of the configuration's
+        staple_combos: The number of most popular variants of the pool whose named cards are
+            the staples of the Phase 2 staples rule (0 disables)
+        min_staple_combos: Phase 2 minimum number of staples the cube must complete (0: all)
     """
-    config = load_config(config_path)
+    config = load_config(config_path, fixed_cards_file)
 
     await run_ilp(
         cube_size=cube_size,
@@ -127,4 +135,6 @@ async def run(
         payoff_inference_min=payoff_inference_min,
         min_enablers=min_enablers,
         enabler_share=enabler_share,
+        staple_combos=staple_combos,
+        min_staple_combos=min_staple_combos,
     )

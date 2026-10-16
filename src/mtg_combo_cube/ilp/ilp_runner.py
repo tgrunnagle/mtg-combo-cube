@@ -9,7 +9,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from mtg_combo_cube.blocklist import fetch_blocklist
-from mtg_combo_cube.config import CubeConfig, load_config
+from mtg_combo_cube.config import ConfigError, CubeConfig, load_config
 from mtg_combo_cube.ilp.card_table import (
     CardTable,
     CardTableDefinitions,
@@ -36,6 +36,7 @@ from mtg_combo_cube.ilp.enablers import (
 )
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
+    FIXED,
     INCLUSION_REASONS,
     ArchetypeStats,
     CandidateCard,
@@ -45,10 +46,13 @@ from mtg_combo_cube.ilp.ilp_models import (
     ColorStats,
     ComboData,
     EnablerStats,
+    FixedCardStats,
+    OneCardAwayReport,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
     PopularityStats,
+    StapleStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, outcome_rules_requested
@@ -147,6 +151,12 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
         info["enabler_share"] = result.phase2_enabler_share
     if result.phase2_enabler_floors is not None:
         info["enabler_floors"] = result.phase2_enabler_floors
+    if result.phase2_staple_combos is not None:
+        info["staple_combos"] = result.phase2_staple_combos
+    if result.phase2_min_staple_combos is not None:
+        info["min_staple_combos"] = result.phase2_min_staple_combos
+    if result.phase2_staples_completed is not None:
+        info["staples_completed"] = result.phase2_staples_completed
     if result.phase2_reference_combo_count is not None:
         info["reference_combo_count"] = result.phase2_reference_combo_count
     if result.phase2_reference_distinct_combo_count is not None:
@@ -435,11 +445,15 @@ def format_archetype_stats(stats: ArchetypeStats) -> str:
 
 
 def card_inclusion_summary(cards: list[CardInclusionStats]) -> dict:
-    """How many of a cube's cards are in it for each reason, and how many are in one combo."""
-    reasons = Counter(card.reason for card in cards)
+    """
+    How many of a cube's cards are in it for each reason, and how many are in one combo.
+    The entries of fixed cards (reason FIXED) are not the cube's cards and are left out.
+    """
+    cube_cards = [card for card in cards if card.reason != FIXED]
+    reasons = Counter(card.reason for card in cube_cards)
     return {
         "cards_per_reason": {reason: reasons[reason] for reason in INCLUSION_REASONS},
-        "cards_in_one_combo": sum(1 for card in cards if card.distinct_combo_count == 1),
+        "cards_in_one_combo": sum(1 for card in cube_cards if card.distinct_combo_count == 1),
     }
 
 
@@ -449,8 +463,9 @@ def card_inclusion_entries(
     """
     The per-card entries of the card data file. With `phase1_cards` (the Phase 1 cube, when
     Phase 2 ran) each card also says whether Phase 2 added it: a card Phase 1 left out, so
-    there for a Phase 2 rule or the utilization balance. `spellbook_urls` are Spellbook
-    searches listing the card's completed combos (one variant each), ten per link.
+    there for a Phase 2 rule or the utilization balance (a fixed card, in neither phase's
+    cube, does not say). `spellbook_urls` are Spellbook searches listing the card's
+    completed combos (one variant each), ten per link.
     """
     phase1 = set(phase1_cards) if phase1_cards is not None else None
     return [
@@ -466,7 +481,11 @@ def card_inclusion_entries(
             "outcomes": card.outcomes,
             "payoff_categories": card.payoff_categories,
             "enabler_categories": card.enabler_categories,
-            **({"added_in_phase2": card.card not in phase1} if phase1 is not None else {}),
+            **(
+                {"added_in_phase2": card.card not in phase1}
+                if phase1 is not None and card.reason != FIXED
+                else {}
+            ),
             "essential_combos": card.essential_combos,
             "spellbook_urls": search_urls(card.combo_variants),
         }
@@ -484,22 +503,157 @@ def write_card_data(
     cards: list[CardInclusionStats],
     output_file: str,
     phase1_cards: Collection[str] | None = None,
+    fixed_cards: Collection[str] = (),
 ) -> Path:
     """
     Write why each card of the cube is in it to the cube's card data file, with a Spellbook
-    Find My Combos link for the whole cube and search links per card.
+    Find My Combos link for the whole cube (the cube's cards and every fixed card) and
+    search links per card. `cards` are the inclusion statistics, the fixed cards among them
+    (reason FIXED) after the cube's cards.
     """
     path = card_data_path(output_file)
     path.parent.mkdir(parents=True, exist_ok=True)
+    cube_cards = [card.card for card in cards if card.reason != FIXED]
     data = {
         "summary": card_inclusion_summary(cards),
-        "spellbook_find_my_combos_url": find_my_combos_url([card.card for card in cards]),
+        "spellbook_find_my_combos_url": find_my_combos_url(
+            cube_cards + sorted(set(fixed_cards) - set(cube_cards))
+        ),
         "cards": card_inclusion_entries(cards, phase1_cards),
     }
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2)
     logger.info(f"Per-card data written to {path}")
     return path
+
+
+def potential_combos_path(output_file: str) -> Path:
+    """The potential combos file of a cube list: cube.txt -> cube_potential_combos.json."""
+    output_path = Path(output_file)
+    return output_path.with_stem(f"{output_path.stem}_potential_combos").with_suffix(".json")
+
+
+def one_card_away_entries(report: OneCardAwayReport, links: bool) -> list[dict]:
+    """The rows of a one-card-away report, with Spellbook search links when asked."""
+    return [
+        {
+            "piece": piece.piece,
+            "kind": piece.kind,
+            "variant_count": piece.variant_count,
+            "distinct_combo_count": piece.distinct_combo_count,
+            "new_combo_count": piece.new_combo_count,
+            "popularity": piece.popularity,
+            "max_popularity": piece.max_popularity,
+            "example_cards": piece.example_cards,
+            **({"spellbook_urls": search_urls(piece.variant_ids)} if links else {}),
+        }
+        for piece in report.pieces
+    ]
+
+
+ONE_CARD_AWAY_TOP = 10  # pieces the stats file and the log show
+
+
+def _one_card_away_block(report: OneCardAwayReport | None) -> dict:
+    """The "one_card_away" entry of the stats file: the totals and the top pieces, no links."""
+    if report is None:
+        return {}
+    return {
+        "one_card_away": {
+            "variant_count": report.variant_count,
+            "piece_count": report.piece_count,
+            "top_pieces": one_card_away_entries(
+                OneCardAwayReport(
+                    report.variant_count, report.piece_count, report.pieces[:ONE_CARD_AWAY_TOP]
+                ),
+                links=False,
+            ),
+        }
+    }
+
+
+def write_potential_combos(
+    report: OneCardAwayReport,
+    output_file: str,
+    cube_cards: Collection[str],
+    fixed_cards: Collection[str] = (),
+) -> Path:
+    """
+    Write the one-card-away report to the cube's potential combos file: the totals, the
+    pieces with Spellbook search links to their variants (ten per link), and a Find My
+    Combos link for the cube's cards and the fixed cards together, whose "potential combos"
+    list is the same report over all of Spellbook rather than the pool.
+    """
+    path = potential_combos_path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    cards = list(cube_cards) + sorted(set(fixed_cards) - set(cube_cards))
+    data = {
+        "variant_count": report.variant_count,
+        "piece_count": report.piece_count,
+        "fixed_card_count": len(cards) - len(list(cube_cards)),
+        "spellbook_find_my_combos_url": find_my_combos_url(cards),
+        "pieces": one_card_away_entries(report, links=True),
+    }
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, indent=2)
+    logger.info(f"Potential combos written to {path}")
+    return path
+
+
+def format_one_card_away(report: OneCardAwayReport, limit: int = ONE_CARD_AWAY_TOP) -> str:
+    """
+    'N variants one piece short, P pieces; top: Sol Ring 10 variants (5 new combos), ...'
+    for a one-card-away report.
+    """
+    top = ", ".join(
+        f"{piece.piece} {piece.variant_count} variants ({piece.new_combo_count} new combos)"
+        for piece in report.pieces[:limit]
+    )
+    return f"{report.variant_count} variants one piece short, {report.piece_count} pieces" + (
+        f"; top: {top}" if top else ""
+    )
+
+
+def _fixed_cards_block(stats: FixedCardStats | None) -> dict:
+    """The "fixed_cards" entry of the stats file, empty without fixed cards."""
+    return {"fixed_cards": asdict(stats)} if stats is not None else {}
+
+
+def format_fixed_card_stats(stats: FixedCardStats) -> str:
+    """One-line summary of the fixed cards: how many, candidates, and what they complete."""
+    categories = ", ".join(
+        f"{name} {len(cards)}"
+        for table in (stats.payoff_categories, stats.enabler_categories)
+        for name, cards in table.items()
+    )
+    return (
+        f"{len(stats.cards)} cards, {len(stats.candidate_cards)} candidates, in "
+        f"{format_combo_count(stats.combo_count, stats.distinct_combo_count)}"
+        + (f"; {categories}" if categories else "")
+    )
+
+
+def _staples_block(staples: list[StapleStats] | None) -> dict:
+    """The "staples" entry of the stats file, empty without staples."""
+    return {"staples": [asdict(staple) for staple in staples]} if staples is not None else {}
+
+
+def _staples_completed_entry(completed: int | None) -> dict:
+    """The "staples_completed" entry of a phase block, empty without staples."""
+    return {"staples_completed": completed} if completed is not None else {}
+
+
+def format_staple_stats(staples: list[StapleStats]) -> str:
+    """'7 of 10 staples completed; missing: A + B (C), ...' for the staples of a cube."""
+    completed = sum(1 for staple in staples if staple.completed)
+    missing = ", ".join(
+        f"{' + '.join(staple.cards)} (lacks {', '.join(staple.missing_cards)})"
+        for staple in staples
+        if not staple.completed
+    )
+    return f"{completed} of {len(staples)} staples completed" + (
+        f"; missing: {missing}" if missing else ""
+    )
 
 
 def _phase1_card_names(result: OptimizationResult) -> list[str] | None:
@@ -510,11 +664,12 @@ def _phase1_card_names(result: OptimizationResult) -> list[str] | None:
 
 
 def format_card_inclusion(cards: list[CardInclusionStats]) -> str:
-    """One line on why the cube's cards are in it: the cards per reason."""
+    """One line on why the cube's cards are in it: the cards per reason (fixed cards apart)."""
     reasons = Counter(card.reason for card in cards)
     counts = ", ".join(f"{reason} {reasons[reason]}" for reason in INCLUSION_REASONS)
-    one_combo = sum(1 for card in cards if card.distinct_combo_count == 1)
-    return f"{counts}; {one_combo} cards in a single combo"
+    one_combo = sum(1 for card in cards if card.distinct_combo_count == 1 and card.reason != FIXED)
+    fixed = f"; {reasons[FIXED]} fixed cards in a combo" if reasons[FIXED] else ""
+    return f"{counts}; {one_combo} cards in a single combo{fixed}"
 
 
 def log_phase_summary(
@@ -599,6 +754,21 @@ def log_phase_summary(
     if result.card_inclusion is not None:
         logger.info(f"Cards by reason: {format_card_inclusion(result.card_inclusion)}")
 
+    if result.fixed_card_stats is not None:
+        logger.info(f"Fixed cards: {format_fixed_card_stats(result.fixed_card_stats)}")
+    if result.staple_stats is not None:
+        phases = []
+        if result.phase1_staples_completed is not None:
+            phases.append(f"Phase 1 {result.phase1_staples_completed}")
+        if result.is_multi_objective and result.phase2_staples_completed is not None:
+            phases.append(f"Phase 2 {result.phase2_staples_completed}")
+        logger.info(
+            f"Staples ({', '.join(phases)} of {len(result.staple_stats)}): "
+            f"{format_staple_stats(result.staple_stats)}"
+        )
+    if result.one_card_away is not None:
+        logger.info(f"One card away: {format_one_card_away(result.one_card_away)}")
+
 
 def write_stats(
     result: OptimizationResult,
@@ -668,6 +838,7 @@ def write_stats(
             **_popularity_block(result.phase1_popularity_stats),
             **_payoffs_block(result.phase1_payoff_stats),
             **_enablers_block(result.phase1_enabler_stats),
+            **_staples_completed_entry(result.phase1_staples_completed),
         }
 
     # Phase 2 stats and improvement (only for multi-objective)
@@ -761,6 +932,11 @@ def write_stats(
 
     if result.card_inclusion is not None:
         stats["cards"] = card_inclusion_summary(result.card_inclusion)
+
+    # The fixed cards, the staples and the pieces the final cube is one card short of
+    stats.update(_fixed_cards_block(result.fixed_card_stats))
+    stats.update(_staples_block(result.staple_stats))
+    stats.update(_one_card_away_block(result.one_card_away))
 
     # The combo groups with the most completed variants in the final cube
     if result.largest_combo_groups is not None:
@@ -1146,6 +1322,8 @@ async def build_cube_ilp(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
+    staple_combos: int = 0,
+    min_staple_combos: int = 0,
 ) -> tuple[
     list[str],
     int,
@@ -1157,9 +1335,13 @@ async def build_cube_ilp(
     """
     Build cube using ILP optimization with optional API caching.
 
-    config holds the blocklist, the blocklist queries, the outcome category table, the
-    payoff table and the enabler table (the default configuration file when None, see
-    config.py); the cards the blocklist queries match are blocked too (see blocklist.py). The
+    config holds the fixed cards, the blocklist, the blocklist queries, the outcome category
+    table, the payoff table and the enabler table (the default configuration file when None,
+    see config.py). The fixed cards (the cube's cards outside the cube_size slots) are in
+    every model; the candidates among them count for every rule that counts combos, and a
+    fixed card the blocklist blocks is a ConfigError. The cards the blocklist queries match
+    are blocked too (see blocklist.py). The staples rule (staple_combos, min_staple_combos)
+    holds the most popular combos of the pool in the Phase 2 cube. The
     outcome table is behind the outcome statistics and the Phase 2 outcome rules; without it
     and with no rule on, the build goes on without the outcome statistics. The payoff table
     is behind the payoff statistics and the Phase 2 payoff floor (min_payoffs per category,
@@ -1195,6 +1377,11 @@ async def build_cube_ilp(
         enable_cache_write=enable_cache_write,
         read_cache=read_cache,
     )
+    if blocked := sorted(config.fixed_cards & blocklist):
+        raise ConfigError(
+            f"fixed cards cannot be blocked by a blocklist query: {blocked} (fix the blocklist "
+            "queries or the fixed cards file)"
+        )
     outcome_categories = config.outcome_categories
     payoff_definitions = config.payoffs
     enabler_definitions = config.enablers
@@ -1266,16 +1453,21 @@ async def build_cube_ilp(
                 "candidate cards"
             )
 
-    if len(candidate_cards) < cube_size:
+    # The fixed cards take no slot of the cube: only the free candidates fill it
+    free_candidates = len(set(candidate_cards) - config.fixed_cards)
+    if free_candidates < cube_size:
         logger.warning(
-            f"Only {len(candidate_cards)} unique cards available, "
+            f"Only {free_candidates} unique cards available, "
             f"but cube size is {cube_size}. Adjusting cube size."
         )
-        cube_size = len(candidate_cards)
+        cube_size = free_candidates
 
-    # Card attributes feed the Phase 2 color balance and card mix rules and the statistics
+    # Card attributes feed the Phase 2 color balance and card mix rules and the statistics;
+    # the fixed cards are looked up too, for the record
     card_attributes = await fetch_card_attributes(
-        sorted(candidate_cards), enable_cache_write=enable_cache_write, read_cache=read_cache
+        sorted(set(candidate_cards) | config.fixed_cards),
+        enable_cache_write=enable_cache_write,
+        read_cache=read_cache,
     )
     if payoffs is not None and card_attributes is not None:
         payoffs = drop_unknown_payoff_cards(payoffs, candidate_cards, card_attributes)
@@ -1313,6 +1505,9 @@ async def build_cube_ilp(
         enablers=enablers,
         min_enablers=min_enablers,
         enabler_share=enabler_share,
+        fixed_cards=config.fixed_cards,
+        staple_combos=staple_combos,
+        min_staple_combos=min_staple_combos,
     )
 
     # Run optimization (two-phase by default)
@@ -1383,6 +1578,8 @@ async def run_ilp(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
+    staple_combos: int = 0,
+    min_staple_combos: int = 0,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result, card_attributes, payoffs, enablers = await build_cube_ilp(
@@ -1416,6 +1613,8 @@ async def run_ilp(
         payoff_inference_min=payoff_inference_min,
         min_enablers=min_enablers,
         enabler_share=enabler_share,
+        staple_combos=staple_combos,
+        min_staple_combos=min_staple_combos,
     )
 
     logger.info(
@@ -1431,5 +1630,8 @@ async def run_ilp(
 
     # Write utilization stats
     write_stats(result, output_file, cube_size, card_attributes, payoffs, enablers)
+    fixed_cards = result.fixed_card_stats.cards if result.fixed_card_stats is not None else []
     if result.card_inclusion is not None:
-        write_card_data(result.card_inclusion, output_file, _phase1_card_names(result))
+        write_card_data(result.card_inclusion, output_file, _phase1_card_names(result), fixed_cards)
+    if result.one_card_away is not None:
+        write_potential_combos(result.one_card_away, output_file, cards, fixed_cards)

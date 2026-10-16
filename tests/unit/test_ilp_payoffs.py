@@ -548,7 +548,7 @@ class TestViolations:
     def test_floor_is_a_cube_rule(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-3:] == ["payoff floor", "enabler floor", "required cards"]
+        assert labels[-4:] == ["payoff floor", "enabler floor", "required cards", "staples"]
         violations = make_optimizer(min_payoffs=1)._cube_rule_violations(HUB | {"Q1", "Q2"})
         assert violations["payoff floor"] == 1
 

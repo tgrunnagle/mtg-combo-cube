@@ -1,6 +1,13 @@
-# Cube configuration: the blocklist, the blocklist queries, the outcome category table, the
-# payoff table and the enabler table.
+# Cube configuration: the fixed cards, the blocklist, the blocklist queries, the outcome
+# category table, the payoff table and the enabler table.
 # Read from the working directory by default; pass another file with --config.
+
+# The cards of the cube outside the slots the optimizer fills (the reserved slots filled by
+# hand: lands, ramp and interaction), as a list file in the cube file format (one name per
+# line, # comments, a card listed twice held twice), relative to the working directory. They
+# are in the cube for every rule that counts combos and take none of the cube's slots;
+# --fixed-cards names another file. Leave the key out to fix no card.
+fixed_cards: data/fixed_cards.txt
 
 # Cards to always exclude from the cube
 blocklist:

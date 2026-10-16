@@ -3,8 +3,9 @@
 Written October 2026. Use Commander Spellbook's "potential combos" (combos the cube is one
 piece short of) to improve the cube: a one-card-away report after every build, the cards of
 the 90 reserved slots made known to the optimizer as fixed cards outside the budget, and a
-staples rule that keeps the most popular combos of the pool in the cube. Seventh playability
-plan.
+staples rule that keeps the most popular combos of the pool in the cube. Eighth playability
+plan; the seventh is [balancing-plan.md](balancing-plan.md), which merges first (see "Relation
+to the balancing plan").
 
 Out of scope, by decision: rewarding potential combos themselves. A combo whose missing piece
 is in nobody's pool cannot be drafted, so it is worth nothing in the cube; its value is as a
@@ -174,6 +175,35 @@ Taken on 16 October 2026, before implementation.
    (the pool's share of the site's potential variants) and the Find My Combos link already
    shows the site's list, so no `--from-spellbook` option is built.
 
+## Relation to the balancing plan
+
+Checked on 16 October 2026 against [balancing-plan.md](balancing-plan.md), which replaces
+the Phase 2 objective's measure (`essential`: the combos only the card completes, tiers
+above twice the Phase 1 median) and recommends warm-starting the reference solve from the
+previous output cube, and merges to `main` before this plan. The two plans touch different
+things (that one the objective and the utilization statistics, this one the base model, a
+cube rule, the configuration and the outputs), so the conflicts are textual: the result
+fields, `_extract_solution`, the stats writer. Three points of design follow from it:
+
+1. **Fixed cards are exempt cards.** The optimizer already has one set of cards the
+   utilization floor, the utilization statistics and every balancing objective leave alone
+   (`exempt_cards`, today the payoff-only and enabler-only cards), and decision 2 asks
+   exactly that of a fixed card. So the fixed candidates join `exempt_cards` (after being
+   left out of `payoff_only_cards` and `enabler_only_cards`, whose caps they must not count
+   against), and any objective written to the existing pattern, `essential` included, skips
+   them without knowing about them. A fixed card still gives cover: a variant naming it
+   counts in the sum that makes another card's combo non-essential.
+2. **Step 4 waits for the merge.** The balancing plan measured a 12% spread in the reference
+   solve's weighted score between runs of the same inputs, more than the few percent the
+   staples rule is expected to cost; and the default objective changes. The measurements
+   are made once the balancing plan's objective and reference warm start are on `main`, from
+   one reference, with the staples rule and the fixed cards on top. Steps 1 to 3 do not
+   depend on it and are built now.
+3. **Both plans fix the same cards.** The balancing plan's `essential` cube at full size
+   brought in Sol Ring, Lion's Eye Diamond, Lotus Cobra, Tireless Provisioner and Ghostly
+   Flicker on its own. Step 4 therefore also asks how much the staples rule still adds under
+   the new objective; if the answer is nothing, the rule stays available and off.
+
 ## Step 1: the one-card-away report
 
 `cube_evaluation.one_card_away(selected_cards, combos, fixed_cards=())` returns, per missing
@@ -183,8 +213,16 @@ or every required card selected and exactly one option unfilled (the piece is th
 reported as `template:<display name>`). Per piece: the variants, the distinct combos, the
 combos the cube does not complete through another variant (`new_combos`), the summed and the
 highest popularity, the most popular variant's cards as an example, and whether the piece is
-a fixed card (then the combo is in the 400 and the entry says so), a candidate card, a payoff
-or enabler card, or in no pool at all. Sorted by summed popularity, the top 50 kept.
+a candidate card, a payoff or enabler card, or in no pool at all. Sorted by summed
+popularity, the top 50 kept.
+
+The cube evaluated is the selected cards *and* the fixed cards (decision 2: a fixed card
+counts for everything that counts combos, and the Find My Combos link the report carries is
+for the 400 too). A variant short of only a fixed card is complete, not potential, so a
+fixed card is never a missing piece; and a variant that the fixed cards bring within one
+card (Ghost Town, Jumbo Cactuar and Biorhythm with today's list) is reported, which the
+310 alone would miss. This replaces the "fixed" classification the first draft of this plan
+had; the fixed cards' own contribution is the `fixed_cards` block of Step 2.
 
 Two outputs (decision 5). The stats file gets a short `one_card_away` block: the pool's
 totals (variants and pieces one card away, how many of the pieces are fixed cards) and the
@@ -268,7 +306,9 @@ Cost: a pass over the combos per call, the same as `completable_combo_ids`.
 
 ## Step 4: measure and choose the defaults
 
-All on the full pool with the tracked settings (`task build:ilp`, 310 cards, 360 s per
+After the balancing plan has merged (see "Relation to the balancing plan"): with its default
+objective and its reference warm start, every build below from the same reference. All on
+the full pool with the tracked settings (`task build:ilp`, 310 cards, 360 s per
 phase, 8 workers, the fixed-card file in place), reporting the weighted and distinct combo
 counts, the Phase 2 status, the staples completed, the cards that enter and leave against
 `data/current_best_cube.txt`, and the top of the one-card-away report:
@@ -322,3 +362,41 @@ clear majority of the top 25 for a few percent of the weighted combo count.
 
 None at the time of writing; the questions raised while planning (the lands in the fixed
 file, where Sol Ring belongs, a Spellbook call from the tool) are decisions 1, 6 and 7.
+
+## Results
+
+### Steps 1 to 3 (16 October 2026)
+
+Built as planned, with the changes the balancing cross-check asked for (fixed cards as
+exempt cards; the one-card-away report over the cube and the fixed cards together).
+`data/fixed_cards.txt` is the Cube Cobra export (90 lines, 70 names) plus Sol Ring
+(decision 6), 71 fixed cards, 21 of them candidates. `task check` is green (952 tests).
+
+`evaluate_cube --card-data --staple-combos 25` on the tracked cube with the fixed cards:
+
+| Measure | Without fixed cards (13 October) | With the fixed cards |
+|---|---|---|
+| Completed variants / distinct combos / weighted | 1,477 / 1,037 / 1,081.0 | 1,487 / 1,042 / 1,086.5 |
+| Variants a fixed card takes part in / distinct combos | | 13 / 12 (Sol Ring 10 as a piece and 3 as a template filler, Talisman of Dominance 1) |
+| Variants one piece short / distinct pieces | | 4,832 / 1,578 |
+| Staples of the 25 most popular variants completed | | 10 of 23 |
+
+Sol Ring on the fixed list adds exactly the 10 variants and 5 combos the Problem table
+predicted. The report's head is then the table minus Sol Ring, in the same order: Tireless
+Provisioner (8 variants, 0 new combos), Lion's Eye Diamond (10, 3), Lotus Cobra (4, 0),
+Teferi, Time Raveler (5, 5: Displacer Kitten plus Sol Ring plus Teferi, in reach only with
+Sol Ring fixed), Jeska's Will (1, 1), Restoration Angel (6, 2), Ghostly Flicker (9, 2),
+Tidespout Tyrant (4, 1, also through Sol Ring), Bastion of Remembrance (7, 1), Selvala (15,
+5). The first search link of each of the first four rows returns exactly its variants from
+Spellbook's backend. The 13 staples the cube lacks are the two-card combos of the Problem
+section (Exquisite Blood pairs, Dramatic Reversal plus Isochron Scepter, Dualcaster plus
+Twinflame, Curiosity plus Niv-Mizzet) and the enabler staples (Lion's Eye Diamond twice,
+Jeska's Will, Tireless Provisioner, Lotus Cobra).
+
+The card data file lists the two fixed cards in a completed combo after the 310 with the
+reason `fixed`; its Find My Combos link covers the 310 and the 71 fixed cards (8.7 KB).
+
+### Step 4
+
+Not run yet: it waits for the balancing plan's merge (see "Relation to the balancing
+plan").
