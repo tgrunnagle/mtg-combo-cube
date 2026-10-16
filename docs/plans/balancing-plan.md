@@ -349,3 +349,40 @@ Reading:
 - How much of the 96-card difference between the tracked cube and the `essential` cube is
   the objective and how much is solver noise? Answerable only once the reference solve is
   stable (recommendation 2).
+
+## Implementation (October 2026)
+
+What landed on branch `balancing`, following the recommendation:
+
+1. **`essential` is the default Phase 2 objective** (`_add_essential_objective`,
+   `_add_essential_vars`, `_essential_counts_of`); `tiered` stays as a choice.
+   `grouptiered` and `essentialcap` were dropped with the prototype. The cap is
+   `--util-cap`, or twice the Phase 1 median essential count; `_Phase2Objective.cap_measure`
+   names the measure of each capped objective and the stats file records it as
+   `util_cap_measure` beside `util_cap`. The stop rule, the hints (from the warm-start cube's
+   essential counts) and the overage variables are those of `tiered`, on this measure.
+2. **The reference solve can be warm-started.** `--warm-start FILE` hints it with a cube from
+   an earlier build when that is a whole cube of candidate cards satisfying the cube rules
+   (`_reference_hint`); the warm-start cube is the reference outright if the solve finds
+   nothing better. Every two-phase build now writes its reference cube to
+   `<output>_reference.txt`, the natural input for the next build's `--warm-start`. This
+   bounds the reference from below rather than fixing it; `--reference-time` was not added.
+3. **Reporting.** `UtilizationStats` carries `distinct_combos` and `essential_combos`
+   (min, max, mean, median, standard deviation of the same cards) and `concentration` (top
+   card and top five share of the completed combos, the most essential card and its count),
+   computed from `card_inclusion` and `card_combo_groups` for both phases and by
+   `evaluate_cube`; the stats file writes them as `distinct_combos_per_card`,
+   `essential_combos_per_card` and `concentration`, and `top_utilized_cards` /
+   `bottom_utilized_cards` carry the three counts. The Phase 2 log prints the concentration
+   change. The reported essential count is the ground truth (a sole template filler counts);
+   the model's measure, used for the cap and the stop rule, leaves fillers out.
+4. The utilization floor stays in variants (recommendation 4).
+
+Tests: brute-force checks of `essential` on the characterization instance and on a grouped
+variant of it, an instance where `essential` keeps a redundant outlet that `tiered` removes,
+the measure against `card_inclusion`, the profile counts, the cap and its measure, the
+warm-start cube (hint, rejection when partial or rule-breaking, reference when the solve
+finds nothing better), the reference file, and the stats blocks.
+
+Still to do: repeat the L comparison of `tiered` and `essential` from the same warm-started
+reference (recommendation 2), and update the tracked cube with the new default.

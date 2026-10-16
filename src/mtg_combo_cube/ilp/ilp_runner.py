@@ -44,11 +44,14 @@ from mtg_combo_cube.ilp.ilp_models import (
     CardMixStats,
     ColorStats,
     ComboData,
+    ConcentrationStats,
     EnablerStats,
+    MeasureStats,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
     PopularityStats,
+    UtilizationStats,
 )
 from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, outcome_rules_requested
@@ -110,12 +113,14 @@ def _optimization_method(result: OptimizationResult) -> str:
 
 
 def _phase2_objective_info(result: OptimizationResult) -> dict:
-    """The Phase 2 objective and its utilization cap, when the result records them."""
+    """The Phase 2 objective and its cap, when the result records them."""
     info: dict = {}
     if result.phase2_objective is not None:
         info["objective"] = result.phase2_objective
     if result.phase2_util_cap is not None:
         info["util_cap"] = result.phase2_util_cap
+    if result.phase2_util_cap_measure is not None:
+        info["util_cap_measure"] = result.phase2_util_cap_measure
     if result.phase2_max_color_ratio is not None:
         info["max_color_ratio"] = result.phase2_max_color_ratio
     if result.phase2_min_pair_combos is not None:
@@ -156,6 +161,52 @@ def _phase2_objective_info(result: OptimizationResult) -> dict:
     if result.phase2_combo_tolerance is not None:
         info["combo_tolerance"] = result.phase2_combo_tolerance
     return info
+
+
+def _measure_block(stats: MeasureStats | None) -> dict:
+    """The five numbers of a per-card measure, for the stats file."""
+    if stats is None:
+        return {}
+    return {
+        "min": stats.min,
+        "max": stats.max,
+        "mean": stats.mean,
+        "median": stats.median,
+        "std_deviation": stats.std_deviation,
+    }
+
+
+def _combo_measures_block(stats: UtilizationStats) -> dict:
+    """
+    The utilization statistics' companions for the stats file: the same cards counted in
+    distinct combos and in essential combos, and the concentration of the cube's combos
+    on its most-used cards.
+    """
+    block: dict = {}
+    if stats.distinct_combos is not None:
+        block["distinct_combos_per_card"] = _measure_block(stats.distinct_combos)
+    if stats.essential_combos is not None:
+        block["essential_combos_per_card"] = _measure_block(stats.essential_combos)
+    if stats.concentration is not None:
+        c = stats.concentration
+        block["concentration"] = {
+            "top_card": c.top_card,
+            "top_card_share": c.top_card_share,
+            "top_five_cards": c.top_five_cards,
+            "top_five_share": c.top_five_share,
+            "most_essential_card": c.most_essential_card,
+            "max_essential_combos": c.max_essential_combos,
+        }
+    return block
+
+
+def format_concentration(stats: ConcentrationStats) -> str:
+    """One line on how much of a cube's combos rest on a few cards."""
+    return (
+        f"top card {stats.top_card} in {stats.top_card_share:.0%} of the combos, top five in "
+        f"{stats.top_five_share:.0%}, most essential {stats.most_essential_card} "
+        f"({stats.max_essential_combos} combos)"
+    )
 
 
 def _phase1_cards(result: OptimizationResult) -> list[CandidateCard] | None:
@@ -477,6 +528,31 @@ def card_data_path(output_file: str) -> Path:
     return output_path.with_stem(f"{output_path.stem}_card_data").with_suffix(".json")
 
 
+def reference_cube_path(output_file: str) -> Path:
+    """The reference cube file of a cube list: data/cube.txt -> data/cube_reference.txt."""
+    output_path = Path(output_file)
+    return output_path.with_stem(f"{output_path.stem}_reference")
+
+
+def read_cube_file(path: str) -> list[str]:
+    """Read card names from a cube list file (one name per line, blank lines ignored)."""
+    with open(path, encoding="utf-8") as f:
+        return [line.strip() for line in f if line.strip()]
+
+
+def write_reference_cube(cards: list[str], output_file: str) -> Path:
+    """
+    Write the Phase 2 reference cube (the best cube found under the cube rules, which the
+    combo window was measured from) beside the cube list, for a later build's
+    --warm-start.
+    """
+    path = reference_cube_path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(cards), encoding="utf-8")
+    logger.info(f"Reference cube written to {path}")
+    return path
+
+
 def write_card_data(
     cards: list[CardInclusionStats],
     output_file: str,
@@ -654,6 +730,7 @@ def write_stats(
             "median_utilization": p1.median_utilization,
             "std_deviation": p1.std_deviation,
             "total_absolute_deviation": p1.total_absolute_deviation,
+            **_combo_measures_block(p1),
             **_colors_block(_phase1_cards(result), attributes),
             **_archetypes_block(result.phase1_archetype_stats),
             **_card_mix_block(_phase1_cards(result), attributes),
@@ -678,6 +755,7 @@ def write_stats(
             "median_utilization": p2.median_utilization,
             "std_deviation": p2.std_deviation,
             "total_absolute_deviation": p2.total_absolute_deviation,
+            **_combo_measures_block(p2),
             **_phase2_objective_info(result),
             **_colors_block(result.selected_cards, attributes),
             **_archetypes_block(result.phase2_archetype_stats),
@@ -742,15 +820,24 @@ def write_stats(
             **_phase2_objective_info(result),
         }
 
-    # Top and bottom utilized cards
+    # Top and bottom utilized cards, with their distinct and essential combos when known
     if result.utilization_per_card:
         sorted_cards = sorted(result.utilization_per_card.items(), key=lambda x: x[1], reverse=True)
-        stats["top_utilized_cards"] = [
-            {"card": card, "utilization": util} for card, util in sorted_cards[:10]
-        ]
-        stats["bottom_utilized_cards"] = [
-            {"card": card, "utilization": util} for card, util in sorted_cards[-10:]
-        ]
+        inclusion = {stats.card: stats for stats in result.card_inclusion or []}
+
+        def entry(card: str, util: int) -> dict:
+            counts = inclusion.get(card)
+            if counts is None:
+                return {"card": card, "utilization": util}
+            return {
+                "card": card,
+                "utilization": util,
+                "distinct_combos": counts.distinct_combo_count,
+                "essential_combos": counts.essential_combo_count,
+            }
+
+        stats["top_utilized_cards"] = [entry(card, util) for card, util in sorted_cards[:10]]
+        stats["bottom_utilized_cards"] = [entry(card, util) for card, util in sorted_cards[-10:]]
 
     if result.card_inclusion is not None:
         stats["cards"] = card_inclusion_summary(result.card_inclusion)
@@ -1121,10 +1208,11 @@ async def build_cube_ilp(
     config: CubeConfig | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
-    phase2_objective: str = "tiered",
+    phase2_objective: str = "essential",
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    warm_start_file: str | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
     min_pair_combos: int = 250,
@@ -1160,7 +1248,9 @@ async def build_cube_ilp(
     cache, and the payoff cards the pool lacks are added to the candidate cards. The enabler
     table is behind the enabler statistics and the Phase 2 enabler floor (min_enablers,
     enabler_share) the same way. The configuration is read and checked before the instance
-    is loaded, so a bad or incomplete one fails fast.
+    is loaded, so a bad or incomplete one fails fast. warm_start_file is a cube list from
+    an earlier build (its output or reference cube) that hints the Phase 2 reference
+    solve; its cards outside the pool are ignored.
 
     Returns:
         - List of card names in cube
@@ -1275,6 +1365,11 @@ async def build_cube_ilp(
     if enablers is not None and card_attributes is not None:
         enablers = drop_unknown_enabler_cards(enablers, candidate_cards, card_attributes)
 
+    warm_start_cards: list[str] | None = None
+    if warm_start_file is not None:
+        warm_start_cards = read_cube_file(warm_start_file)
+        logger.info(f"Warm start: {len(warm_start_cards)} cards from {warm_start_file}")
+
     # Run ILP optimization
     optimizer = ILPOptimizer(
         combos=combo_data,
@@ -1289,6 +1384,7 @@ async def build_cube_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        warm_start_cards=warm_start_cards,
         card_attributes=card_attributes,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
@@ -1358,10 +1454,11 @@ async def run_ilp(
     config: CubeConfig | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
-    phase2_objective: str = "tiered",
+    phase2_objective: str = "essential",
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    warm_start_file: str | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
     min_pair_combos: int = 250,
@@ -1395,6 +1492,7 @@ async def run_ilp(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        warm_start_file=warm_start_file,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
         min_pair_combos=min_pair_combos,
@@ -1426,3 +1524,5 @@ async def run_ilp(
     write_stats(result, output_file, cube_size, card_attributes, payoffs, enablers)
     if result.card_inclusion is not None:
         write_card_data(result.card_inclusion, output_file, _phase1_card_names(result))
+    if result.phase2_reference_cards is not None:
+        write_reference_cube(result.phase2_reference_cards, output_file)

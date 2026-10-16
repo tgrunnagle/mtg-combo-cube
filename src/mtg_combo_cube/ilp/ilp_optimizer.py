@@ -17,6 +17,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     COLOR_PAIRS,
     COLORS,
     MONO_COLORS,
+    card_combo_groups,
     card_inclusion,
     card_utilization,
     color_identities_known,
@@ -24,6 +25,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     completable_combo_ids,
     completed_group_sizes,
     compute_archetype_stats,
+    compute_concentration_stats,
     compute_utilization_stats,
     fits_archetype,
     group_outcomes,
@@ -46,6 +48,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     CardMixRules,
     ComboData,
     ComboGroupStats,
+    ConcentrationStats,
     CrossTemplateStats,
     EnablerStats,
     OptimizationResult,
@@ -96,7 +99,10 @@ class _BaseModel:
     # Phase 2 only: set by an objective whose optimum can be near zero, where the relative
     # gap limit is not a usable stop rule. In objective units; None = relative gap only.
     absolute_gap_limit: float | None = None
-    # Phase 2 only: utilization of the warm-start cube, for hinting objective variables
+    # Phase 2 only: the warm-start cube (its cards, completed variants and utilization),
+    # for hinting the objective variables
+    hint_cards: set[str] = field(default_factory=set)
+    hint_combo_ids: set[str] = field(default_factory=set)
     hint_utilization: dict[str, int] = field(default_factory=dict)
 
 
@@ -158,7 +164,9 @@ class _Phase2Objective:
     add_to_model: Callable[
         ["ILPOptimizer", _BaseModel, dict[str, cp_model.IntVar], OptimizationResult], None
     ]
-    uses_util_cap: bool = False  # the objective depends on the utilization cap (util_cap)
+    # What the cap T (util_cap, or twice the Phase 1 median) applies to: one of
+    # ILPOptimizer.CAP_MEASURES, or None for an objective without a cap
+    cap_measure: str | None = None
 
 
 @dataclass(frozen=True)
@@ -225,7 +233,13 @@ class ILPOptimizer:
     # Share of the candidate cards that may lack Scryfall data before the card mix rules are
     # skipped: with more, the cards' colors, types and mana values are too uncertain
     MAX_UNKNOWN_CARD_SHARE = 0.05
-    TIER_MULTIPLES = (1, 2, 4)  # "tiered" objective: overage is counted above each multiple of T
+    # "tiered" and "essential" objectives: overage is counted above each multiple of T
+    TIER_MULTIPLES = (1, 2, 4)
+    # What a Phase 2 cap applies to: completed variants per card ("softcap", "tiered") or
+    # the completed combos the cube would lose without the card ("essential")
+    CAP_MEASURE_UTILIZATION = "utilization"
+    CAP_MEASURE_ESSENTIAL = "essential_combos"
+    CAP_MEASURES = (CAP_MEASURE_UTILIZATION, CAP_MEASURE_ESSENTIAL)
     WEIGHT_SCALE = 10000  # Scale for integer conversion
     # Default minimum completed combos per outcome category (every layer declares it)
     DEFAULT_MIN_OUTCOME_COMBOS = 40
@@ -248,10 +262,11 @@ class ILPOptimizer:
         min_coverage_ratio: float = 0.1,
         min_combo_threshold: int = 10,
         gap_limit: float = 0.05,
-        phase2_objective: str = "tiered",
+        phase2_objective: str = "essential",
         min_utilization_floor: int = 2,
         num_workers: int = 8,
         util_cap: int | None = None,
+        warm_start_cards: Collection[str] | None = None,
         card_attributes: Mapping[str, CardAttributes] | None = None,
         max_color_ratio: float = 2.0,
         variant_weight: float = 0.1,
@@ -289,7 +304,9 @@ class ILPOptimizer:
         self.num_workers = num_workers  # CP-SAT parallel search workers
         if util_cap is not None and util_cap < 0:
             raise ValueError(f"util_cap must be >= 0, got {util_cap}")
-        self.util_cap = util_cap  # "softcap" and "tiered"; None = derive from Phase 1
+        # The cap T of "softcap", "tiered" and "essential"; None = twice the Phase 1 median
+        # of the objective's measure (_resolve_util_cap)
+        self.util_cap = util_cap
         if not math.isfinite(max_color_ratio) or 0 < max_color_ratio < 1:
             raise ValueError(f"max_color_ratio must be 0 or >= 1, got {max_color_ratio}")
         # Card name -> Scryfall attributes (color identity, types, mana value), behind the
@@ -375,6 +392,15 @@ class ILPOptimizer:
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
+        # A cube from an earlier build that hints the Phase 2 reference solve (see
+        # _build_warm_start); its cards outside the pool are dropped
+        given = set(warm_start_cards or ())
+        if unknown := sorted(given.difference(self.all_cards)):
+            logger.warning(
+                f"{len(unknown)} warm-start cards are not in the pool and are ignored: "
+                f"{unknown[:5]}"
+            )
+        self.warm_start_cards: frozenset[str] = frozenset(given.intersection(self.all_cards))
         # The candidate cards each card mix rule counts. Lands are left out of every rule:
         # they are combo pieces rather than the mix being shaped, and colorless lands would
         # otherwise fill the colorless cap and colored lands the multicolor cap.
@@ -657,9 +683,14 @@ class ILPOptimizer:
 
         return utilization
 
-    def _compute_utilization_stats(self, utilization: dict[str, int]) -> UtilizationStats:
+    def _compute_utilization_stats(
+        self,
+        utilization: dict[str, int],
+        inclusion: Collection[CardInclusionStats] | None = None,
+        concentration: ConcentrationStats | None = None,
+    ) -> UtilizationStats:
         """Compute statistical summary of card utilization."""
-        return compute_utilization_stats(utilization)
+        return compute_utilization_stats(utilization, inclusion, concentration)
 
     def _calculate_requirement_stats(
         self,
@@ -1172,11 +1203,12 @@ class ILPOptimizer:
 
     def _resolve_util_cap(self, phase1_stats: UtilizationStats) -> int:
         """
-        The utilization cap T of the "softcap" and "tiered" objectives.
+        The cap T of the "softcap", "tiered" and "essential" objectives, from the Phase 1
+        statistics of the objective's measure (utilization, or essential combos per card).
 
-        util_cap when given. Otherwise twice the Phase 1 median utilization: the median is
-        the typical card and, unlike the mean, is not pulled up by the hub cards the cap is
-        meant to catch, so "more than twice the typical card" marks a card as over-used.
+        util_cap when given. Otherwise twice the Phase 1 median: the median is the typical
+        card and, unlike the mean, is not pulled up by the hub cards the cap is meant to
+        catch, so "more than twice the typical card" marks a card as over-used.
         """
         if self.util_cap is not None:
             return self.util_cap
@@ -1331,23 +1363,30 @@ class ILPOptimizer:
         base: _BaseModel,
         u: dict[str, cp_model.IntVar],
         cap: int,
+        hint_values: Mapping[str, int] | None = None,
+        bounds: Mapping[str, int] | None = None,
     ) -> cp_model.LinearExpr | int:
         """
         Add over[card] >= u[card] - cap for every card that can exceed the cap.
 
-        No conditioning on x is needed: u[card] = 0 for unselected cards. Returns the sum
-        of the overage variables. Can be called once per cap for several caps.
+        `u` is a per-card measure that is 0 for unselected cards (the utilization, or the
+        essential combos), so no conditioning on x is needed; `bounds` is its largest
+        value per card (the combos the card is in, by default) and `hint_values` the
+        warm-start cube's values of it (its utilization by default). Returns the sum of
+        the overage variables. Can be called once per cap for several caps.
         """
         model = base.model
+        hints = base.hint_utilization if hint_values is None else hint_values
 
         over: dict[str, cp_model.IntVar] = {}
         for card in self.all_cards:
-            max_over = len(self.card_to_combos[card]) - cap
+            bound = len(self.card_to_combos[card]) if bounds is None else bounds[card]
+            max_over = bound - cap
             if max_over <= 0:
                 continue  # the card can never exceed the cap
             over[card] = model.new_int_var(0, max_over, f"over{cap}_{self.card_to_idx[card]}")
             model.add(over[card] >= u[card] - cap)
-            model.add_hint(over[card], max(0, base.hint_utilization.get(card, 0) - cap))
+            model.add_hint(over[card], max(0, hints.get(card, 0) - cap))
 
         for name in ("variables_overage", "overage_linking"):
             base.counts[name] = base.counts.get(name, 0) + len(over)
@@ -1430,6 +1469,144 @@ class ILPOptimizer:
         cap = self._resolve_util_cap(phase1_stats)
         self._add_overage_objective(base, u, phase1_result, [cap * m for m in self.TIER_MULTIPLES])
 
+    # ---- The "essential" objective (docs/plans/balancing-plan.md) ----
+
+    def _essential_counts_of(
+        self, cards: Collection[str], combo_ids: Collection[str]
+    ) -> dict[str, int]:
+        """
+        The measure the "essential" objective works on: for each card, the completed
+        combos (groups) that need it, those whose every completed variant names it as a
+        piece. `combo_ids` are the completed variants of the cube.
+
+        A template filler never counts (another pool card could fill the slot), which is
+        where the measure differs from CardInclusionStats.essential_combos: a card that is
+        the only selected card of a pool is essential there and not here.
+        """
+        completed = set(combo_ids)
+        by_group: dict[str, list[ComboData]] = defaultdict(list)
+        for combo in self.combos:
+            if combo.id in completed:
+                by_group[combo.group_key].append(combo)
+        counts: Counter[str] = Counter()
+        for members in by_group.values():
+            for card in frozenset.intersection(*(combo.required_cards for combo in members)):
+                counts[card] += 1
+        return {card: counts.get(card, 0) for card in cards}
+
+    def _phase1_essential_counts(self, phase1_result: OptimizationResult) -> dict[str, int]:
+        """The essential counts of the Phase 1 cube's combo cards (the exempt cards left
+        out, as the utilization statistics leave them out)."""
+        cards = [
+            card.name for card in phase1_result.selected_cards if card.name not in self.exempt_cards
+        ]
+        return self._essential_counts_of(cards, phase1_result.completable_combo_ids)
+
+    def _piece_groups(self, card: str) -> dict[str, list[ComboData]]:
+        """The groups with a variant that names the card as a piece, with those variants."""
+        by_group: dict[str, list[ComboData]] = defaultdict(list)
+        for combo in self.card_to_combos[card]:
+            if card in combo.required_cards:
+                by_group[combo.group_key].append(combo)
+        return by_group
+
+    def _group_var(self, base: _BaseModel, key: str) -> cp_model.IntVar:
+        """
+        The g variable of a group of several variants, created (exact in both directions,
+        as _add_group_vars creates them) when the group has none: every variant counts
+        alike when variant_weight is 1 and no archetype or outcome rule is on.
+        """
+        g = base.g.get(key)
+        if g is None:
+            g = base.model.new_bool_var(f"group_{len(base.g)}")
+            variants = [base.y[combo.id] for combo in self.combo_groups[key]]
+            base.model.add(g <= sum(variants))
+            for y in variants:
+                base.model.add(g >= y)
+            base.g[key] = g
+            base.counts["variables_group"] = base.counts.get("variables_group", 0) + 1
+            base.counts["group_linking"] = base.counts.get("group_linking", 0) + 1 + len(variants)
+        return g
+
+    def _add_essential_vars(self, base: _BaseModel) -> dict[str, cp_model.IntVar]:
+        """
+        Add e[card] >= the completed combos (groups) that need the card: every completed
+        variant of the group names it as a piece (_essential_counts_of). A lower bound,
+        exact when e is minimized; 0 for an unselected card, as u is.
+
+        A group of one variant contributes its y, a group whose every variant names the
+        card its g, and any other group a boolean with
+        e[card, group] >= g[group] - sum(y of the group's variants that do not name the card),
+        which is forced to 1 only when the group is complete and no completed variant lacks
+        the card. Relies on y being exact. Hinted from the warm-start cube.
+        """
+        model = base.model
+        e: dict[str, cp_model.IntVar] = {}
+        variables = linking = 0
+        hinted_groups = self._group_sizes_of(base.hint_combo_ids).keys()
+        for card in self.all_cards:
+            by_group = self._piece_groups(card)
+            if not by_group:
+                e[card] = model.new_constant(0)
+                continue
+            terms: list[cp_model.IntVar] = []
+            for key in by_group:
+                group = self.combo_groups[key]
+                if len(group) == 1:
+                    terms.append(base.y[group[0].id])
+                    continue
+                indicator = self._group_var(base, key)
+                others = [combo for combo in group if card not in combo.required_cards]
+                if not others:
+                    terms.append(indicator)
+                    continue
+                ek = model.new_bool_var(f"ess_{self.card_to_idx[card]}_{len(terms)}")
+                model.add(ek >= indicator - sum(base.y[combo.id] for combo in others))
+                hinted = key in hinted_groups and not any(
+                    combo.id in base.hint_combo_ids for combo in others
+                )
+                model.add_hint(ek, 1 if hinted else 0)
+                terms.append(ek)
+                variables += 1
+                linking += 1
+            e[card] = model.new_int_var(0, len(terms), f"essential_{self.card_to_idx[card]}")
+            model.add(e[card] == sum(terms))
+            variables += 1
+            linking += 1
+        base.counts["variables_essential"] = variables
+        base.counts["essential_linking"] = linking
+        return e
+
+    def _add_essential_objective(
+        self,
+        base: _BaseModel,
+        u: dict[str, cp_model.IntVar],
+        phase1_result: OptimizationResult,
+    ) -> None:
+        """
+        Phase 2 "essential" objective (the default): the tiered objective measured in the
+        combos that need the card rather than the variants it is in. Minimizes the total
+        essential count above T, plus the total above 2T, plus the total above 4T.
+
+        A card pays for being a bottleneck (the combos the cube would lose without it),
+        not for being in many combos: a redundant piece (a fourth free sacrifice outlet)
+        costs nothing, and a second card that completes a hub's combos relieves the hub.
+        T is util_cap, or twice the Phase 1 median essential count (_resolve_util_cap).
+        The stop rule and the hints are as for "tiered", on this measure.
+        """
+        phase1_values = self._phase1_essential_counts(phase1_result)
+        cap = self._resolve_util_cap(compute_utilization_stats(phase1_values))
+        caps = [cap * m for m in self.TIER_MULTIPLES]
+        e = self._add_essential_vars(base)
+        bounds = {card: len(self._piece_groups(card)) for card in self.all_cards}
+        hints = self._essential_counts_of(base.hint_cards, base.hint_combo_ids)
+        overage = sum(self._add_overage_vars(base, e, c, hints, bounds) for c in caps)
+        phase1_overage = sum(max(0, value - c) for value in phase1_values.values() for c in caps)
+
+        scale = self._tiebreak_scale()
+        base.model.minimize(overage * scale - self._versatility_bonus(base))
+        self._set_overage_stop_rule(base, scale, phase1_overage)
+
     # Phase 2 objectives by name (the phase2_objective constructor argument). To add one,
     # write an _add_<name>_objective method with the same signature and register it here.
     _PHASE2_OBJECTIVES: dict[str, _Phase2Objective] = {
@@ -1437,10 +1614,19 @@ class ILPOptimizer:
         "minmax": _Phase2Objective(label="Phase 2 (minmax)", add_to_model=_add_minmax_objective),
         "maxutil": _Phase2Objective(label="Phase 2 (maxutil)", add_to_model=_add_maxutil_objective),
         "softcap": _Phase2Objective(
-            label="Phase 2 (softcap)", add_to_model=_add_softcap_objective, uses_util_cap=True
+            label="Phase 2 (softcap)",
+            add_to_model=_add_softcap_objective,
+            cap_measure=CAP_MEASURE_UTILIZATION,
         ),
         "tiered": _Phase2Objective(
-            label="Phase 2 (tiered)", add_to_model=_add_tiered_objective, uses_util_cap=True
+            label="Phase 2 (tiered)",
+            add_to_model=_add_tiered_objective,
+            cap_measure=CAP_MEASURE_UTILIZATION,
+        ),
+        "essential": _Phase2Objective(
+            label="Phase 2 (essential)",
+            add_to_model=_add_essential_objective,
+            cap_measure=CAP_MEASURE_ESSENTIAL,
         ),
     }
 
@@ -2711,6 +2897,13 @@ class ILPOptimizer:
         - Otherwise the best constrained cube is searched for (_best_constrained_cube) and
           becomes the reference. If none is found, the Phase 1 count is kept.
 
+        The reference solve is hinted with the Phase 1 cube, or with the warm-start cube
+        (warm_start_cards, a cube from an earlier build) when that is a whole cube that
+        satisfies the cube rules (_reference_hint): a feasible hint is a floor on what the
+        solve returns, so a reference that satisfied the rules last time is not lost to
+        the time limit this time. The warm-start cube is the reference outright if the
+        solve finds nothing better.
+
         The hint is the reference cube when it also satisfies the combo window and the
         utilization floor. Otherwise CP-SAT would first have to repair the hint inside the
         much larger Phase 2 model, so a feasible cube is searched for in the small Phase 1
@@ -2725,7 +2918,8 @@ class ILPOptimizer:
         if broken:
             problem = f"Phase 1 cube breaks {broken} constraints"
             problem += self._describe_shortfalls(phase1_start.cards)
-            best, status_str = self._best_constrained_cube(phase1_start)
+            hint, given = self._reference_hint(phase1_start)
+            best, status_str = self._best_constrained_cube(hint)
             reference_seconds = time.perf_counter() - repair_start
             logger.info(
                 f"Phase 2: reference solve took {reference_seconds:.1f}s ({status_str}), "
@@ -2743,6 +2937,15 @@ class ILPOptimizer:
                     f"constraints; it is not used as the reference"
                 )
                 best = None
+            if given is not None and (
+                best is None
+                or self._combo_score(best.combo_ids) < self._combo_score(given.combo_ids)
+            ):
+                logger.info(
+                    f"Phase 2: the reference solve ({status_str}) found nothing better than "
+                    f"the warm-start cube; the warm-start cube is the reference"
+                )
+                best = given
             if best is None:
                 logger.warning(
                     f"Phase 2: {problem}; no cube satisfying them was found ({status_str}), "
@@ -2788,6 +2991,33 @@ class ILPOptimizer:
             if profile_result:
                 profile_result.timings["warm_start_repair"] = prep_seconds
         return warm_start, reference, prep_seconds
+
+    def _reference_hint(self, phase1_start: _WarmStart) -> tuple[_WarmStart, _WarmStart | None]:
+        """
+        The cube the reference solve is hinted with: the warm-start cube when it is a whole
+        cube of candidate cards that satisfies the cube rules, otherwise the Phase 1 cube.
+        Returns (the hint, the warm-start cube when it is the hint, else None).
+        """
+        if not self.warm_start_cards:
+            return phase1_start, None
+        given = self._warm_start_for(set(self.warm_start_cards))
+        if len(given.cards) != self.cube_size:
+            logger.warning(
+                f"Phase 2: the warm-start cube has {len(given.cards)} candidate cards, not "
+                f"{self.cube_size}; the reference solve is hinted with the Phase 1 cube"
+            )
+            return phase1_start, None
+        if broken := self._describe_broken_rules(given.cards):
+            logger.warning(
+                f"Phase 2: the warm-start cube breaks {broken} constraints; the reference "
+                f"solve is hinted with the Phase 1 cube"
+            )
+            return phase1_start, None
+        logger.info(
+            f"Phase 2: the reference solve is hinted with the warm-start cube "
+            f"({self._describe_combos(given.combo_ids)})"
+        )
+        return given, given
 
     def _add_warm_start(
         self,
@@ -2887,16 +3117,31 @@ class ILPOptimizer:
             )
 
         utilization = self._calculate_utilization(selected_names, completed)
+        selected_name_set = set(selected_names)
+        completed_set = set(completed)
+        inclusion = card_inclusion(
+            selected_name_set,
+            self.combos,
+            completed_set,
+            group_categories=self.group_categories,
+            payoff_cards=(self.payoffs.cards_by_category() if self.payoffs is not None else None),
+            enabler_cards=(
+                self.enablers.cards_by_category() if self.enablers is not None else None
+            ),
+        )
         # The statistics describe the combo cards; a payoff-only card is 0 by definition and
         # an enabler-only card below the floor by definition, and both are reported in the
         # payoff and enabler statistics instead
         utilization_stats = self._compute_utilization_stats(
-            {card: value for card, value in utilization.items() if card not in self.exempt_cards}
+            {card: value for card, value in utilization.items() if card not in self.exempt_cards},
+            inclusion,
+            compute_concentration_stats(
+                card_combo_groups(selected_name_set, self.combos, completed_set),
+                {stats.card: stats.essential_combo_count for stats in inclusion},
+            ),
         )
 
         # Calculate requirement type stats
-        selected_name_set = set(selected_names)
-        completed_set = set(completed)
         group_sizes = completed_group_sizes(completed_set, self.combos)
         combo_groups = largest_combo_groups(
             selected_name_set, self.combos, completed_ids=completed_set
@@ -2929,18 +3174,7 @@ class ILPOptimizer:
             weighted_combo_count=weighted_combo_count(group_sizes, self.variant_weight),
             largest_combo_groups=combo_groups,
             utilization_per_card=utilization,
-            card_inclusion=card_inclusion(
-                selected_name_set,
-                self.combos,
-                completed_set,
-                group_categories=self.group_categories,
-                payoff_cards=(
-                    self.payoffs.cards_by_category() if self.payoffs is not None else None
-                ),
-                enabler_cards=(
-                    self.enablers.cards_by_category() if self.enablers is not None else None
-                ),
-            ),
+            card_inclusion=inclusion,
             utilization_stats=utilization_stats,
             archetype_stats=archetype_stats,
             outcome_stats=outcome_stats,
@@ -3116,6 +3350,15 @@ class ILPOptimizer:
             f"{p2.min_utilization}-{p2.max_utilization} "
             f"({range_improvement:.1f}% reduction)"
         )
+        before, after = p1.concentration, p2.concentration
+        if before is not None and after is not None:
+            logger.info(
+                f"Concentration: top card share {before.top_card_share:.0%} → "
+                f"{after.top_card_share:.0%} ({after.top_card}), top five "
+                f"{before.top_five_share:.0%} → {after.top_five_share:.0%}, most essential "
+                f"card {before.max_essential_combos} → {after.max_essential_combos} combos "
+                f"({after.most_essential_card})"
+            )
 
     def _merge_phase2_profile(
         self, phase1_result: OptimizationResult, profile_result: ProfileResult
@@ -3153,6 +3396,34 @@ class ILPOptimizer:
             ),
         }
 
+    def _phase2_cap(
+        self,
+        objective: _Phase2Objective,
+        phase1_result: OptimizationResult,
+        phase1_stats: UtilizationStats,
+    ) -> int | None:
+        """
+        The cap T of the objective, logged with its source; None for an objective without
+        one. T is util_cap, or twice the Phase 1 median of the objective's measure: the
+        utilization, or the essential combos per card (_phase1_essential_counts).
+        """
+        if objective.cap_measure is None:
+            return None
+        if objective.cap_measure == self.CAP_MEASURE_ESSENTIAL:
+            stats = compute_utilization_stats(self._phase1_essential_counts(phase1_result))
+            label = "essential combos per card"
+        else:
+            stats = phase1_stats
+            label = "utilization"
+        cap = self._resolve_util_cap(stats)
+        source = (
+            "--util-cap"
+            if self.util_cap is not None
+            else f"2 x the Phase 1 median of {stats.median_utilization:g}"
+        )
+        logger.info(f"Phase 2: {label} cap T = {cap} ({source})")
+        return cap
+
     def _solve_phase2(
         self,
         phase1_result: OptimizationResult,
@@ -3172,9 +3443,10 @@ class ILPOptimizer:
         - Exact combo linking: y[j] = 1 iff the selected cards complete combo j
         - Utilization variables: u[c] = completed combos card c participates in
         - The utilization floor for selected cards
-        - The variables, constraints and objective function of the chosen objective
-        - Warm-start hints from the Phase 1 cube, repaired first if it breaks a cube rule
-          (_build_warm_start)
+        - The variables, constraints and objective function of the chosen objective (the
+          default, "essential", adds the essential-combo variables e[c])
+        - Warm-start hints from the reference cube, repaired first if it breaks the window
+          or the floor (_build_warm_start)
 
         Falls back to the Phase 1 result if Phase 2 finds no solution; the returned result
         then has phase2_fell_back set and carries the Phase 2 status, time and profile.
@@ -3187,13 +3459,10 @@ class ILPOptimizer:
         )
         start_time = time.perf_counter()
         profile_result = ProfileResult(phase=objective.label) if profile else None
-        util_cap = self._resolve_util_cap(p1) if objective.uses_util_cap else None
+        util_cap = self._phase2_cap(objective, phase1_result, p1)
         color_ratio = self.max_color_ratio if self._color_balance_ratio() is not None else None
         if self.card_attributes is None and self.max_color_ratio > 0:
             logger.warning("Phase 2: no card data from Scryfall; color balance is not enforced")
-        if util_cap is not None:
-            source = "--util-cap" if self.util_cap is not None else "2 x Phase 1 median"
-            logger.info(f"Phase 2: utilization cap T = {util_cap} ({source})")
         archetype_info = self._archetype_info()
         self._check_archetype_pool()
         card_mix_info = self._card_mix_info()
@@ -3214,12 +3483,15 @@ class ILPOptimizer:
                 reference.combo_ids
             ),
             "phase2_reference_combo_score": reference_score / self.WEIGHT_SCALE,
+            "phase2_reference_cards": sorted(reference.cards),
             "phase2_combo_tolerance": self.combo_tolerance,
         }
 
         build_start = time.perf_counter()
         base = self._build_base_model()
         base.hint_utilization = warm_start.utilization
+        base.hint_cards = warm_start.cards
+        base.hint_combo_ids = warm_start.combo_ids
         self._add_combo_count_window(base, reference_score)
         self._add_cube_rules(base)
         self._add_exact_combo_linking(base)
@@ -3259,6 +3531,7 @@ class ILPOptimizer:
                 phase2_fell_back=True,
                 phase2_objective=self.phase2_objective,
                 phase2_util_cap=util_cap,
+                phase2_util_cap_measure=objective.cap_measure,
                 phase2_max_color_ratio=color_ratio,
                 **archetype_info,
                 **card_mix_info,
@@ -3312,6 +3585,7 @@ class ILPOptimizer:
             phase2_status=status_str,
             phase2_objective=self.phase2_objective,
             phase2_util_cap=util_cap,
+            phase2_util_cap_measure=objective.cap_measure,
             phase2_max_color_ratio=color_ratio,
             **archetype_info,
             **card_mix_info,

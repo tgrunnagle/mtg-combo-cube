@@ -192,6 +192,29 @@ class RequirementPool:
 
 
 @dataclass
+class MeasureStats:
+    """Summary of a per-card count (distinct combos, essential combos) over a cube's cards."""
+
+    min: int
+    max: int
+    mean: float
+    median: float
+    std_deviation: float
+
+
+@dataclass
+class ConcentrationStats:
+    """How much of a cube's combos rest on a few cards."""
+
+    top_card: str  # the card in the most distinct completed combos
+    top_card_share: float  # the share of the completed combos it takes part in
+    top_five_cards: list[str]  # the five cards in the most distinct completed combos
+    top_five_share: float  # the share of the completed combos one of them takes part in
+    most_essential_card: str  # the card the most completed combos would be lost without
+    max_essential_combos: int  # how many
+
+
+@dataclass
 class UtilizationStats:
     """Statistics about card utilization across completable combos."""
 
@@ -201,6 +224,12 @@ class UtilizationStats:
     std_deviation: float
     total_absolute_deviation: int
     median_utilization: float
+    # The same cards counted in distinct completed combos, and in the completed combos the
+    # cube would lose without the card (CardInclusionStats.essential_combos); None for a
+    # result that did not compute them
+    distinct_combos: MeasureStats | None = None
+    essential_combos: MeasureStats | None = None
+    concentration: ConcentrationStats | None = None
 
 
 @dataclass
@@ -427,7 +456,11 @@ class OptimizationResult:
     phase2_solve_time: float | None = None
     phase2_status: str | None = None
     phase2_objective: str | None = None  # name of the Phase 2 objective that ran
-    phase2_util_cap: int | None = None  # utilization cap T used ("softcap" and "tiered" only)
+    # The cap T the objective penalized above, and what it counts: "utilization" (completed
+    # variants per card, "softcap" and "tiered") or "essential_combos" (completed combos
+    # the cube would lose without the card, "essential"); None for the other objectives
+    phase2_util_cap: int | None = None
+    phase2_util_cap_measure: str | None = None
     phase2_max_color_ratio: float | None = None  # color balance ratio applied, if any
     # Archetype support applied in Phase 2, when the rules were enabled (None otherwise)
     phase2_min_pair_combos: int | None = None
@@ -487,6 +520,7 @@ class OptimizationResult:
     # The quantity the window holds: groups + variant_weight x further variants of the
     # reference cube (equal to phase2_reference_combo_count when variant_weight is 1)
     phase2_reference_weighted_combo_count: float | None = None
+    phase2_reference_cards: list[str] | None = None  # the reference cube, sorted
     phase2_combo_tolerance: float | None = None  # the window half-width, as a fraction
     is_multi_objective: bool = False
     # True when Phase 2 ran but found no solution, so this is the Phase 1 cube. phase2_status

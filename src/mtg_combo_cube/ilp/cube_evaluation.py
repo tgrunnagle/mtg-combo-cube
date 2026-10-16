@@ -21,6 +21,8 @@ from mtg_combo_cube.ilp.ilp_models import (
     ColorStats,
     ComboData,
     ComboGroupStats,
+    ConcentrationStats,
+    MeasureStats,
     OutcomeStats,
     PopularityStats,
     UtilizationStats,
@@ -346,6 +348,27 @@ def card_utilization(selected_cards: Collection[str], combos: list[ComboData]) -
     return utilization
 
 
+def card_combo_groups(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str] | None = None,
+) -> dict[str, set[str]]:
+    """
+    The completed combos (group keys) each selected card takes part in, as a named piece
+    or by filling a template requirement: the combos behind
+    CardInclusionStats.distinct_combo_count.
+    """
+    selected = set(selected_cards)
+    groups: dict[str, set[str]] = {card: set() for card in selected}
+    for combo in _completed_variants(selected, combos, completed_ids):
+        participants = set(combo.required_cards)
+        for opt in combo.requirement_options:
+            participants |= opt.cards
+        for card in participants & selected:
+            groups[card].add(combo.group_key)
+    return groups
+
+
 def template_display_name(names: Collection[str]) -> str:
     """The name a requirement template is reported under: its shortest alias, then the first."""
     return min(names, key=lambda name: (len(name), name))
@@ -466,32 +489,89 @@ def card_inclusion(
     return sorted(stats, key=lambda s: (-s.combo_count, -s.essential_combo_count, s.card))
 
 
-def compute_utilization_stats(utilization: dict[str, int]) -> UtilizationStats:
-    """Compute the statistical summary of per-card utilization."""
-    if not utilization:
-        return UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
-
-    values = list(utilization.values())
+def compute_measure_stats(values: Collection[int]) -> MeasureStats:
+    """The summary of a per-card count: min, max, mean, median and standard deviation."""
+    if not values:
+        return MeasureStats(0, 0, 0.0, 0.0, 0.0)
     n = len(values)
     mean = sum(values) / n
     variance = sum((x - mean) ** 2 for x in values) / n
-    std_dev = variance**0.5
-    total_abs_dev = sum(abs(x - mean) for x in values)
-
     sorted_values = sorted(values)
     median = (
         (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2
         if n % 2 == 0
         else float(sorted_values[n // 2])
     )
+    return MeasureStats(
+        min=min(values), max=max(values), mean=mean, median=median, std_deviation=variance**0.5
+    )
+
+
+def compute_concentration_stats(
+    combo_groups: Mapping[str, Collection[str]], essential_combos: Mapping[str, int]
+) -> ConcentrationStats | None:
+    """
+    How much of a cube's combos rest on a few cards, from the completed combos each card
+    takes part in (card_combo_groups) and the combos the cube would lose without each card
+    (CardInclusionStats.essential_combo_count). None for a cube that completes nothing.
+    """
+    completed: set[str] = set()
+    for keys in combo_groups.values():
+        completed.update(keys)
+    if not completed:
+        return None
+    ranked = sorted(combo_groups, key=lambda card: (-len(combo_groups[card]), card))
+    top_five = ranked[:5]
+    touched: set[str] = set()
+    for card in top_five:
+        touched.update(combo_groups[card])
+    most_essential = max(
+        essential_combos or {ranked[0]: 0}, key=lambda card: (essential_combos[card], card)
+    )
+    return ConcentrationStats(
+        top_card=ranked[0],
+        top_card_share=len(combo_groups[ranked[0]]) / len(completed),
+        top_five_cards=top_five,
+        top_five_share=len(touched) / len(completed),
+        most_essential_card=most_essential,
+        max_essential_combos=essential_combos.get(most_essential, 0),
+    )
+
+
+def compute_utilization_stats(
+    utilization: dict[str, int],
+    inclusion: Collection[CardInclusionStats] | None = None,
+    concentration: ConcentrationStats | None = None,
+) -> UtilizationStats:
+    """
+    Compute the statistical summary of per-card utilization.
+
+    `inclusion` (card_inclusion of the cube) adds the summaries of the same cards counted
+    in distinct combos and in essential combos; `concentration` is attached as given.
+    """
+    if not utilization:
+        return UtilizationStats(0, 0, 0.0, 0.0, 0, 0.0)
+
+    values = list(utilization.values())
+    summary = compute_measure_stats(values)
+    total_abs_dev = sum(abs(x - summary.mean) for x in values)
+
+    distinct = essential = None
+    if inclusion is not None:
+        by_card = {stats.card: stats for stats in inclusion if stats.card in utilization}
+        distinct = compute_measure_stats([s.distinct_combo_count for s in by_card.values()])
+        essential = compute_measure_stats([s.essential_combo_count for s in by_card.values()])
 
     return UtilizationStats(
-        min_utilization=min(values),
-        max_utilization=max(values),
-        mean_utilization=mean,
-        std_deviation=std_dev,
+        min_utilization=summary.min,
+        max_utilization=summary.max,
+        mean_utilization=summary.mean,
+        std_deviation=summary.std_deviation,
         total_absolute_deviation=int(total_abs_dev),
-        median_utilization=median,
+        median_utilization=summary.median,
+        distinct_combos=distinct,
+        essential_combos=essential,
+        concentration=concentration,
     )
 
 
