@@ -45,7 +45,7 @@ raised by the potential-combos investigation (a separate plan).
 
 ### What the tiered objective did to the tracked cube
 
-The tracked cube (`data/current_best_cube.txt`, built 13 October 2026) went through Phase 2
+The cube tracked as `data/current_best_cube.txt` until 16 October 2026 (built 13 October) went through Phase 2
 with `tiered` at T = 34. Phase 2 swapped 126 cards, cut the variants from 2,531 to 1,477
 and the distinct combos from 1,584 to 1,037 (27 points of that is the cube rules, measured
 by the reference cube; 10 points the window). Counting named cards only against the
@@ -384,5 +384,20 @@ the measure against `card_inclusion`, the profile counts, the cap and its measur
 warm-start cube (hint, rejection when partial or rule-breaking, reference when the solve
 finds nothing better), the reference file, and the stats blocks.
 
+### The tracked cube rebuilt with the default (16 October 2026)
+
+`task build:ilp OUTPUT=data/cube_310_essential.txt -- --warm-start data/current_best_cube.txt`,
+the previous tracked cube (`tiered`, 13 October) as the warm start. The reference solve,
+hinted with that 1,037-combo cube, reached 1,198 distinct combos in its 360 s (1,151 unhinted
+on 13 October), so the window moved up with it. Phase 2 at T = 21 (twice the Phase 1 median of
+10.5) kept 1,595 variants in 1,073 distinct combos against the previous 1,477 in 1,037, with
+the same floors met. Concentration moved little: Ashnod's Altar is in 17% of the combos of
+both cubes and essential to 129 (132 before), the top five cards' share fell from 36% to 33%,
+the standard deviation of essential combos per card from 11.7 to 11.5, the cards in no combo
+from 17 to 11 and the cards in a single combo from 16 to 11. The build took 18.4 minutes
+(Phase 1 361 s, reference solve 362 s, repair 19 s, Phase 2 360 s). The cube, its stats, its
+card data and its reference cube (`data/current_best_cube_reference.txt`, the warm start for
+the next build) are tracked.
+
 Still to do: repeat the L comparison of `tiered` and `essential` from the same warm-started
-reference (recommendation 2), and update the tracked cube with the new default.
+reference (recommendation 2).
