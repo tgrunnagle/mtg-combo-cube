@@ -13,6 +13,7 @@ from mtg_combo_cube.config import CubeConfig, load_config
 from mtg_combo_cube.ilp.card_table import (
     CardTable,
     CardTableDefinitions,
+    CardTableError,
     CardTableFetchError,
     TableKind,
     check_query_results,
@@ -1043,7 +1044,8 @@ def drop_unknown_table_cards[T: CardTable](
     """
     Remove the added cards of a table Scryfall does not know (a typo in the table's
     `cards`) from the candidate cards and the table, with a warning; a combo piece is known
-    to exist. Returns the table to use.
+    to exist. A required card Scryfall does not know is an error, since the cube cannot
+    hold it. Returns the table to use.
     """
     unknown = sorted(
         card
@@ -1055,6 +1057,11 @@ def drop_unknown_table_cards[T: CardTable](
     )
     if not unknown:
         return table
+    if required := sorted(table.required.intersection(unknown)):
+        raise CardTableError(
+            f"the {label} table requires cards not known to Scryfall (check the spelling): "
+            f"{required}"
+        )
     logger.warning(
         f"{label.capitalize()} table: {len(unknown)} cards are not known to Scryfall and are "
         f"dropped (check the spelling): {unknown}"

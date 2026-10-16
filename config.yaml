@@ -71,11 +71,30 @@ outcome_categories:
 
 # The outlets that turn an engine into a win, per outcome category (each must be a category
 # above): Scryfall `queries` (EDHREC order over paper cards without the Un-set ones, the
-# first 25 unblocked cards of each), explicit
-# `cards`, and `exclude`, names dropped whatever their source. A category may bound its own
-# payoff floor with `min_payoffs` and `max_payoffs`.
+# first 25 unblocked cards of each, or the first `limit` of a query written as
+# `{query: ..., limit: N}`), explicit `cards`, `require` (cards the cube must hold, with
+# the floor on), and `exclude`, names dropped whatever their source. A category may bound
+# its own payoff floor with `min_payoffs` and `max_payoffs`.
 payoffs:
   mana:
+    # Six required cards and a floor of 8: the X spells wanted as finishers and two
+    # repeatable sinks that are combo pieces are always in the cube, and the solver fills
+    # the other two slots from the queries (X spells and activations whose whole cost is
+    # mana) and the inferred outlets. Named as plain cards, the X spells never made the
+    # cube: each scores nothing unless its one engine is in the cube, so the floor took
+    # combo pieces (Kenrith, the Chandras) and long-tail sinks over any of them, and among
+    # a longer list of X spells it was indifferent and took Banefire or Braingeyser
+    min_payoffs: 8
+    max_payoffs: 8
+    require:
+      # X spells
+      - Torment of Hailfire
+      - Comet Storm
+      - Finale of Devastation
+      - Exsanguinate
+      # Repeatable sinks that are combo pieces
+      - Kenrith, the Returned King
+      - Walking Ballista
     queries:
       # X spells (X in the mana cost) and X activations
       - '(m:{X} or o:"{X}") o:"X damage" -t:land'
@@ -85,19 +104,36 @@ payoffs:
       # Repeatable activations whose whole cost is mana (no tap)
       - 'o:/^(\{[0-9WUBRGC]\})+: [^\n]*(deals \d+ damage|loses \d+ life)/ -t:land'
       - 'o:/^(\{[0-9WUBRGC]\})+: [^\n]*draws? (a|\d+) cards?/ -t:land'
-    cards:
-      - Torment of Hailfire  # "repeat the following process X times"
     exclude:
       - Chromatic Orrery
   storm:
+    # Two storm spells as finishers, required: Tendrils of Agony completes no combo of the
+    # pool and Brain Freeze's five all need Underworld Breach, so named as plain cards the
+    # floor was indifferent between them and any other card in no combo and took Sythis and
+    # Young Pyromancer instead. The first query finds the storm spells that drain or mill
+    # (today those two; a bare storm keyword query puts Flusterstorm, Grapeshot, Empty the
+    # Warrens and Chatterstorm ahead of Tendrils), the second the cards that trigger
+    # whenever a spell (of a type, or any) is cast: the "whenever you cast" pingers and the
+    # engines a storm deck wants (Aetherflux Reservoir, Hullbreaker Horror, Birgi,
+    # Displacer Kitten). The earlier queries (cast and magecraft triggers that deal damage)
+    # found cards the floor took over the named ones (Fiery Inscription, Exalted Flamer of
+    # Tzeentch), and a longer named list of pingers only filled the floor with cards in no
+    # combo
+    require:
+      - Brain Freeze
+      - Tendrils of Agony
     queries:
-      - 'keyword:storm (o:damage or o:"create" or o:mills or o:"loses" or o:"draw" or o:"copy target")'
-      - 'o:/whenever you cast (an|a) (instant|sorcery|noncreature|instant or sorcery|spell)/ (o:/deals \d+ damage/ or o:/loses \d+ life/) -t:planeswalker -t:land'
-      # Magecraft: "whenever you cast or copy"
-      - 'o:/whenever you cast or copy (an|a) / (o:/deals \d+ damage/ or o:/loses \d+ life/)'
+      - 'keyword:storm (o:/loses \d+ life/ or o:mills)'
+      - 'o:/whenever you cast an? (\w+ (or \w+ )?)?spell/'
     exclude:
       - Chromatic Orrery
+      # Inferred as outlets because they sit in storm combos, but they are the engines
+      - Urza, Lord High Artificer
+      - Korvold, Fae-Cursed King
   tokens:
+    # Queried rather than named: a named list of overrun effects and enters-the-battlefield
+    # pingers cost a build 7 slots of cards in no combo, while the aristocrats these queries
+    # find are what the pool's token combos use
     queries:
       - 'o:/whenever (~ or another|another|a) creature( you control)? dies/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
       - 'o:/whenever (~ or another|another|a) creature( you control)? enters/ (o:/loses \d+ life/ or o:/deals \d+ damage/)'
@@ -133,8 +169,9 @@ payoffs:
       - Chromatic Orrery
 
 # The cards that set combos up, per free-form category: Scryfall `queries` (resolved as the
-# payoff queries are, the first 25 unblocked cards of each), explicit `cards`, and `exclude`.
-# A category may bound its own enabler floor with `min_enablers` and `max_enablers`. Left
+# payoff queries are, the first 25 unblocked cards of each or a query's own `limit`),
+# explicit `cards`, `require` and `exclude`, as in the payoff table. A category may bound its own enabler floor with
+# `min_enablers` and `max_enablers`. Left
 # out on purpose: ramp that is no combo piece (signets, talismans, Nature's Lore) and
 # tutors, which the slots added by hand to the cube cover. Ramp a query catches anyway
 # (Paradise Mantle, Everflowing Chalice) stays: it counts for its category like any card.
@@ -160,9 +197,11 @@ enablers:
     # Named rather than queried: the floor treats every card of a category alike, and a query
     # also finds wheels nobody wants in the slot (Day's Undoing ends the turn, Midnight Clock
     # and Wheel of Fate are slow, Time Reversal costs five), which a build then used to meet
-    # the floor instead of these
-    cards:
+    # the floor instead of these. Wheel of Fortune is required: the floor treats the wheels
+    # alike and a build filled it with the other four
+    require:
       - Wheel of Fortune
+    cards:
       - Windfall
       - Timetwister
       - Time Spiral
@@ -185,3 +224,11 @@ enablers:
       - Cathartic Reunion
       - Thrill of Possibility
       - Tormenting Voice
+  recursion:
+    # Casting combo pieces from the graveyard: Underworld Breach is required and is the whole
+    # category, so it has no floor of its own (min and max 0) and the enabler share is split
+    # among the other four as before
+    min_enablers: 0
+    max_enablers: 0
+    require:
+      - Underworld Breach

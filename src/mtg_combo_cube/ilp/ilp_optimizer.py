@@ -402,8 +402,8 @@ class ILPOptimizer:
         # exempt from the utilization floor so that the few combos they have still score,
         # left out of the utilization statistics, and capped in number by the floors
         # (_enabler_only_cap). An enabler card the payoff table names too stays a payoff
-        # card: payoff-only when it is in no combo, an ordinary combo piece otherwise. With
-        # the floor off there are none, and such a card is excluded as any other.
+        # card: payoff-only when it is below the floor, an ordinary combo piece otherwise.
+        # With the floor off there are none, and such a card is excluded as any other.
         enabler_names = (
             enablers.all_cards
             if enablers is not None and self.enabler_floor_active
@@ -417,14 +417,26 @@ class ILPOptimizer:
             and card not in payoff_names
             and len(self.card_to_combos[card]) < max(min_utilization_floor, 1)
         )
-        # Candidate cards in no combo that are not enabler-only: payoff-only cards (outlets
-        # the pool has no combo for), added for the payoff floor. They score nothing and
-        # have utilization 0 by definition, so the utilization floor and the objectives
-        # leave them alone.
+        # Payoff-only cards: candidate cards in no combo that are not enabler-only (outlets
+        # the pool has no combo for, added for the payoff floor) and, with the payoff floor
+        # on, the payoff cards in fewer combos than the utilization floor (an X spell with
+        # one variant in the pool). They score nothing or next to nothing and are there for
+        # the payoff floor, so the utilization floor and the objectives leave them alone.
+        # Excluded by the floor instead, a Comet Storm with one variant would lose its slot
+        # to a Banefire with none.
+        payoff_floor_on = payoffs is not None and outcome_categories is not None and min_payoffs > 0
         self.payoff_only_cards: frozenset[str] = frozenset(
             card
             for card in self.all_cards
-            if not self.card_to_combos[card] and card not in self.enabler_only_cards
+            if card not in self.enabler_only_cards
+            and (
+                not self.card_to_combos[card]
+                or (
+                    payoff_floor_on
+                    and card in payoff_names
+                    and len(self.card_to_combos[card]) < max(min_utilization_floor, 1)
+                )
+            )
         )
         # The cards exempt from the utilization floor (_add_utilization_floor) and left out
         # of the utilization statistics and of the objectives that balance utilization
@@ -461,9 +473,7 @@ class ILPOptimizer:
         )
         # Whether the payoff floor applies (a table, an outcome table and a minimum), and the
         # floor of each category it applies to (see _compute_payoff_floors); fixed from here on
-        self.payoff_floor_active: bool = (
-            payoffs is not None and outcome_categories is not None and min_payoffs > 0
-        )
+        self.payoff_floor_active: bool = payoff_floor_on
         # The floor each category would get from the settings alone, before the pool's
         # selectable payoff cards cap it (for _check_payoff_pool's warnings)
         self.payoff_targets: dict[str, int] = {}
@@ -471,6 +481,26 @@ class ILPOptimizer:
         # The same for the enabler floor (see _compute_enabler_floors)
         self.enabler_targets: dict[str, int] = {}
         self.enabler_floors: dict[str, int] = self._compute_enabler_floors()
+        # The cards the tables require the cube to hold (_add_required_cards), with the
+        # table's floor on: a required card is a card of its category, so it counts for the
+        # floor, and the category's other cards fill what the floor asks beyond the required
+        # ones. A required card the pool lacks (the runner adds every table card; an
+        # optimizer built directly may be given a table naming others) is a warning.
+        required: set[str] = set()
+        if payoffs is not None and payoff_floor_on:
+            required |= payoffs.required
+        if enablers is not None and self.enabler_floor_active:
+            required |= enablers.required
+        if missing := sorted(required.difference(self.all_cards)):
+            logger.warning(f"Phase 2: required cards not in the pool are ignored: {missing}")
+        self.required_cards: frozenset[str] = frozenset(required.intersection(self.all_cards))
+        # The cards the utilization floor (_add_utilization_floor) leaves alone: the exempt
+        # cards and the required ones. A required card is in the cube by decree, whatever it
+        # completes there: a Comet Storm with two pool variants would otherwise have to
+        # complete both, and the floor made Phase 2 infeasible. The required cards still
+        # count in the utilization statistics and the balancing objectives, unlike the
+        # exempt ones, as the well-connected pieces among them are what those describe.
+        self.floor_free_cards: frozenset[str] = self.exempt_cards | self.required_cards
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
         # a group's first completed variant scores group_scale + variant_scale = WEIGHT_SCALE,
@@ -507,6 +537,7 @@ class ILPOptimizer:
             for cards, label in (
                 (self.payoff_only_cards, "payoff-only"),
                 (self.enabler_only_cards, "enabler-only"),
+                (self.required_cards, "required"),
             )
             if cards
         ]
@@ -1096,7 +1127,8 @@ class ILPOptimizer:
         completes no combo by definition and is in the pool as an outlet, so the floor
         would otherwise exclude every one of them and the payoff floor could never be met;
         an enabler-only card is below the floor by definition and in the pool for the
-        enabler floor, and its few combos still score.
+        enabler floor, and its few combos still score. The required cards are exempt too
+        (floor_free_cards): they are in the cube whatever they complete there.
         """
         floor = self.min_utilization_floor
         if floor <= 0:
@@ -1104,7 +1136,7 @@ class ILPOptimizer:
 
         constraints = 0
         for card in self.all_cards:
-            if card in self.exempt_cards:
+            if card in self.floor_free_cards:
                 continue
             if len(self.card_to_combos[card]) < floor:
                 # The card can never reach the floor, so it cannot be selected
@@ -2491,7 +2523,20 @@ class ILPOptimizer:
             ),
             _CubeRule("payoff floor", self._add_payoff_floor, self._payoff_violations),
             _CubeRule("enabler floor", self._add_enabler_floor, self._enabler_violations),
+            _CubeRule("required cards", self._add_required_cards, self._required_violations),
         ]
+
+    def _add_required_cards(self, base: _BaseModel) -> None:
+        """Every card a table requires (required_cards) is in the cube."""
+        for card in sorted(self.required_cards):
+            base.model.add(base.x[card] == 1)
+        if self.required_cards:
+            logger.info(f"Phase 2: Added {len(self.required_cards)} required card constraints")
+            base.counts["required_cards"] = len(self.required_cards)
+
+    def _required_violations(self, cards: Collection[str]) -> int:
+        """Number of required cards a cube lacks."""
+        return len(self.required_cards - set(cards))
 
     def _add_cube_rules(self, base: _BaseModel) -> None:
         """Add every Phase 2 cube rule to the model."""
@@ -2570,11 +2615,12 @@ class ILPOptimizer:
 
     def _satisfies_window_and_floor(self, cube: _WarmStart, min_score: int) -> bool:
         """Whether a cube is inside the combo window and meets the utilization floor
-        (the exempt cards are exempt from the floor, as in _add_utilization_floor)."""
+        (the exempt and required cards are exempt from the floor, as in
+        _add_utilization_floor)."""
         return self._combo_score(cube.combo_ids) >= min_score and all(
             value >= self.min_utilization_floor
             for card, value in cube.utilization.items()
-            if card not in self.exempt_cards
+            if card not in self.floor_free_cards
         )
 
     def _best_constrained_cube(self, phase1_start: _WarmStart) -> tuple[_WarmStart | None, str]:
@@ -2610,7 +2656,7 @@ class ILPOptimizer:
         base.model.add(self._combo_score_expr(base) >= min_score)
         shortfalls = []
         for card in self.all_cards:
-            if card in self.exempt_cards:
+            if card in self.floor_free_cards:
                 continue  # exempt from the floor
             shortfall = base.model.new_int_var(0, self.min_utilization_floor, f"short_{card}")
             base.model.add(
@@ -2717,7 +2763,7 @@ class ILPOptimizer:
             below_floor = sum(
                 1
                 for card, value in reference.utilization.items()
-                if value < self.min_utilization_floor and card not in self.exempt_cards
+                if value < self.min_utilization_floor and card not in self.floor_free_cards
             )
             repaired, status_str = self._repair_floor(reference, min_score)
             if repaired is None:

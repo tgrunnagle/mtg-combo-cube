@@ -1,47 +1,38 @@
 Abdel Adrian, Gorion's Ward
 Academy Manufactor
 Activated Sleeper
-Adrix and Nev, Twincasters
 Aetherflux Reservoir
 Agatha of the Vile Cauldron
-Agatha's Soul Cauldron
 Akroma's Will
 Altar of Dementia
-Ancestral Statue
-Angelic Renewal
-Animate Dead
+Anger
 Animation Module
 Anointed Procession
 Aphetto Alchemist
+Approach of the Second Sun
 Archaeomancer
-Archfiend of Despair
 Arixmethes, Slumbering Isle
 Ashaya, Soul of the Wild
 Ashnod's Altar
-Astarion, the Decadent
+Auriok Steelshaper
 Azor, the Lawbringer
 Azorius Chancery
 Badgermole Cub
 Basalt Monolith
-Basilisk Collar
 Basking Broodscale
-Basri's Lieutenant
-Berta, Wise Extrapolator
+Battered Golem
 Biomancer's Familiar
-Biotransference
 Blade of the Bloodchief
 Blasting Station
-Blitzwing, Cruel Tormentor // Blitzwing, Adaptive Assailant
+Blinkmoth Nexus
 Blood Artist
-Bloodletter of Aclazotz
 Bloom Tender
+Bolas's Citadel
+Bootleggers' Stash
 Brain Freeze
-Branching Evolution
 Breath of Fury
-Bristly Bill, Spine Sower
-Broodhatch Nantuko
-Butcher Ghoul
 Cabal Ritual
+Capture of Jingzhou
 Carnival of Souls
 Carrion Feeder
 Cathars' Crusade
@@ -49,106 +40,111 @@ Cathodion
 Cauldron Familiar
 Chatterfang, Squirrel General
 Chromatic Orrery
-Chronomantic Escape
+Chrome Dome
 Clock of Omens
+Cloudshift
 Cogwork Assembler
-Conclave Mentor
-Conjurer's Closet
-Corpse Knight
+Comet Storm
+Coretapper
 Crackdown Construct
 Crime Novelist
 Cryptic Trilobite
 Cryptolith Rite
-Crystal Shard
 Crystalline Crawler
+Dance with Calamity
 Dark Ritual
+Darksteel Citadel
+Deadeye Navigator
 Death's Presence
 Deathbringer Thoctar
 Deathrender
+Demonic Consultation
 Derevi, Empyrial Tactician
-Desperate Ritual
-Devoted Druid
 Dimir Aqueduct
 Displacer Kitten
+Divining Witch
+Doomsday
 Doubling Season
+Drivnod, Carnage Dominus
 Dross Scorpion
-Duergar Mine-Captain
 Earthcraft
 Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
 Emiel the Blessed
-Empowered Autogenerator
 Emry, Lurker of the Loch
-Encroaching Mycosynth
 Enduring Renewal
+Enter the Infinite
 Eternal Witness
 Everflowing Chalice
-Exalted Flamer of Tzeentch
+Exsanguinate
 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
-Faerie Mastermind
+Faeburrow Elder
+Faithless Looting
+Fatestitcher
 Felidar Guardian
 Fiend Hunter
-Fiery Inscription
+Finale of Devastation
 First Day of Class
-Folio of Fancies
-Fraying Omnipotence
+Forsaken Monument
 Freed from the Real
+General Kreat, the Boltbringer
 Ghave, Guru of Spores
-Gleaming Splendor
 Glen Elendra Archmage
 Goblin Bombardment
 Goblin Engineer
-Goblin Sharpshooter
 Good-Fortune Unicorn
 Gravecrawler
-Grievous Wound
 Grim Monolith
 Grinding Station
+Guilty Conscience
 Gwenna, Eyes of Gaea
-Hardened Scales
-Hateflayer
-Hellraiser Goblin
+Heartstone
+Heliod, Sun-Crowned
 Helm of the Host
-Herd Baloth
-Heroic Feast
+Hermit Druid
 Horseshoe Crab
-Illusionist's Bracers
+Hullbreaker Horror
+Illuminor Szeras
 Imotekh the Stormlord
 Incubation Druid
-Infantry Shield
+Infernal Plunge
+Inkmoth Nexus
 Intruder Alarm
+Invasion of Arcavios // Invocation of the Founders
 Ioreth of the Healing House
+Irenicus's Vile Duplication
 Ivy Lane Denizen
 Izzet Boilerworks
+Jace, Wielder of Mysteries
 Jan Jansen, Chaos Crafter
 Junk Diver
 Karmic Guide
+Karn, Silver Golem
 Karn, the Great Creator
 Kenrith, the Returned King
 Kiki-Jiki, Mirror Breaker
 Kinnan, Bonder Prodigy
-Knacksaw Clique
+Kitchen Finks
 Kodama of the East Tree
 Koll, the Forgemaster
 Krark-Clan Ironworks
 Krenko, Mob Boss
-Leech Bonder
+Kurkesh, Onakke Ancient
+Laboratory Maniac
 Lesser Masticore
 Leyline of Abundance
-Lightning Crafter
 Lightning Greaves
-Lion's Eye Diamond
+Lotus Field
 Lotus Petal
-Lotus Vale
 Luminous Broodmoth
-Machine God's Effigy
-Magda, Brazen Outlaw
+Magistrate's Scepter
 Magus of the Candelabra
-Magus of the Wheel
 Mana Echoes
 Mana Reflection
+Mana Vault
 Marath, Will of the Wild
-Marvin, Murderous Mimic
+March of the Machines
+Maze of Ith
 Mazirek, Kraul Death Priest
 Memnite
 Metallic Mimic
@@ -156,12 +152,14 @@ Metalworker
 Mikaeus, the Unhallowed
 Mirror Entity
 Mishra's Bauble
-Mizzix of the Izmagnus
+Mithril Coat
 Mnemonic Wall
 Molten Echoes
 Mondrak, Glory Dominus
+Monk Gyatso
+Mortuary
+Mox Amber
 Murderous Redcap
-Mycosynth Golem
 Mycosynth Lattice
 Myr Battlesphere
 Myr Retriever
@@ -170,141 +168,143 @@ Myr Welder
 Nim Deathmantle
 Nuka-Cola Vending Machine
 Nyxbloom Ancient
-One with the Kami
-Ornithopter
+Oath of Druids
+Ojer Taq, Deepest Foundation // Temple of Civilization
+One Ring to Rule Them All
+Orthion, Hero of Lavabrink
 Palladium Myr
+Paradigm Shift
 Paradise Mantle
 Parallel Lives
-Patrol Signaler
-Peer into the Abyss
+Pariah
 Pemmin's Aura
 Pentavus
 Peregrin Took
+Peregrine Drake
 Persistent Constrictor
-Phelddagrif
 Phyrexian Altar
 Phyrexian Triniform
 Pili-Pala
 Pitiless Plunderer
+Poison-Tip Archer
+Poisonbelly Ogre
+Preston, the Vanisher
+Priest of Urabrask
 Primal Vigor
-Prize Pig
+Prosperous Partnership
 Prototype Portal
 Prowling Geistcatcher
 Puppeteer Clique
 Putrid Goblin
-Quietus Spike
-Rampaging Ferocidon
-Raving Dead
+Raphael, Tough Turtle
+Ray Fillet, Man Ray
 Reassembling Skeleton
-Reckless Barbarian
-Reforge the Soul
-Reiterate
-Renegade Rallier
+Renata, Called to the Hunt
 Retrofitter Foundry
 Reveillark
-Rising of the Day
+Rhythm of the Wild
+Rings of Brighthearth
+Rite of Flame
 Rite of Passage
 River Kelpie
-Roaming Throne
-Rosie Cotton of South Lane
+Rograkh, Son of Rohgahh
 Rousing Refrain
+Ruthless Technomancer
+Sacred Guide
 Sadistic Glee
-Safehold Elite
 Saffi Eriksdotter
-Sai of the Shinobi
-Sakashima of a Thousand Faces
-Salvager of Ruin
-Scourge of the Skyclaves
+Sai, Master Thopterist
+Salvaging Station
+Sanguinary Priest
 Scrap Trawler
 Scurry Oak
-Seething Song
-Sequence Engine
-Serra's Sanctum
-Shard of the Nightbringer
 Simic Growth Chamber
 Skirk Prospector
 Skullclamp
-Slimefoot, the Stowaway
+Slimefoot and Squee
 Sliver Queen
-Smothering Tithe
 Solemnity
 Soulherder
-South Wind Avatar
 Spark Double
 Spawning Pit
-Spawnsire of Ulamog
 Spiteful Prankster
+Spitemare
 Splinter Twin
 Springheart Nantuko
 Sprout Swarm
-Stadium Headliner
 Staff of Domination
 Stimulus Package
+Stone-Seeder Hierophant
 Strangleroot Geist
 Stridehangar Automaton
+Stuffy Doll
 Su-Chi Cave Guard
-Summoning Station
 Sun Titan
-Suture Priest
 Taigam, Master Opportunist
-Tamiyo's Safekeeping
+Tainted Pact
 Tarrian's Soulcleaver
-Tazri, Stalwart Survivor
 Teleportation Circle
-Temporal Manipulation
 Tendrils of Agony
 Teshar, Ancestor's Apostle
+Thassa's Oracle
 Thassa, Deep-Dwelling
+The Enigma Jewel // Locus of Enlightenment
+The Eternity Elevator
 The Fire Crystal
-The Locust God
+The Jolly Balloon Man
 The Meathook Massacre
 The Tenth Doctor
 There and Back Again
 Thermopod
 Thornbite Staff
-Thousand-Year Elixir
+Thought Lash
+Thought Monitor
 Thrill of Possibility
+Thrull Parasite
 Thunder of Unity
 Thunderblust
-Tidewater Minion
 Time Warp
-Timestream Navigator
 Timetwister
-Tireless Provisioner
-Toph, the First Metalbender
+Tooth and Claw
+Toph, Earthbending Master
+Torment of Hailfire
 Tormenting Voice
 Training Grounds
+Transmutation Font
 Trazyn the Infinite
-Tribute to the World Tree
+Treasure Vault
 Twilight Shepherd
 Ulasht, the Hate Seed
 Umbral Mantle
 Unctus, Grand Metatect
 Underworld Breach
-Unmarked Grave
+Universal Automaton
 Urza, Lord High Artificer
 Urza, Prince of Kroog
-Utopia Mycon
 Venerated Stormsinger
+Venture Forth
 Vesperlark
+Vigor
 Village Bell-Ringer
-Virtus the Veiled
 Viscera Seer
 Vizier of Tumbling Sands
+Voice of Victory
 Voltaic Construct
+Voltaic Key
 Voyaging Satyr
 Walking Ballista
-Warlock Class
 Warren Soultrader
 Wheel of Fortune
+Wheel of Misfortune
+Windfall
 Witch's Oven
 Woodfall Primus
 Workhorse
 Workshop Assistant
-Wound Reflection
-Wren's Run Hydra
+Wrenn and Realmbreaker
+Yavimaya Bloomsage // Channel
 Yawgmoth, Thran Physician
 Young Wolf
-Zaxara, the Exemplary
-Zirda, the Dawnwaker
+Yurlok of Scorch Thrash
 Zulaport Cutthroat
+Zurgo, Thunder's Decree

@@ -174,8 +174,8 @@ engines into a win, each with its sources:
   Punch) and is a supplement to the table.
 - **Cards**: names the table gives.
 - **Queries**: Scryfall searches the table gives, resolved by `PayoffFetcher` in EDHREC order
-  over paper cards without the Un-set ones (`game:paper -is:funny`, `unique=cards`); the first 25 unblocked cards of each count, so the cache
-  holds the raw first page as the template cache does. A query that matches no card is a
+  over paper cards without the Un-set ones (`game:paper -is:funny`, `unique=cards`); the first 25 unblocked cards of each count (a query's
+  own `limit` in the table replaces the 25), so the cache holds the raw first page as the template cache does. A query that matches no card is a
   table error (`PayoffTableError`), reported and not cached. The cache is
   `data/cache/scryfall_payoffs.json`, keyed by the search URL with the time each was fetched,
   under the same two flags as the other caches.
@@ -191,8 +191,9 @@ table that does not fit the outcome table is an error on load, whatever the sett
 ### Enabler cards
 
 `ilp/enablers.py` turns the enabler table (the `enablers` section of `config.yaml`) into the
-`EnablerTable` of a run: for each category (fast mana, rituals, wheels and graveyard fillers
-by default; the names are free, not tied to the outcome table), the cards that set combos up,
+`EnablerTable` of a run: for each category (fast mana, rituals, wheels, graveyard fillers and
+the recursion engine Underworld Breach by default; the names are free, not tied to the outcome
+table), the cards that set combos up,
 each with its sources. The table has the shape of the payoff table and is parsed and resolved
 by the same code (`ilp/card_table.py`: `parse_card_table`, `resolve_sources`, with
 `min_enablers` / `max_enablers` as the bound keys and `EnablerTableError` as the error), with
@@ -201,14 +202,16 @@ the same cache as the payoff queries. There is no inference: nothing in the Spel
 marks a card as an enabler; a ritual or a wheel appears in a variant only when it is a piece.
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
-wants in the slot, which a build then used to meet the floor.
+wants in the slot, which a build then used to meet the floor. Wheel of Fortune and Underworld
+Breach are required; the recursion category holds Underworld Breach alone, with a floor of 0
+(`min_enablers` and `max_enablers` 0), so the enabler share is split among the other four.
 
 `build_cube_ilp` resolves the enabler table after the payoff table and, with the enabler
 floor on, adds every enabler card the pool lacks to the candidate cards as a `CandidateCard`
 with no combos. In the optimizer such a card, and any enabler card in fewer combos than the
 utilization floor, is *enabler-only*: exempt from the floor so that its few combos still
 score, left out of the utilization statistics, and capped in number by the floors. A card the
-payoff table names too stays a payoff card (payoff-only when it is in no combo).
+payoff table names too stays a payoff card (payoff-only when it is below the floor).
 
 ### Cache flags
 
@@ -321,11 +324,13 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
    one of the combo's template pools. `u[c]` is bounded by the number of combos c appears in.
 5. **Utilization floor.** Every selected card must have `u[c] >= --min-util-floor` (default 2).
    A card that can never reach the floor is excluded outright. Payoff-only cards are exempt:
-   they complete no combo by definition (`u` is the constant 0) and are in the pool as
-   outlets, so the floor, the warm-start floor checks and the `minmax` and `mad` objectives
-   leave them out. Enabler-only cards (enabler cards below the floor, with the enabler floor
-   on) are exempt the same way (`exempt_cards`), but their `u` is linked to their combos, so
-   the one or two combos such a card completes still count.
+   the payoff cards the pool lacks complete no combo by definition (`u` is the constant 0)
+   and are in the pool as outlets, so the floor, the warm-start floor checks and the
+   `minmax` and `mad` objectives leave them out. Payoff cards below the floor in the pool
+   (with the payoff floor on) and enabler-only cards (enabler cards below the floor, with the
+   enabler floor on) are exempt the same way (`exempt_cards`), but their `u` is linked to
+   their combos, so the one or two combos such a card completes still count. Excluded
+   instead, a Comet Storm with one variant would lose its slot to a Banefire with none.
 6. **Color balance.** For every ordered pair of colors, `count[a] <= ratio * count[b]`, with
    `--max-color-ratio` (default 2) written as an integer fraction. `count` is the number of
    selected cards whose color identity includes the color, so a multicolor card counts once
@@ -387,10 +392,11 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     or the table's own `min_payoffs`, and with `--payoff-share` (default 0.15) the floors
     add up to that share of the cube, the cards above the minimums going one at a time to
     the category with the most distinct pool combos per outlet (`_apportion`, the D'Hondt
-    method) up to twice the even split or the table's `max_payoffs`. Only selectable cards
-    count (payoff-only cards, or combo pieces at or above the utilization floor); a category
-    with fewer of them than its floor has it lowered to what it has, with a warning, as the
-    outcome minimum is, and the apportionment passes those cards on. Skipped at
+    method) up to twice the even split or the table's `max_payoffs`. Only candidate cards
+    count (payoff-only cards among them, as they are exempt from the utilization floor
+    rather than excluded by it); a category with fewer of them than its floor has it lowered
+    to what it has, with a warning, as the outcome minimum is, and the apportionment passes
+    those cards on. Skipped at
     `--min-payoffs 0`, without a payoff table, and without an outcome table (which says
     whether a category has engines in the pool).
 14. **Enabler floor.** For each category of the enabler table, at least its floor of the
@@ -403,11 +409,20 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     Every enabler card that is a candidate is selectable, since enabler-only cards are exempt
     from the utilization floor; a category with fewer cards than its floor has it lowered,
     with a warning. Skipped at `--min-enablers 0` and without an enabler table.
-15. **The objective**, chosen with `--phase2-objective`.
-16. **Warm start.** The model is hinted with a starting cube.
+15. **Required cards.** Every card a table lists under `require` is selected (`x = 1`),
+    while that table's floor is on. A required card is a card of its category, so it counts
+    for the floor, and the floor's other cards fill what it asks beyond the required ones.
+    Required cards are exempt from the utilization floor (`floor_free_cards`): a required
+    X spell with two pool variants would otherwise have to complete both, which made a
+    Phase 2 infeasible; unlike the payoff-only and enabler-only cards they still count in
+    the utilization statistics and the balancing objectives. A required card the pool
+    lacks is ignored with a warning (the runner adds every table card, and fails on one
+    Scryfall does not know).
+16. **The objective**, chosen with `--phase2-objective`.
+17. **Warm start.** The model is hinted with a starting cube.
 
 Coverage, color balance, the archetype minimums, the wide combo cap, the card mix rules, the
-outcome rules, the payoff floor and the enabler floor are the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and
+outcome rules, the payoff floor, the enabler floor and the required cards are the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and
 `violations(cards)`, and the list is applied by the Phase 2 model, by the warm-start repair
 models and by the check that decides whether the Phase 1 cube needs repairing. A new hard
 constraint on the cube is one entry in that list; the card mix rules are built from one
@@ -445,7 +460,7 @@ Phase 1 cube's overage instead.
 Phase 1 ignores the cube rules, and at full size they are expensive: coverage and color
 balance alone cost close to 10% of the combos, and with the archetype rules, the card mix,
 the outcome minimum, the payoff floor and the enabler floor the reference cube scores more
-than 20% below the Phase 1 cube (1,316.3 against 1,677.4 weighted combos in the tracked run,
+than 20% below the Phase 1 cube (1,201.7 against 1,678.7 weighted combos in the tracked run,
 with the reference solve on a time limit of its own). Measuring the combo window from the
 Phase 1 count would then leave no feasible cube. `_build_warm_start` therefore prepares two things before the Phase 2 model
 is built, both in the small Phase 1 model with the cube rules added:
