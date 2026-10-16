@@ -392,8 +392,8 @@ def card_inclusion(
     """
     Why each selected card is in the cube: the completed combos it takes part in (counted
     as utilization counts them), the templates it fills, the completed combos the cube
-    would lose without it, and its payoff and enabler categories. Cards come most-used
-    first.
+    would lose without it, the most popular completed variant of each of its combos, and
+    its payoff and enabler categories. Cards come most-used first.
 
     `completed_ids` saves recomputing the completed variants; `group_categories` (the
     result of group_outcomes) adds the outcome categories of the card's combos,
@@ -413,12 +413,15 @@ def card_inclusion(
     pieces: dict[str, int] = dict.fromkeys(selected, 0)
     fills: dict[str, int] = dict.fromkeys(selected, 0)
     groups: dict[str, set[str]] = {card: set() for card in selected}
+    # Card -> group -> the most popular completed variant of the group the card is in
+    best_variant: dict[str, dict[str, ComboData]] = {card: {} for card in selected}
     template_keys: dict[str, set[str]] = {card: set() for card in selected}
     template_names: dict[str, set[str]] = {}
-    for combo in variants:
+    for combo in sorted(variants, key=lambda c: (-c.popularity, c.id)):
         for card in combo.required_cards & selected:
             pieces[card] += 1
             groups[card].add(combo.group_key)
+            best_variant[card].setdefault(combo.group_key, combo)
         filled: set[str] = set()
         for opt, cards in zip(combo.requirement_options, fillers[combo.id], strict=True):
             template_names.setdefault(opt.group_key, set()).add(opt.template_name)
@@ -428,6 +431,7 @@ def card_inclusion(
         for card in filled - combo.required_cards:
             fills[card] += 1
             groups[card].add(combo.group_key)
+            best_variant[card].setdefault(combo.group_key, combo)
 
     payoffs_of = _categories_of(selected, payoff_cards)
     enablers_of = _categories_of(selected, enabler_cards)
@@ -455,6 +459,12 @@ def card_inclusion(
                     template_display_name(template_names[key]) for key in template_keys[card]
                 ),
                 essential_combos=essential,
+                combo_variants=[
+                    combo.id
+                    for combo in sorted(
+                        best_variant[card].values(), key=lambda c: (-c.popularity, c.id)
+                    )
+                ],
                 outcomes=dict(sorted(outcomes.items(), key=lambda item: (-item[1], item[0]))),
                 payoff_categories=payoffs_of[card],
                 enabler_categories=enablers_of[card],
