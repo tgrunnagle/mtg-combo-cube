@@ -40,6 +40,7 @@ def make_combo(
     options: list[list[str]] | None = None,
     group: str = "",
     identity: str | None = "",
+    popularity: int = 1,
 ) -> ComboData:
     return ComboData(
         id=combo_id,
@@ -48,7 +49,7 @@ def make_combo(
             RequirementOption(f"Template {i}", f"key:{sorted(cards)}", frozenset(cards))
             for i, cards in enumerate(options or [])
         ],
-        popularity=1,
+        popularity=popularity,
         group_key=group,
         color_identity=identity,
     )
@@ -343,6 +344,28 @@ class TestCardInclusion:
         combos = [make_combo("t", ["H"], [["S1", "S2"]])]
         stats = {s.card: s for s in card_inclusion(["H", "S1"], combos)}
         assert stats["S1"].essential_combos == ["t"]
+
+    def test_combo_variants_one_per_combo(self):
+        stats = self.by_card()
+        # H is in both variants of "big", equally popular: the first id represents the combo
+        assert stats["H"].combo_variants == ["h1"]
+        assert stats["P1"].combo_variants == ["h1"]
+        assert stats["S1"].combo_variants == ["h2"]
+        assert stats["A"].combo_variants == ["ab"]  # "x" is not completed
+        assert stats["F"].combo_variants == []
+
+    def test_combo_variants_are_the_most_popular_and_ordered_by_popularity(self):
+        combos = [
+            make_combo("h1", ["H", "P1"], group="big", popularity=5),
+            make_combo("h2", ["H"], [["S1"]], group="big", popularity=9),
+            make_combo("hb", ["H", "B"], popularity=7),
+            make_combo("s1b", ["S1", "B"], popularity=1),
+        ]
+        stats = {s.card: s for s in card_inclusion(["H", "P1", "S1", "B"], combos)}
+        assert stats["H"].combo_variants == ["h2", "hb"]
+        assert stats["S1"].combo_variants == ["h2", "s1b"]
+        assert stats["B"].combo_variants == ["hb", "s1b"]
+        assert stats["P1"].combo_variants == ["h1"]  # the only variant of "big" it is in
 
     def test_reasons(self):
         stats = self.by_card(payoff_cards={"mana": ["Pay", "A", "Elsewhere"]})

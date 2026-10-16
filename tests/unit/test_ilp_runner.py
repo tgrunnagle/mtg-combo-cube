@@ -51,7 +51,12 @@ def make_candidate_cards(names: list[str]) -> list[CandidateCard]:
 
 
 def make_inclusion(
-    card: str, reason: str, combos: int = 0, distinct: int = 0, essential: list[str] | None = None
+    card: str,
+    reason: str,
+    combos: int = 0,
+    distinct: int = 0,
+    essential: list[str] | None = None,
+    variants: list[str] | None = None,
 ) -> CardInclusionStats:
     return CardInclusionStats(
         card=card,
@@ -64,11 +69,12 @@ def make_inclusion(
         outcomes={},
         payoff_categories=["mana"] if reason == "payoff_only" else [],
         reason=reason,
+        combo_variants=variants or [],
     )
 
 
 INCLUSION = [
-    make_inclusion("Card A", "essential", 3, 2, ["c1"]),
+    make_inclusion("Card A", "essential", 3, 2, ["c1"], ["v1", "v2-3"]),
     make_inclusion("Card B", "redundant", 1, 1),
     make_inclusion("Card C", "payoff_only"),
 ]
@@ -106,6 +112,13 @@ class TestCardData:
         assert first["payoff_categories"] == []
         assert first["enabler_categories"] == []
         assert "added_in_phase2" not in first
+        assert first["spellbook_urls"] == [
+            "https://commanderspellbook.com/search/?q=sid%3Av1%20OR%20sid%3Av2-3"
+        ]
+        assert data["cards"][2]["spellbook_urls"] == []
+        assert data["spellbook_find_my_combos_url"] == (
+            "https://commanderspellbook.com/find-my-combos/?decklist=Card%20A%0ACard%20B%0ACard%20C"
+        )
 
     def test_write_card_data_marks_phase2_additions(self, tmp_path):
         path = write_card_data(INCLUSION, str(tmp_path / "cube.txt"), ["Card A", "Card X"])

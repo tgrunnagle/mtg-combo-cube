@@ -61,6 +61,7 @@ from mtg_combo_cube.ilp.payoffs import (
     infer_payoffs,
     resolve_payoffs,
 )
+from mtg_combo_cube.ilp.spellbook_links import find_my_combos_url, search_urls
 from mtg_combo_cube.models import CardAttributes, Variant
 from mtg_combo_cube.scryfall.card_attribute_fetcher import CardAttributeFetcher
 from mtg_combo_cube.scryfall.payoff_fetcher import PayoffFetcher
@@ -448,7 +449,8 @@ def card_inclusion_entries(
     """
     The per-card entries of the card data file. With `phase1_cards` (the Phase 1 cube, when
     Phase 2 ran) each card also says whether Phase 2 added it: a card Phase 1 left out, so
-    there for a Phase 2 rule or the utilization balance.
+    there for a Phase 2 rule or the utilization balance. `spellbook_urls` are Spellbook
+    searches listing the card's completed combos (one variant each), ten per link.
     """
     phase1 = set(phase1_cards) if phase1_cards is not None else None
     return [
@@ -466,6 +468,7 @@ def card_inclusion_entries(
             "enabler_categories": card.enabler_categories,
             **({"added_in_phase2": card.card not in phase1} if phase1 is not None else {}),
             "essential_combos": card.essential_combos,
+            "spellbook_urls": search_urls(card.combo_variants),
         }
         for card in cards
     ]
@@ -482,11 +485,15 @@ def write_card_data(
     output_file: str,
     phase1_cards: Collection[str] | None = None,
 ) -> Path:
-    """Write why each card of the cube is in it to the cube's card data file."""
+    """
+    Write why each card of the cube is in it to the cube's card data file, with a Spellbook
+    Find My Combos link for the whole cube and search links per card.
+    """
     path = card_data_path(output_file)
     path.parent.mkdir(parents=True, exist_ok=True)
     data = {
         "summary": card_inclusion_summary(cards),
+        "spellbook_find_my_combos_url": find_my_combos_url([card.card for card in cards]),
         "cards": card_inclusion_entries(cards, phase1_cards),
     }
     with open(path, "w", encoding="utf-8") as f:
