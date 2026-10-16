@@ -49,6 +49,7 @@ def make_optimizer(
     for name in sorted(extra_cards):
         candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 5,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,

@@ -53,6 +53,7 @@ from mtg_combo_cube.ilp.ilp_models import (
     StapleStats,
     UtilizationStats,
 )
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.ilp_runner import (
     add_enabler_cards,
     add_payoff_cards,
@@ -337,9 +338,10 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--staple-combos",
         type=int,
-        default=0,
+        default=ILPOptimizer.DEFAULT_STAPLE_COMBOS,
         help="Report which staples (the named cards of the pool's N most popular variants) "
-        "the cube completes, as a build's --staple-combos defines them (default: 0, none)",
+        "the cube completes, as a build's --staple-combos defines them "
+        f"(default: {ILPOptimizer.DEFAULT_STAPLE_COMBOS}; 0 for none)",
     )
     argparser.add_argument(
         "--card-data",

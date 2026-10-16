@@ -318,8 +318,9 @@ counts, the Phase 2 status, the staples completed, the cards that enter and leav
 2. The staples rule at N=25 K=20, N=50 K=40 and N=100 K=70; expect each forced two-card
    staple to cost its two slots against about four combos each, so N=100 is about 10% of
    the cube.
-3. `--popularity-weight 1` and `2` without the rule, for the soft comparison: the staples
-   completed and the cost in distinct combos.
+3. `--popularity-weight 0.5`, `1` and `2` without the rule, for the soft comparison: the
+   staples completed and the cost in distinct combos (the user asked for a slight bias
+   toward popular combos to be considered beside the rule, hence the 0.5).
 4. The user's call on which staples to leave out (the rule has no exclude; a staple nobody
    wants goes to the blocklist by its pieces, or K drops by one).
 
@@ -360,8 +361,12 @@ clear majority of the top 25 for a few percent of the weighted combo count.
 
 ## Open questions
 
-None at the time of writing; the questions raised while planning (the lands in the fixed
-file, where Sol Ring belongs, a Spellbook call from the tool) are decisions 1, 6 and 7.
+The questions raised while planning (the lands in the fixed file, where Sol Ring belongs,
+a Spellbook call from the tool) are decisions 1, 6 and 7. Open after Step 4, for the user
+(item 4 of Step 4): the default build leaves three of the top-25 staples out (Dramatic
+Reversal plus Isochron Scepter, Lotus Cobra plus Springheart Nantuko, Curiosity plus
+Niv-Mizzet, Parun); `--min-staple-combos 23` would ask for them all, and a staple nobody
+wants goes to the blocklist by its pieces.
 
 ## Results
 
@@ -398,5 +403,91 @@ reason `fixed`; its Find My Combos link covers the 310 and the 71 fixed cards (8
 
 ### Step 4
 
-Not run yet: it waits for the balancing plan's merge (see "Relation to the balancing
-plan").
+Run after the balancing plan merged (16 October 2026, `main` at 8001411: the `essential`
+objective, `--warm-start`). One change was made for it: a warm-start cube that breaks a
+rule (the staples rule, which the previous reference was built without) now still hints the
+reference solve instead of being replaced by the Phase 1 cube, and only cannot be the
+reference itself, so every build below starts its reference solve from the same cube,
+`data/current_best_cube_reference.txt`. The tracked cube with the fixed cards, by
+`evaluate_cube`: 1,604 variants / 1,077 distinct / 1,129.7 weighted, 11 of the 23 staples
+of the top 25, the report headed by Jeska's Will, Mana Vault (11 variants, 2 new),
+Forsaken Miner, Restoration Angel, Ghostly Flicker (14, 6).
+
+All seven builds ran on 16 October 2026 from `bbd910e` with the tracked settings (310 cards,
+360 s per solve, 20,000 variants, 8 workers, the fixed-card file in place) and
+`--warm-start data/current_best_cube_reference.txt`, about 19 minutes each; Phase 2 ended
+`FEASIBLE` in every one, the reference solve, the floor repair and the Phase 2 solve each
+running to their 360 s. The staples columns count the staples of the pool's 25, 50 and 100
+most popular variants (23, 48 and 97 staples) that the cube and the fixed cards complete,
+whatever the build's own N; the popularity columns describe the completed variants, of a
+pool of 19,848 whose median popularity is 257. The last column counts the cards that enter
+(as many leave) against the tracked cube of the morning, the `essential` build without the
+fixed cards.
+
+| Build | Variants / distinct / weighted | Reference weighted | Staples of the top 25 / 50 / 100 | Top-five share, most essential card | Completed variants among the pool's top 100 / 500 | Sum of popularity | Cards changed |
+|---|---|---|---|---|---|---|---|
+| Tracked cube, evaluated with the fixed cards | 1,604 / 1,077 / 1,129.7 | | 11 / - / - | 33%, 129 | 32 / 94 | 4.92 M | |
+| 1. Fixed cards alone | 1,665 / 1,090 / 1,147.5 | 1,274.6 | 11 / 21 / 33 | 37%, 147 | 33 / 101 | 5.17 M | 47 |
+| 2. Staples 25, minimum 20 | 1,619 / 1,036 / 1,094.3 | 1,216.1 | 20 / 31 / 42 | 32%, 124 | 43 / 113 | 6.26 M | 80 |
+| 2. Staples 50, minimum 40 | 1,420 / 964 / 1,009.6 | 1,121.8 | 22 / 40 / 56 | 39%, 135 | 58 / 121 | 6.69 M | 96 |
+| 2. Staples 100, minimum 70 | 1,303 / 860 / 904.3 | 1,005.3 | 21 / 37 / 70 | 30%, 92 | 72 / 154 | 7.25 M | 101 |
+| 3. Popularity weight 0.5 | 1,618 / 1,092 / 1,144.6 | 1,275.5 | 8 / 16 / 29 | 35%, 143 | 29 / 95 | 4.69 M | 58 |
+| 3. Popularity weight 1 | 1,605 / 1,092 / 1,143.3 | 1,278.6 | 11 / 20 / 32 | 31%, 132 | 32 / 99 | 5.07 M | 59 |
+| 3. Popularity weight 2 | 1,670 / 1,075 / 1,134.5 | 1,278.3 | 8 / 17 / 30 | 35%, 133 | 30 / 102 | 5.07 M | 52 |
+
+**The fixed cards alone** (build 1) move 47 cards and gain 61 variants and 13 distinct combos
+on the tracked cube: the fixed Moxen meet most of the `fast_mana` floor as decision 2
+expected, and the slots that frees go to combo pieces, not to cards nobody wants, so the
+fallback of decision 2 (floors on top of the fixed cards) stays unbuilt. The staples do not
+move (11 of 23) and the report keeps its head: Mana Vault (12 variants, 3 new combos),
+Restoration Angel (6, 0), Forsaken Miner (7, 5), Jeska's Will (2, 2), Ghostly Flicker (15,
+6).
+
+**The staples rule** (build 2) costs what its reference solve costs: the reference weighted
+count falls 4.6%, 12% and 21% for N=25, 50 and 100, and the Phase 2 cube, which sits at the
+90% floor of its reference in every build, falls with it (1,094.3, 1,009.6 and 904.3 against
+1,147.5). So the price is paid in Phase 1's optimum, not in the balancing, and it is close to
+the plan's estimate: 20 of 25 gains 9 staples for 54 distinct combos, 6 per staple. At 20 of
+25 the cube completes 20 of the 23 staples (the three left out are Dramatic Reversal plus
+Isochron Scepter, Lotus Cobra plus Springheart Nantuko and Curiosity plus Niv-Mizzet, Parun),
+and the popularity of what it completes rises all the way down: 31 instead of 21 of the top
+50 staples, 42 instead of 33 of the top 100, 43 instead of 33 completed variants among the
+pool's 100 most popular, the sum of their popularity up by 21%, the median from 531 to 577.
+It also balances the cube a little (the top five cards in 32% of the combos instead of 37%,
+the most essential card essential to 124 instead of 147), because the staples are two-card
+combos that spread the combos over more cards. 40 of 50 and 70 of 100 cost 12% and 21% of
+the weighted count for 2 and 1 more of the top 25; they are too expensive for a default,
+though 70 of 100 gives the most balanced cube of the seven (30%, 92).
+
+**The popularity weight** (build 3) does not bias the cube toward popular combos at any of
+the three values: the completed variants among the pool's top 100 are 29, 32 and 30 against
+33 without it, the sum of their popularity 4.69, 5.07 and 5.07 million against 5.17, the
+staples of the top 25 8, 11 and 8 against 11, all within the spread between two solves of
+the same inputs. The scale is too flat for the solver to feel (decision 4: the most popular
+combo is worth `1 + w` combos and a median one about `1 + 0.45 w`, so at w=2 one top combo
+is worth 1.6 median ones) while Phase 1 runs to its time limit at full size without reaching
+the fine structure of its objective, and the 10% window on the popularity-weighted score lets
+the plain weighted count fall a little further (to 89.7%, 89.4% and 88.8% of the reference)
+without buying popular combos with the room. `--popularity-weight` stays 0.
+
+**Defaults.** The staples rule is on by default at `--staple-combos 25 --min-staple-combos
+20` on every layer, the `ILPOptimizer` constructor included (the tests turn it off in
+their settings, as they do the other rules), and the `evaluate_cube` report defaults to
+the same 25; the 20 of 25 completing
+a clear majority of the top 25 for 4.6% of the weighted combo count. The 25/20 build is the
+new tracked cube (`data/current_best_cube*`, now with `data/current_best_cube_potential_combos.json`
+tracked too). Against the tracked cube of the morning it changes 80 cards: in come the
+staple pieces Jeska's Will, Mana Vault, Tireless Provisioner, Springheart Nantuko, Exquisite
+Blood, Sanguine Bond, Vito, Thorn of the Dusk Rose, Bloodthirsty Conqueror, Enduring
+Tenacity, Dualcaster Mage and Twinflame, with Teferi, Time Raveler, Thran Dynamo and Sliver Queen among the
+others; out go Doomsday, Laboratory Maniac, Jace, Wielder of
+Mysteries, Hermit Druid, Devoted Druid, Heliod, Sun-Crowned, Kitchen Finks, Timetwister, Time
+Warp, Walk the Aeons, Gilded Lotus, Bolas's Citadel, Zulaport Cutthroat and the enablers
+Entomb, Buried Alive, Seething Song and Desperate Ritual (the floors are met by Lively Dirge,
+Tormenting Voice, Infernal Plunge, Rite of Flame and Magus of the Wheel instead; the floor
+has no preference among a category's cards). The one-card-away report of the new cube is
+headed by Lotus Cobra (4 variants, 0 new combos: Springheart Nantuko is in), Forsaken Miner
+(11, 5), Marauding Blight-Priest (2, 0), Zulaport Cutthroat (4, 0), Ghostly Flicker (8, 3),
+Restoration Angel (12, 1), Tidespout Tyrant (6, 2) and Rhythm of the Wild (16). Which of the
+three missing staples to require, and whether any card that left should be a required card,
+is the user's call (Open questions).

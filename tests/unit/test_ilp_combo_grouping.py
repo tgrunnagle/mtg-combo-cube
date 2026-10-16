@@ -34,6 +34,7 @@ W = ILPOptimizer.WEIGHT_SCALE
 
 def make_optimizer(combos: list[ComboData] = COMBOS, **kwargs: Any) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": CUBE_SIZE,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
@@ -174,6 +175,7 @@ class TestPopularityTiebreak:
         ]
         combos = hub + triangle
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=build_candidate_cards(combos),
             cube_size=4,
@@ -308,6 +310,7 @@ class TestGroupedWarmStart:
     def coverage_optimizer(**kwargs: Any) -> ILPOptimizer:
         # Both sac combos need 2 of the 4 outlets in the cube (ratio 1.0, threshold 2)
         settings: dict[str, Any] = {
+            "staple_combos": 0,
             "cube_size": 7,
             "variant_weight": 0.1,
             "combo_tolerance": 0.25,

@@ -315,17 +315,19 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--staple-combos",
         type=int,
-        default=0,
+        default=ILPOptimizer.DEFAULT_STAPLE_COMBOS,
         help="Staples rule for phase 2: the named cards of each of the pool's N most popular "
         "variants are a staple (variants with the same named cards are one), and the cube "
-        "must complete at least --min-staple-combos of them (default: 0, off).",
+        "must complete at least --min-staple-combos of them "
+        f"(default: {ILPOptimizer.DEFAULT_STAPLE_COMBOS}; 0 turns the rule off).",
     )
     argparser.add_argument(
         "--min-staple-combos",
         type=int,
-        default=0,
+        default=ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
         help="Staples rule for phase 2: the number of the --staple-combos staples the cube must "
-        "complete (default: 0, every one of them).",
+        f"complete (default: {ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS}; 0 asks for every one "
+        "of them).",
     )
     args = argparser.parse_args()
     if args.staple_combos < 0 or args.min_staple_combos < 0:

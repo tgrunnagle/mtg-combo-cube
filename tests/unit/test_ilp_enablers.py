@@ -63,6 +63,7 @@ def make_optimizer(
     for name in sorted(extra_cards):
         candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 6,
         "time_limit_seconds": 30,
         # The window holds the score exactly, so the objective cannot trade combos away

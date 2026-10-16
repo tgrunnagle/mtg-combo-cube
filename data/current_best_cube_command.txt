@@ -1,25 +1,29 @@
 # data/current_best_cube.txt, data/current_best_cube_stats.json,
-# data/current_best_cube_card_data.json and data/current_best_cube_reference.txt: copied from
-# the data/cube_310_essential.txt, data/cube_310_essential_stats.json,
-# data/cube_310_essential_card_data.json and data/cube_310_essential_reference.txt this
-# command wrote on 16 October 2026 at commit bc7159b (branch balancing: the `essential`
-# Phase 2 objective, the default, and the `--warm-start` of the reference solve). 310 combo
-# cards for a 400-card cube with 90 slots reserved for lands, ramp and interaction. All
-# settings at their defaults (payoff share 0.15, --min-payoffs 2, enabler share 0.05,
-# --min-enablers 2, the triggers and other outcome categories, the Un-set blocklist queries,
-# the payoff table of config.yaml with its six required mana payoffs at a floor of 8 and its
-# two required storm spells, the enabler table with its named wheels and graveyard fillers,
-# Wheel of Fortune required, and the recursion category requiring Underworld Breach), warm
-# Scryfall and Spellbook caches from `task precache`. The reference solve was warm-started
-# with the previous tracked cube (the `tiered` build of 13 October 2026, 1,037 distinct
-# combos) and reached 1,198 distinct combos; the next build can warm-start from
-# data/current_best_cube_reference.txt instead. The warm-start preparation before Phase 2
-# (the reference solve and the floor repair) runs outside the Phase 2 time limit, each with
-# the whole 360 s, so the build took about 18 minutes. 310 is the default CUBE_SIZE, so
+# data/current_best_cube_card_data.json, data/current_best_cube_potential_combos.json and
+# data/current_best_cube_reference.txt: copied from the data/step4/s25.txt, s25_stats.json,
+# s25_card_data.json, s25_potential_combos.json and s25_reference.txt this command wrote on
+# 16 October 2026 at commit bbd910e (branch potential-combos: the fixed cards of
+# data/fixed_cards.txt outside the 310 and the staples rule, Step 4 of
+# docs/plans/potential-combos-plan.md, which made 25 / 20 the defaults). 310 combo cards for
+# a 400-card cube whose other 90 slots are the fixed cards (lands, the Moxen, Sol Ring,
+# interaction). All settings at their defaults (the `essential` Phase 2 objective, payoff
+# share 0.15, --min-payoffs 2, enabler share 0.05, --min-enablers 2, --staple-combos 25,
+# --min-staple-combos 20, the triggers and other outcome categories, the Un-set blocklist
+# queries, the payoff table of config.yaml with its six required mana payoffs at a floor of
+# 8 and its two required storm spells, the enabler table with its named wheels and graveyard
+# fillers, Wheel of Fortune required, and the recursion category requiring Underworld
+# Breach), warm Scryfall and Spellbook caches from `task precache`. The reference solve was
+# hinted with the previous tracked cube's reference (the `essential` build of 16 October
+# without the staples rule, which the hint breaks, so it could hint but not be the
+# reference) and reached 1,165 distinct combos (1,216.1 weighted); the next build can
+# warm-start from the new data/current_best_cube_reference.txt. The warm-start preparation
+# before Phase 2 (the reference solve and the floor repair) runs outside the Phase 2 time
+# limit, each with the whole 360 s, so the build took about 19 minutes. 310 is the default
+# CUBE_SIZE and 25 / 20 the default staples settings, so
 # `task build:ilp -- --warm-start data/current_best_cube_reference.txt` builds the same.
 
-task build:ilp CUBE_SIZE=310 OUTPUT=data/cube_310_essential.txt -- --warm-start data/current_best_cube.txt
+task build:ilp CUBE_SIZE=310 OUTPUT=data/step4/s25.txt -- --warm-start data/current_best_cube_reference.txt --staple-combos 25 --min-staple-combos 20
 
 # which runs:
 
-uv run python -m src.mtg_combo_cube -c 310 -o data/cube_310_essential.txt -t 360 -n 20000 --profile --read-api-cache --workers 8 --warm-start data/current_best_cube.txt
+uv run python -m src.mtg_combo_cube -c 310 -o data/step4/s25.txt -t 360 -n 20000 --profile --read-api-cache --workers 8 --warm-start data/current_best_cube_reference.txt --staple-combos 25 --min-staple-combos 20

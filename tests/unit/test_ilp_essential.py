@@ -63,6 +63,7 @@ def build_grouped_instance() -> list[ComboData]:
 def make_grouped_optimizer(cube_size: int, **kwargs: Any) -> ILPOptimizer:
     combos = build_grouped_instance()
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
         "gap_limit": 0,
@@ -132,6 +133,7 @@ class TestEssentialMeasure:
 
     def optimizer(self) -> ILPOptimizer:
         return ILPOptimizer(
+            staple_combos=0,
             combos=self.COMBOS,
             candidate_cards=build_candidate_cards(self.COMBOS),
             cube_size=len(self.CUBE),
@@ -189,6 +191,7 @@ class TestEssentialObjective:
         self, instance: str, cube_size: int, floor: int, tolerance: float, cap: int
     ):
         settings: dict[str, Any] = {
+            "staple_combos": 0,
             "util_cap": cap,
             "min_utilization_floor": floor,
             "combo_tolerance": tolerance,
@@ -236,6 +239,7 @@ class TestEssentialObjective:
         cubes: dict[str, set[str]] = {}
         for objective in ("essential", "tiered"):
             optimizer = ILPOptimizer(
+                staple_combos=0,
                 combos=combos,
                 candidate_cards=build_candidate_cards(combos),
                 cube_size=7,

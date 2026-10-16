@@ -292,7 +292,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=10, time_limit_seconds=1
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=10,
+            time_limit_seconds=1,
         )
         result = optimizer.solve()
 
@@ -313,7 +317,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=2,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -338,7 +346,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=2,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -367,7 +379,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -393,7 +409,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=3, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=3,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -413,7 +433,11 @@ class TestILPOptimizerSolve:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=2,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -480,6 +504,7 @@ class TestILPOptimizerTwoPhase:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=4,
@@ -526,6 +551,7 @@ class TestILPOptimizerTwoPhase:
         candidate_cards = build_candidate_cards(combos)
         # Use combo_tolerance=0 to enforce strict combo count preservation
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=4,
@@ -570,6 +596,7 @@ class TestILPOptimizerTwoPhase:
         candidate_cards = build_candidate_cards(combos)
         # Use 10% tolerance (default)
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=4,
@@ -620,7 +647,11 @@ class TestILPOptimizerTwoPhase:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=6, time_limit_seconds=15
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=6,
+            time_limit_seconds=15,
         )
         result = optimizer.solve_two_phase()
 
@@ -655,6 +686,7 @@ class TestUtilizationFloor:
             ComboData("big", frozenset(["W", "X", "Y", "Z"]), [], 100),
         ]
         return ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=build_candidate_cards(combos),
             cube_size=5,
@@ -723,6 +755,7 @@ class TestCoverageConstraints:
         candidate_cards = build_candidate_cards(combos)
         # With min_coverage_ratio=0.1 and 20 combos, need at least 2 sac outlets
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=22,  # 20 unique + 2 sac outlets
@@ -762,6 +795,7 @@ class TestCoverageConstraints:
         candidate_cards = build_candidate_cards(combos)
         # Would need 2 cards but only 1 exists
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=21,
@@ -798,6 +832,7 @@ class TestCoverageConstraints:
         candidate_cards = build_candidate_cards(combos)
         # min_combo_threshold=10, so 5 combos won't trigger constraint
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=6,
@@ -873,6 +908,7 @@ class TestCoverageConstraints:
         candidate_cards = build_candidate_cards(combos)
         # Disable coverage constraints
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=candidate_cards,
             cube_size=21,  # Only room for 1 sac outlet
@@ -968,7 +1004,11 @@ class TestCrossTemplateStats:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=10,
         )
         result = optimizer.solve()
 
@@ -992,7 +1032,11 @@ class TestCrossTemplateStats:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=2, time_limit_seconds=5
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=2,
+            time_limit_seconds=5,
         )
         result = optimizer.solve()
 
@@ -1033,7 +1077,11 @@ class TestCrossTemplateStats:
         ]
         candidate_cards = build_candidate_cards(combos)
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=4, time_limit_seconds=10
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=4,
+            time_limit_seconds=10,
         )
         result = optimizer.solve()
 
@@ -1094,7 +1142,11 @@ class TestCrossTemplateStats:
         # With cube_size=3, solver can complete both combos using Versatile Card
         # for both requirements instead of needing separate cards
         optimizer = ILPOptimizer(
-            combos=combos, candidate_cards=candidate_cards, cube_size=3, time_limit_seconds=10
+            staple_combos=0,
+            combos=combos,
+            candidate_cards=candidate_cards,
+            cube_size=3,
+            time_limit_seconds=10,
         )
         result = optimizer.solve()
 

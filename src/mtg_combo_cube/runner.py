@@ -44,8 +44,8 @@ async def run(
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
     fixed_cards_file: str | None = None,
-    staple_combos: int = 0,
-    min_staple_combos: int = 0,
+    staple_combos: int = ILPOptimizer.DEFAULT_STAPLE_COMBOS,
+    min_staple_combos: int = ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
 ):
     """
     Build a cube with the ILP optimizer.
@@ -104,8 +104,9 @@ async def run(
         fixed_cards_file: A card list file naming the fixed cards (the cube's cards outside
             the slots the optimizer fills) in place of the configuration's
         staple_combos: The number of most popular variants of the pool whose named cards are
-            the staples of the Phase 2 staples rule (0 disables)
-        min_staple_combos: Phase 2 minimum number of staples the cube must complete (0: all)
+            the staples of the Phase 2 staples rule (default 25, 0 disables)
+        min_staple_combos: Phase 2 minimum number of staples the cube must complete
+            (default 20, 0: all)
     """
     config = load_config(config_path, fixed_cards_file)
 

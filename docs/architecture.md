@@ -442,7 +442,9 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     `g` uses the group indicator; otherwise a bool `s <= sum(y of its variants)`, which the
     solver can only under-count, so the minimum is exact in the one-sided repair models
     too. The named cards of the staples are exempt from the utilization floor
-    (`floor_free_cards`), as the required cards are. Off by default.
+    (`floor_free_cards`), as the required cards are. On by default at N=25 with 20 of
+    them required (`--staple-combos 0` turns it off), chosen in Step 4 of the
+    potential-combos plan.
 17. **The objective**, chosen with `--phase2-objective`.
 18. **Warm start.** The model is hinted with a starting cube.
 
@@ -630,11 +632,14 @@ cards, popularity, whether the cube completes it and what it lacks, and the phas
 `staples_completed` (the `phase2` block also `staple_combos` and `min_staple_combos`).
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
-settings of 12 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
-rules, the outcome minimum of 40, the payoff share of 0.15 and the enabler share of 0.05)
-at 310 cards and 20,000 variants with 360 s per solve; `data/current_best_cube_command.txt`
-is the command that built it. `data/fixed_cards.txt` is the tracked list of the cube's fixed
-cards, which `config.yaml` names. Everything else
+settings of 16 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
+rules, the outcome minimum of 40, the payoff share of 0.15, the enabler share of 0.05, the
+`essential` objective and the staples rule at 20 of the top 25) at 310 cards and 20,000
+variants with 360 s per solve, the fixed cards of `data/fixed_cards.txt` (the tracked list
+`config.yaml` names) outside the 310; `data/current_best_cube_command.txt` is the command
+that built it, `data/current_best_cube_reference.txt` its reference cube,
+`data/current_best_cube_card_data.json` its card data and
+`data/current_best_cube_potential_combos.json` its one-card-away report. Everything else
 under `data/` is ignored by git, including `data/cache/`.
 
 ## Testing

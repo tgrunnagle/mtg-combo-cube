@@ -49,6 +49,7 @@ NO_CARD_MIX = CardMixRules(0, 0, 0, 5, 0, 0, 0)
 
 def make_optimizer(combos: list[ComboData] = COMBOS, **kwargs: Any) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 5,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
@@ -232,3 +233,20 @@ class TestSolve:
         ]
         assert result.staple_stats[0].missing_cards == ["S1", "S2"]
         assert result.phase1_staples_completed == 0
+
+
+class TestDefaults:
+    def test_the_rule_is_on_by_default_at_twenty_of_the_top_twenty_five(self):
+        """Chosen in Step 4 of the potential-combos plan; the CLI plumbing test checks that
+        every layer declares the same values."""
+        optimizer = ILPOptimizer(
+            combos=COMBOS, candidate_cards=build_candidate_cards(COMBOS), cube_size=5
+        )
+
+        assert (ILPOptimizer.DEFAULT_STAPLE_COMBOS, ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS) == (
+            25,
+            20,
+        )
+        assert optimizer.staple_combos == 25
+        # The pool has fewer staples than the minimum asks for, so every one is required
+        assert optimizer.staple_minimum == len(optimizer.staples) == 8

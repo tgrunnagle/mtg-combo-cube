@@ -265,6 +265,10 @@ class ILPOptimizer:
     # cube the enabler floors add up to (every layer declares them)
     DEFAULT_MIN_ENABLERS = 2
     DEFAULT_ENABLER_SHARE = 0.05
+    # The staples rule's defaults (20 of the 25 most popular variants), chosen in Step 4
+    # of docs/plans/potential-combos-plan.md; 0 turns the rule off.
+    DEFAULT_STAPLE_COMBOS = 25
+    DEFAULT_MIN_STAPLE_COMBOS = 20
 
     def __init__(
         self,
@@ -300,8 +304,8 @@ class ILPOptimizer:
         min_enablers: int = DEFAULT_MIN_ENABLERS,
         enabler_share: float = DEFAULT_ENABLER_SHARE,
         fixed_cards: Collection[str] = (),
-        staple_combos: int = 0,
-        min_staple_combos: int = 0,
+        staple_combos: int = DEFAULT_STAPLE_COMBOS,
+        min_staple_combos: int = DEFAULT_MIN_STAPLE_COMBOS,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards

@@ -39,6 +39,7 @@ def make_optimizer(
     **kwargs: Any,
 ) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 7,
         "time_limit_seconds": 30,
         # The window holds the score exactly, so the objective cannot trade combos away

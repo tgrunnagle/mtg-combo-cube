@@ -3,308 +3,308 @@ Academy Manufactor
 Activated Sleeper
 Aetherflux Reservoir
 Agatha of the Vile Cauldron
-Aggravated Assault
 Akroma's Will
 Altar of Dementia
-Anger
+Altar of the Brood
+Aminatou, the Fateshifter
 Animation Module
 Anointed Procession
 Aphetto Alchemist
 Approach of the Second Sun
 Archaeomancer
+Archfiend of Despair
 Arixmethes, Slumbering Isle
 Ashaya, Soul of the Wild
 Ashnod's Altar
-Azor, the Lawbringer
 Azorius Chancery
 Badgermole Cub
 Basalt Monolith
-Basilisk Collar
 Basking Broodscale
 Basri's Lieutenant
+Bastion of Remembrance
+Biomancer's Familiar
 Blade of the Bloodchief
 Blasting Station
+Blitzwing, Cruel Tormentor // Blitzwing, Adaptive Assailant
 Blood Artist
+Bloodletter of Aclazotz
+Bloodthirsty Conqueror
 Bloom Tender
-Bolas's Citadel
+Body Launderer
 Boromir, Warden of the Tower
 Brain Freeze
-Branching Evolution
 Breath of Fury
 Broodhatch Nantuko
-Buried Alive
-Butcher Ghoul
 Cabal Ritual
-Carnival of Souls
+Capture of Jingzhou
 Carrion Feeder
 Cathars' Crusade
 Cathodion
 Cauldron Familiar
-Chain Stasis
+Changeling Outcast
 Chatterfang, Squirrel General
 Chromatic Orrery
-Chrome Dome
-Chronomantic Escape
+Clever Impersonator
 Clock of Omens
-Cloud of Faeries
 Cogwork Assembler
 Comet Storm
+Concordant Crossroads
+Coral Atoll
 Coretapper
-Corpse Knight
 Crackdown Construct
 Crime Novelist
 Cryptic Trilobite
 Cryptolith Rite
-Crystal Shard
 Crystalline Crawler
-Cursed Mirror
-Dance with Calamity
 Dark Ritual
 Deadeye Navigator
 Death's Presence
 Deathbringer Thoctar
 Deathrender
+Delighted Halfling
 Demonic Consultation
 Derevi, Empyrial Tactician
-Desperate Ritual
-Devoted Druid
 Dimir Aqueduct
 Displacer Kitten
-Divining Witch
-Doomsday
 Doubling Season
 Drivnod, Carnage Dominus
 Dross Scorpion
+Dualcaster Mage
 Earthcraft
 Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
 Emiel the Blessed
+Empowered Autogenerator
 Emry, Lurker of the Loch
 Enduring Renewal
-Entomb
+Enduring Tenacity
 Ephemerate
 Eternal Witness
+Exquisite Blood
 Exsanguinate
+Eye of Ugin
 Faeburrow Elder
+Faerie Mastermind
+Falkenrath Noble
 Fatestitcher
 Felidar Guardian
 Fiend Hunter
 Finale of Devastation
-First Day of Class
 Forsaken Monument
+Fraying Omnipotence
 Freed from the Real
-General Kreat, the Boltbringer
+Geralf's Messenger
 Ghave, Guru of Spores
-Gilded Lotus
 Glen Elendra Archmage
 Goblin Bombardment
 Goblin Engineer
 Goblin Sharpshooter
 Good-Fortune Unicorn
 Gravecrawler
+Grievous Wound
 Grim Monolith
 Grinding Station
 Gruul Turf
 Gwenna, Eyes of Gaea
-Hammer of Purphoros
-Hardened Scales
 Heartstone
-Heliod, Sun-Crowned
-Hellkite Tyrant
-Hellraiser Goblin
 Helm of the Host
-Hermit Druid
-Hope Tender
+Herd Baloth
 Horseshoe Crab
 Hullbreaker Horror
 Illusionist's Bracers
 Incubation Druid
+Infernal Plunge
+Inkmoth Nexus
+Inspirit, Flagship Vessel
 Intruder Alarm
 Irenicus's Vile Duplication
 Ivy Lane Denizen
 Izzet Boilerworks
-Jace, Wielder of Mysteries
 Jan Jansen, Chaos Crafter
+Jeska's Will
 Junk Diver
+Karametra's Acolyte
 Karmic Guide
 Karn, the Great Creator
 Kenrith, the Returned King
 Kiki-Jiki, Mirror Breaker
 Kinnan, Bonder Prodigy
-Kitchen Finks
 Kodama of the East Tree
 Koll, the Forgemaster
 Krark-Clan Ironworks
 Krenko, Mob Boss
-Kurkesh, Onakke Ancient
-Laboratory Maniac
 Lesser Masticore
-Leyline of Abundance
 Lightning Greaves
 Lion's Eye Diamond
-Lotus Field
+Lively Dirge
+Lonis, Cryptozoologist
 Lotus Petal
-Lumbering Battlement
 Luminous Broodmoth
 Magistrate's Scepter
 Magus of the Candelabra
+Magus of the Wheel
 Mana Echoes
 Mana Reflection
+Mana Vault
 Marath, Will of the Wild
 Mazirek, Kraul Death Priest
 Memnite
 Mesmeric Orb
 Metallic Mimic
 Metalworker
-Metamorphosis Fanatic
 Mikaeus, the Unhallowed
-Mirror Entity
-Mishra's Bauble
 Mithril Coat
-Mizzix of the Izmagnus
-Mnemonic Wall
 Mondrak, Glory Dominus
-Mortuary
+Monk Gyatso
 Mox Amber
 Murderous Redcap
 Mycosynth Golem
 Mycosynth Lattice
 Myr Battlesphere
+Myr Galvanizer
 Myr Retriever
 Myr Turbine
 Myr Welder
+Necrosynthesis
 Nim Deathmantle
 Nuka-Cola Vending Machine
-Ojer Taq, Deepest Foundation // Temple of Civilization
+Nyxbloom Ancient
 Orthion, Hero of Lavabrink
 Palladium Myr
-Paradigm Shift
 Paradise Mantle
 Parallel Lives
+Patrol Signaler
 Pemmin's Aura
 Pentavus
 Peregrin Took
 Peregrine Drake
 Persistent Constrictor
 Phyrexian Altar
-Phyrexian Devourer
+Phyrexian Triniform
 Pili-Pala
 Pitiless Plunderer
-Powerstone Shard
-Presence of Gond
+Poison-Tip Archer
 Preston, the Vanisher
-Priest of Urabrask
 Primal Vigor
-Prosperous Partnership
-Prossh, Skyraider of Kher
 Prototype Portal
 Prowling Geistcatcher
 Puppeteer Clique
-Purphoros, God of the Forge
 Putrid Goblin
+Quietus Spike
 Ray Fillet, Man Ray
 Reassembling Skeleton
 Reforge the Soul
-Reiterate
-Renata, Called to the Hunt
-Resourceful Defense
 Retrofitter Foundry
 Reveillark
 Rings of Brighthearth
+Rite of Flame
 Rite of Passage
 River Kelpie
 Rograkh, Son of Rohgahh
 Rosie Cotton of South Lane
-Rousing Refrain
-Sacred Guide
 Sadistic Glee
+Safehold Elite
 Saffi Eriksdotter
 Sai, Master Thopterist
+Sanguine Bond
+Scourge of the Skyclaves
 Scrap Trawler
 Scurry Oak
 Seeker of Skybreak
-Seething Song
-Selesnya Sanctuary
 Selvala, Heart of the Wilds
 Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel
-Shock Brigade
+Shard of the Nightbringer
 Simic Growth Chamber
 Sisay, Weatherlight Captain
+Sister Hospitaller
 Skirk Prospector
 Skullclamp
 Slimefoot and Squee
+Slimefoot, the Stowaway
+Sliver Queen
 Smothering Tithe
 Solemnity
+Soulfire Grand Master
 Soulherder
 South Wind Avatar
 Spark Double
-Spawning Pit
+Spawnsire of Ulamog
 Splinter Twin
+Springheart Nantuko
 Sprout Swarm
 Stadium Headliner
 Staff of Domination
-Stimulus Package
-Strangleroot Geist
 Stridehangar Automaton
-Su-Chi Cave Guard
+Summoning Station
 Sun Titan
+Suspended Sentence
 Suture Priest
-Sword of the Paruns
 Taigam, Master Opportunist
 Tainted Pact
+Tarrian's Soulcleaver
+Taurean Mauler
+Teferi, Time Raveler
+Teferi, Who Slows the Sunset
 Teleportation Circle
 Temporal Manipulation
 Tendrils of Agony
-Terra, Magical Adept // Esper Terra
 Teshar, Ancestor's Apostle
 Thassa's Oracle
-Thassa, Deep-Dwelling
 The Enigma Jewel // Locus of Enlightenment
-The Eternity Elevator
+The Fire Crystal
 The Jolly Balloon Man
-The Meathook Massacre
 The Tenth Doctor
+The Unbeatable Squirrel Girl
 There and Back Again
 Thermopod
 Thornbite Staff
-Thought Lash
 Thousand-Year Elixir
+Thran Dynamo
 Thunderblust
-Time Warp
-Timetwister
+Tidewater Minion
+Timestream Navigator
+Tireless Provisioner
 Toph, the First Metalbender
+Torgaar, Famine Incarnate
 Torment of Hailfire
+Tormenting Voice
 Training Grounds
 Transmutation Font
 Trazyn the Infinite
-Triplicate Titan
 Twilight Shepherd
+Twinflame
 Ulasht, the Hate Seed
+Umbral Collar Zealot
 Umbral Mantle
 Unctus, Grand Metatect
 Underworld Breach
-Universal Automaton
 Unmarked Grave
 Urza, Lord High Artificer
 Urza, Prince of Kroog
 Utopia Mycon
 Venerated Stormsinger
+Vengeful Bloodwitch
 Venser, Shaper Savant
+Venture Forth
 Vigean Graftmage
 Village Bell-Ringer
-Virtue of Knowledge // Vantress Visions
+Virtus the Veiled
 Viscera Seer
+Vito, Thorn of the Dusk Rose
 Vizier of Tumbling Sands
 Voltaic Construct
 Voltaic Key
 Voyaging Satyr
-Walk the Aeons
 Walking Ballista
+Warlock Class
 Warren Soultrader
 Wheel of Fortune
 Windfall
-Wispweaver Angel
 Woe Strider
 Woodfall Primus
+Workhorse
+Workshop Assistant
+Wound Reflection
+Yavimaya Bloomsage // Channel
 Yurlok of Scorch Thrash
-Zulaport Cutthroat
+Zurgo, Thunder's Decree

@@ -1412,8 +1412,8 @@ async def build_cube_ilp(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
-    staple_combos: int = 0,
-    min_staple_combos: int = 0,
+    staple_combos: int = ILPOptimizer.DEFAULT_STAPLE_COMBOS,
+    min_staple_combos: int = ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
 ) -> tuple[
     list[str],
     int,
@@ -1677,8 +1677,8 @@ async def run_ilp(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     min_enablers: int = ILPOptimizer.DEFAULT_MIN_ENABLERS,
     enabler_share: float = ILPOptimizer.DEFAULT_ENABLER_SHARE,
-    staple_combos: int = 0,
-    min_staple_combos: int = 0,
+    staple_combos: int = ILPOptimizer.DEFAULT_STAPLE_COMBOS,
+    min_staple_combos: int = ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
 ):
     """Entry point for ILP-based cube building with caching support."""
     cards, combo_count, result, card_attributes, payoffs, enablers = await build_cube_ilp(

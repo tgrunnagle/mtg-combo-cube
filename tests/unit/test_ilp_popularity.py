@@ -29,6 +29,7 @@ TRIANGLE = {"X", "Y", "Z"}
 
 def make_optimizer(combos: list[ComboData] = COMBOS, **kwargs: Any) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 4,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
