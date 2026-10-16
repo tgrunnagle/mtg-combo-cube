@@ -295,7 +295,7 @@ Commander Spellbook lists *variants*: each is one way to assemble a *combo*, and
 |--------|---------|-------------|
 | `--phase2-objective` | `essential` | Objective function: `essential`, `tiered`, `softcap`, `maxutil`, `minmax` or `mad` |
 | `--util-cap` | 2 x the Phase 1 median of the measure | Cap `T` for `essential` (essential combos per card: the combos the cube would lose without the card), `tiered` and `softcap` (utilization): the measure above it is penalized |
-| `--warm-start` | none | A cube list from an earlier build (its output file, or the `<output>_reference.txt` written beside it) that hints the Phase 2 reference solve when it is a whole cube satisfying the cube rules; the reference is then at least that cube. Cards not in the pool are ignored |
+| `--warm-start` | none | A cube list from an earlier build (its output file, or the `<output>_reference.txt` written beside it) that hints the Phase 2 reference solve when it is a whole cube (the fixed cards apart); when it also satisfies the cube rules the reference is at least that cube, otherwise it is a hint only. Cards not in the pool are ignored |
 | `--combo-tolerance` | `0.1` | How far Phase 2 may move from the reference combo score (10%), in weighted combos when `--variant-weight` is below 1 (see "Combos and variants"). The reference is the best cube found under the Phase 2 cube rules (coverage, color balance, archetype support, the card mix, the outcome rules, the payoff floor and the enabler floor), which scores lower than the Phase 1 cube |
 | `--gap-limit` | `0.05` | Early termination when proven within 5% of optimal (0 = solve to optimality) |
 | `--min-util-floor` | `2` | Minimum completable combos each selected card must participate in (all objectives, 0 disables) |

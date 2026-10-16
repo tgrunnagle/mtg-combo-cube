@@ -3079,11 +3079,13 @@ class ILPOptimizer:
           becomes the reference. If none is found, the Phase 1 count is kept.
 
         The reference solve is hinted with the Phase 1 cube, or with the warm-start cube
-        (warm_start_cards, a cube from an earlier build) when that is a whole cube that
-        satisfies the cube rules (_reference_hint): a feasible hint is a floor on what the
-        solve returns, so a reference that satisfied the rules last time is not lost to
-        the time limit this time. The warm-start cube is the reference outright if the
-        solve finds nothing better.
+        (warm_start_cards, a cube from an earlier build) when that is a whole cube
+        (_reference_hint). When the warm-start cube satisfies the cube rules a feasible
+        hint is a floor on what the solve returns, so a reference that satisfied the rules
+        last time is not lost to the time limit this time, and the warm-start cube is the
+        reference outright if the solve finds nothing better; when it breaks a rule (one
+        added since) it is still the hint, being closer to a cube under this run's rules
+        than the Phase 1 cube is, but cannot be the reference.
 
         The hint is the reference cube when it also satisfies the combo window and the
         utilization floor. Otherwise CP-SAT would first have to repair the hint inside the
@@ -3176,8 +3178,9 @@ class ILPOptimizer:
     def _reference_hint(self, phase1_start: _WarmStart) -> tuple[_WarmStart, _WarmStart | None]:
         """
         The cube the reference solve is hinted with: the warm-start cube when it is a whole
-        cube of candidate cards that satisfies the cube rules, otherwise the Phase 1 cube.
-        Returns (the hint, the warm-start cube when it is the hint, else None).
+        cube of candidate cards (the fixed cards apart), otherwise the Phase 1 cube. Returns
+        (the hint, the warm-start cube when it also satisfies the cube rules and so may be
+        the reference, else None).
         """
         if not self.warm_start_cards:
             return phase1_start, None
@@ -3190,11 +3193,14 @@ class ILPOptimizer:
             )
             return phase1_start, None
         if broken := self._describe_broken_rules(given.cards):
+            # A hint need not be feasible: the Phase 1 cube breaks rules too, and a cube
+            # that satisfied last build's rules is closer to this build's than it is (a new
+            # rule, the staples, breaks it by a few cards). It cannot be the reference.
             logger.warning(
-                f"Phase 2: the warm-start cube breaks {broken} constraints; the reference "
-                f"solve is hinted with the Phase 1 cube"
+                f"Phase 2: the warm-start cube breaks {broken} constraints; it hints the "
+                f"reference solve but cannot be the reference"
             )
-            return phase1_start, None
+            return given, None
         logger.info(
             f"Phase 2: the reference solve is hinted with the warm-start cube "
             f"({self._describe_combos(given.combo_ids)})"

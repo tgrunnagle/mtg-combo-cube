@@ -517,9 +517,12 @@ is built, both in the small Phase 1 model with the cube rules added:
    It is the best cube found in that time, not a proven maximum. If the Phase 1 cube already
    satisfies every rule, it is the reference. With `--warm-start` (a cube list from an
    earlier build), the solve is hinted with that cube instead when it is a whole cube of
-   candidate cards that satisfies the rules (`_reference_hint`): a feasible hint is a floor
-   on what the solve returns, and if it returns nothing better the warm-start cube is the
-   reference outright. The reference cube is written beside the output as
+   candidate cards, the fixed cards apart (`_reference_hint`). When it also satisfies the
+   rules, a feasible hint is a floor on what the solve returns, and if it returns nothing
+   better the warm-start cube is the reference outright; when it breaks a rule (one added
+   since it was built, such as the staples) it still hints the solve, being closer to a
+   cube under this run's rules than the Phase 1 cube, but cannot be the reference. The
+   reference cube is written beside the output as
    `<output>_reference.txt`, which is the natural warm start for the next build: the
    reference solve stops at the time limit, and at full size its weighted combo count moved
    12% over four runs of the same inputs, so the window every objective is measured against
