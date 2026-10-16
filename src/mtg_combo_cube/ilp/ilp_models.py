@@ -331,6 +331,9 @@ class CardInclusionStats:
     reason: str  # one of INCLUSION_REASONS
     # the enabler table categories it is an enabler of
     enabler_categories: list[str] = dataclasses.field(default_factory=list)
+    # One completed variant per completed combo the card takes part in, the combo's most
+    # popular one, most popular combo first: the variants a Spellbook link shows for the card
+    combo_variants: list[str] = dataclasses.field(default_factory=list)
 
     @property
     def essential_combo_count(self) -> int:
