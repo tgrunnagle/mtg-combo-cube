@@ -1,32 +1,16 @@
 {
-  "variant_count": 5067,
-  "piece_count": 1616,
+  "variant_count": 5201,
+  "piece_count": 1662,
   "fixed_card_count": 71,
-  "spellbook_find_my_combos_url": "https://commanderspellbook.com/find-my-combos/?decklist=Abdel%20Adrian%2C%20Gorion%27s%20Ward%0AAcademy%20Manufactor%0AActivated%20Sleeper%0AAetherflux%20Reservoir%0AAgatha%20of%20the%20Vile%20Cauldron%0AAkroma%27s%20Will%0AAltar%20of%20Dementia%0AAltar%20of%20the%20Brood%0AAminatou%2C%20the%20Fateshifter%0AAnimation%20Module%0AAnointed%20Procession%0AAphetto%20Alchemist%0AApproach%20of%20the%20Second%20Sun%0AArchaeomancer%0AArchfiend%20of%20Despair%0AArixmethes%2C%20Slumbering%20Isle%0AAshaya%2C%20Soul%20of%20the%20Wild%0AAshnod%27s%20Altar%0AAzorius%20Chancery%0ABadgermole%20Cub%0ABasalt%20Monolith%0ABasking%20Broodscale%0ABasri%27s%20Lieutenant%0ABastion%20of%20Remembrance%0ABiomancer%27s%20Familiar%0ABlade%20of%20the%20Bloodchief%0ABlasting%20Station%0ABlitzwing%2C%20Cruel%20Tormentor%20%2F%2F%20Blitzwing%2C%20Adaptive%20Assailant%0ABlood%20Artist%0ABloodletter%20of%20Aclazotz%0ABloodthirsty%20Conqueror%0ABloom%20Tender%0ABody%20Launderer%0ABoromir%2C%20Warden%20of%20the%20Tower%0ABrain%20Freeze%0ABreath%20of%20Fury%0ABroodhatch%20Nantuko%0ACabal%20Ritual%0ACapture%20of%20Jingzhou%0ACarrion%20Feeder%0ACathars%27%20Crusade%0ACathodion%0ACauldron%20Familiar%0AChangeling%20Outcast%0AChatterfang%2C%20Squirrel%20General%0AChromatic%20Orrery%0AClever%20Impersonator%0AClock%20of%20Omens%0ACogwork%20Assembler%0AComet%20Storm%0AConcordant%20Crossroads%0ACoral%20Atoll%0ACoretapper%0ACrackdown%20Construct%0ACrime%20Novelist%0ACryptic%20Trilobite%0ACryptolith%20Rite%0ACrystalline%20Crawler%0ADark%20Ritual%0ADeadeye%20Navigator%0ADeath%27s%20Presence%0ADeathbringer%20Thoctar%0ADeathrender%0ADelighted%20Halfling%0ADemonic%20Consultation%0ADerevi%2C%20Empyrial%20Tactician%0ADimir%20Aqueduct%0ADisplacer%20Kitten%0ADoubling%20Season%0ADrivnod%2C%20Carnage%20Dominus%0ADross%20Scorpion%0ADualcaster%20Mage%0AEarthcraft%0AElas%20il-Kor%2C%20Sadistic%20Pilgrim%0AEldrazi%20Displacer%0AEmiel%20the%20Blessed%0AEmpowered%20Autogenerator%0AEmry%2C%20Lurker%20of%20the%20Loch%0AEnduring%20Renewal%0AEnduring%20Tenacity%0AEphemerate%0AEternal%20Witness%0AExquisite%20Blood%0AExsanguinate%0AEye%20of%20Ugin%0AFaeburrow%20Elder%0AFaerie%20Mastermind%0AFalkenrath%20Noble%0AFatestitcher%0AFelidar%20Guardian%0AFiend%20Hunter%0AFinale%20of%20Devastation%0AForsaken%20Monument%0AFraying%20Omnipotence%0AFreed%20from%20the%20Real%0AGeralf%27s%20Messenger%0AGhave%2C%20Guru%20of%20Spores%0AGlen%20Elendra%20Archmage%0AGoblin%20Bombardment%0AGoblin%20Engineer%0AGoblin%20Sharpshooter%0AGood-Fortune%20Unicorn%0AGravecrawler%0AGrievous%20Wound%0AGrim%20Monolith%0AGrinding%20Station%0AGruul%20Turf%0AGwenna%2C%20Eyes%20of%20Gaea%0AHeartstone%0AHelm%20of%20the%20Host%0AHerd%20Baloth%0AHorseshoe%20Crab%0AHullbreaker%20Horror%0AIllusionist%27s%20Bracers%0AIncubation%20Druid%0AInfernal%20Plunge%0AInkmoth%20Nexus%0AInspirit%2C%20Flagship%20Vessel%0AIntruder%20Alarm%0AIrenicus%27s%20Vile%20Duplication%0AIvy%20Lane%20Denizen%0AIzzet%20Boilerworks%0AJan%20Jansen%2C%20Chaos%20Crafter%0AJeska%27s%20Will%0AJunk%20Diver%0AKarametra%27s%20Acolyte%0AKarmic%20Guide%0AKarn%2C%20the%20Great%20Creator%0AKenrith%2C%20the%20Returned%20King%0AKiki-Jiki%2C%20Mirror%20Breaker%0AKinnan%2C%20Bonder%20Prodigy%0AKodama%20of%20the%20East%20Tree%0AKoll%2C%20the%20Forgemaster%0AKrark-Clan%20Ironworks%0AKrenko%2C%20Mob%20Boss%0ALesser%20Masticore%0ALightning%20Greaves%0ALion%27s%20Eye%20Diamond%0ALively%20Dirge%0ALonis%2C%20Cryptozoologist%0ALotus%20Petal%0ALuminous%20Broodmoth%0AMagistrate%27s%20Scepter%0AMagus%20of%20the%20Candelabra%0AMagus%20of%20the%20Wheel%0AMana%20Echoes%0AMana%20Reflection%0AMana%20Vault%0AMarath%2C%20Will%20of%20the%20Wild%0AMazirek%2C%20Kraul%20Death%20Priest%0AMemnite%0AMesmeric%20Orb%0AMetallic%20Mimic%0AMetalworker%0AMikaeus%2C%20the%20Unhallowed%0AMithril%20Coat%0AMondrak%2C%20Glory%20Dominus%0AMonk%20Gyatso%0AMox%20Amber%0AMurderous%20Redcap%0AMycosynth%20Golem%0AMycosynth%20Lattice%0AMyr%20Battlesphere%0AMyr%20Galvanizer%0AMyr%20Retriever%0AMyr%20Turbine%0AMyr%20Welder%0ANecrosynthesis%0ANim%20Deathmantle%0ANuka-Cola%20Vending%20Machine%0ANyxbloom%20Ancient%0AOrthion%2C%20Hero%20of%20Lavabrink%0APalladium%20Myr%0AParadise%20Mantle%0AParallel%20Lives%0APatrol%20Signaler%0APemmin%27s%20Aura%0APentavus%0APeregrin%20Took%0APeregrine%20Drake%0APersistent%20Constrictor%0APhyrexian%20Altar%0APhyrexian%20Triniform%0APili-Pala%0APitiless%20Plunderer%0APoison-Tip%20Archer%0APreston%2C%20the%20Vanisher%0APrimal%20Vigor%0APrototype%20Portal%0AProwling%20Geistcatcher%0APuppeteer%20Clique%0APutrid%20Goblin%0AQuietus%20Spike%0ARay%20Fillet%2C%20Man%20Ray%0AReassembling%20Skeleton%0AReforge%20the%20Soul%0ARetrofitter%20Foundry%0AReveillark%0ARings%20of%20Brighthearth%0ARite%20of%20Flame%0ARite%20of%20Passage%0ARiver%20Kelpie%0ARograkh%2C%20Son%20of%20Rohgahh%0ARosie%20Cotton%20of%20South%20Lane%0ASadistic%20Glee%0ASafehold%20Elite%0ASaffi%20Eriksdotter%0ASai%2C%20Master%20Thopterist%0ASanguine%20Bond%0AScourge%20of%20the%20Skyclaves%0AScrap%20Trawler%0AScurry%20Oak%0ASeeker%20of%20Skybreak%0ASelvala%2C%20Heart%20of%20the%20Wilds%0ASephiroth%2C%20Fabled%20SOLDIER%20%2F%2F%20Sephiroth%2C%20One-Winged%20Angel%0AShard%20of%20the%20Nightbringer%0ASimic%20Growth%20Chamber%0ASisay%2C%20Weatherlight%20Captain%0ASister%20Hospitaller%0ASkirk%20Prospector%0ASkullclamp%0ASlimefoot%20and%20Squee%0ASlimefoot%2C%20the%20Stowaway%0ASliver%20Queen%0ASmothering%20Tithe%0ASolemnity%0ASoulfire%20Grand%20Master%0ASoulherder%0ASouth%20Wind%20Avatar%0ASpark%20Double%0ASpawnsire%20of%20Ulamog%0ASplinter%20Twin%0ASpringheart%20Nantuko%0ASprout%20Swarm%0AStadium%20Headliner%0AStaff%20of%20Domination%0AStridehangar%20Automaton%0ASummoning%20Station%0ASun%20Titan%0ASuspended%20Sentence%0ASuture%20Priest%0ATaigam%2C%20Master%20Opportunist%0ATainted%20Pact%0ATarrian%27s%20Soulcleaver%0ATaurean%20Mauler%0ATeferi%2C%20Time%20Raveler%0ATeferi%2C%20Who%20Slows%20the%20Sunset%0ATeleportation%20Circle%0ATemporal%20Manipulation%0ATendrils%20of%20Agony%0ATeshar%2C%20Ancestor%27s%20Apostle%0AThassa%27s%20Oracle%0AThe%20Enigma%20Jewel%20%2F%2F%20Locus%20of%20Enlightenment%0AThe%20Fire%20Crystal%0AThe%20Jolly%20Balloon%20Man%0AThe%20Tenth%20Doctor%0AThe%20Unbeatable%20Squirrel%20Girl%0AThere%20and%20Back%20Again%0AThermopod%0AThornbite%20Staff%0AThousand-Year%20Elixir%0AThran%20Dynamo%0AThunderblust%0ATidewater%20Minion%0ATimestream%20Navigator%0ATireless%20Provisioner%0AToph%2C%20the%20First%20Metalbender%0ATorgaar%2C%20Famine%20Incarnate%0ATorment%20of%20Hailfire%0ATormenting%20Voice%0ATraining%20Grounds%0ATransmutation%20Font%0ATrazyn%20the%20Infinite%0ATwilight%20Shepherd%0ATwinflame%0AUlasht%2C%20the%20Hate%20Seed%0AUmbral%20Collar%20Zealot%0AUmbral%20Mantle%0AUnctus%2C%20Grand%20Metatect%0AUnderworld%20Breach%0AUnmarked%20Grave%0AUrza%2C%20Lord%20High%20Artificer%0AUrza%2C%20Prince%20of%20Kroog%0AUtopia%20Mycon%0AVenerated%20Stormsinger%0AVengeful%20Bloodwitch%0AVenser%2C%20Shaper%20Savant%0AVenture%20Forth%0AVigean%20Graftmage%0AVillage%20Bell-Ringer%0AVirtus%20the%20Veiled%0AViscera%20Seer%0AVito%2C%20Thorn%20of%20the%20Dusk%20Rose%0AVizier%20of%20Tumbling%20Sands%0AVoltaic%20Construct%0AVoltaic%20Key%0AVoyaging%20Satyr%0AWalking%20Ballista%0AWarlock%20Class%0AWarren%20Soultrader%0AWheel%20of%20Fortune%0AWindfall%0AWoe%20Strider%0AWoodfall%20Primus%0AWorkhorse%0AWorkshop%20Assistant%0AWound%20Reflection%0AYavimaya%20Bloomsage%20%2F%2F%20Channel%0AYurlok%20of%20Scorch%20Thrash%0AZurgo%2C%20Thunder%27s%20Decree%0AAbrade%0AArid%20Mesa%0ABadlands%0ABayou%0ABitter%20Triumph%0ABloodstained%20Mire%0ACollective%20Brutality%0ACounterspell%0ADismember%0AFateful%20Absence%0AFlame%20Slash%0AFlooded%20Strand%0AForce%20of%20Vigor%0AForce%20of%20Will%0AIndatha%20Triome%0AJetmir%27s%20Garden%0AKetria%20Triome%0ALightning%20Bolt%0AMana%20Drain%0AMana%20Leak%0AMarsh%20Flats%0AMisty%20Rainforest%0AMox%20Emerald%0AMox%20Jet%0AMox%20Pearl%0AMox%20Ruby%0AMox%20Sapphire%0ANature%27s%20Claim%0APath%20to%20Exile%0APest%20Infestation%0APlateau%0APolluted%20Delta%0APyroblast%0ARaffine%27s%20Tower%0ARaugrin%20Triome%0ASavai%20Triome%0ASavannah%0AScalding%20Tarn%0AScrubland%0ASol%20Ring%0ASpara%27s%20Headquarters%0ASuplex%0ASwan%20Song%0ASwords%20to%20Plowshares%0ATaiga%0ATalisman%20of%20Conviction%0ATalisman%20of%20Creativity%0ATalisman%20of%20Curiosity%0ATalisman%20of%20Dominance%0ATalisman%20of%20Hierarchy%0ATalisman%20of%20Impulse%0ATalisman%20of%20Indulgence%0ATalisman%20of%20Progress%0ATalisman%20of%20Resilience%0ATalisman%20of%20Unity%0AThoughtseize%0AToxic%20Deluge%0ATropical%20Island%0ATundra%0AUnderground%20Sea%0AUnexpectedly%20Absent%0AVerdant%20Catacombs%0AVolcanic%20Island%0AWasteland%0AWinds%20of%20Abandon%0AWindswept%20Heath%0AWooded%20Foothills%0AWrath%20of%20God%0AXander%27s%20Lounge%0AZagoth%20Triome%0AZiatora%27s%20Proving%20Ground",
+  "spellbook_find_my_combos_url": "https://commanderspellbook.com/find-my-combos/?decklist=Abdel%20Adrian%2C%20Gorion%27s%20Ward%0AAcademy%20Manufactor%0AActivated%20Sleeper%0AAetherflux%20Reservoir%0AAgatha%20of%20the%20Vile%20Cauldron%0AAkroma%27s%20Will%0AAltar%20of%20Dementia%0AAnimation%20Module%0AAnointed%20Procession%0AAphetto%20Alchemist%0AApproach%20of%20the%20Second%20Sun%0AArchaeomancer%0AArchfiend%20of%20Despair%0AArixmethes%2C%20Slumbering%20Isle%0AAshaya%2C%20Soul%20of%20the%20Wild%0AAshnod%27s%20Altar%0AAzorius%20Chancery%0ABadgermole%20Cub%0ABasalt%20Monolith%0ABasking%20Broodscale%0ABasri%27s%20Lieutenant%0ABastion%20of%20Remembrance%0ABiomancer%27s%20Familiar%0ABiotransference%0ABlade%20of%20the%20Bloodchief%0ABlasting%20Station%0ABlitzwing%2C%20Cruel%20Tormentor%20%2F%2F%20Blitzwing%2C%20Adaptive%20Assailant%0ABlood%20Artist%0ABloodletter%20of%20Aclazotz%0ABloodthirsty%20Conqueror%0ABloom%20Tender%0ABolas%27s%20Citadel%0ABoromir%2C%20Warden%20of%20the%20Tower%0ABrain%20Freeze%0ABreath%20of%20Fury%0ABroodhatch%20Nantuko%0AButcher%20Ghoul%0ACabal%20Ritual%0ACarnival%20of%20Souls%0ACarrion%20Feeder%0ACathars%27%20Crusade%0ACathodion%0ACauldron%20Familiar%0ACauldron%20of%20Essence%0AChatterfang%2C%20Squirrel%20General%0AChronomantic%20Escape%0AClever%20Impersonator%0AClock%20of%20Omens%0ACloudshift%0ACogwork%20Assembler%0ACombat%20Celebrant%0AComet%20Storm%0AConcordant%20Crossroads%0ACoral%20Atoll%0ACoretapper%0ACorpse%20Knight%0ACrackdown%20Construct%0ACrime%20Novelist%0ACryptic%20Trilobite%0ACryptolith%20Rite%0ACrystalline%20Crawler%0ACuriosity%0ADalkovan%20Packbeasts%0ADark%20Ritual%0ADeadeye%20Navigator%0ADeath%27s%20Presence%0ADeathbringer%20Thoctar%0ADeathrender%0ADelighted%20Halfling%0ADemonic%20Consultation%0ADerevi%2C%20Empyrial%20Tactician%0ADevoted%20Druid%0ADimir%20Aqueduct%0ADisplacer%20Kitten%0ADoubling%20Season%0ADramatic%20Reversal%0ADrivnod%2C%20Carnage%20Dominus%0ADross%20Scorpion%0ADualcaster%20Mage%0AEarthcraft%0AElas%20il-Kor%2C%20Sadistic%20Pilgrim%0AEldrazi%20Displacer%0AEmiel%20the%20Blessed%0AEmry%2C%20Lurker%20of%20the%20Loch%0AEnduring%20Renewal%0AEnduring%20Tenacity%0AEphemerate%0AEternal%20Witness%0AExquisite%20Blood%0AExsanguinate%0AFable%20of%20the%20Mirror-Breaker%20%2F%2F%20Reflection%20of%20Kiki-Jiki%0AFaeburrow%20Elder%0AFaerie%20Mastermind%0AFaithless%20Looting%0AFatestitcher%0AFelidar%20Guardian%0AFiend%20Hunter%0AFinale%20of%20Devastation%0AFirst%20Day%20of%20Class%0AForsaken%20Monument%0AFraying%20Omnipotence%0AFreed%20from%20the%20Real%0AGhave%2C%20Guru%20of%20Spores%0AGlen%20Elendra%20Archmage%0AGoblin%20Bombardment%0AGoblin%20Sharpshooter%0AGood-Fortune%20Unicorn%0AGravecrawler%0AGrinding%20Station%0AGwenna%2C%20Eyes%20of%20Gaea%0AHardened%20Scales%0AHeartstone%0AHelm%20of%20the%20Host%0AHerd%20Baloth%0AHorseshoe%20Crab%0AHullbreaker%20Horror%0AIllusionist%27s%20Bracers%0AImotekh%20the%20Stormlord%0AIncubation%20Druid%0AInfernal%20Plunge%0AInkmoth%20Nexus%0AIntruder%20Alarm%0AIrenicus%27s%20Vile%20Duplication%0AIron%20Myr%0AIsochron%20Scepter%0AIvy%20Lane%20Denizen%0AIzzet%20Boilerworks%0AJan%20Jansen%2C%20Chaos%20Crafter%0AJeska%27s%20Will%0AJunk%20Diver%0AKarmic%20Guide%0AKarn%2C%20the%20Great%20Creator%0AKenrith%2C%20the%20Returned%20King%0AKiki-Jiki%2C%20Mirror%20Breaker%0AKinnan%2C%20Bonder%20Prodigy%0AKobolds%20of%20Kher%20Keep%0AKodama%20of%20the%20East%20Tree%0AKoll%2C%20the%20Forgemaster%0AKrark-Clan%20Ironworks%0AKrenko%2C%20Mob%20Boss%0ALesser%20Masticore%0ALeyline%20of%20Abundance%0ALightning%20Greaves%0ALion%27s%20Eye%20Diamond%0ALively%20Dirge%0ALotus%20Cobra%0ALotus%20Field%0ALotus%20Petal%0ALuminous%20Broodmoth%0AMagistrate%27s%20Scepter%0AMagus%20of%20the%20Candelabra%0AMana%20Echoes%0AMana%20Reflection%0AMana%20Vault%0AMarath%2C%20Will%20of%20the%20Wild%0AMazirek%2C%20Kraul%20Death%20Priest%0AMemnite%0AMetallic%20Mimic%0AMetalworker%0AMikaeus%2C%20the%20Unhallowed%0AMirror%20Entity%0AMishra%27s%20Bauble%0AMithril%20Coat%0AMolten%20Echoes%0AMondrak%2C%20Glory%20Dominus%0AMortuary%0AMox%20Amber%0AMurderous%20Redcap%0AMycosynth%20Golem%0AMycosynth%20Lattice%0AMyr%20Battlesphere%0AMyr%20Galvanizer%0AMyr%20Retriever%0AMyr%20Turbine%0AMyr%20Welder%0ANajeela%2C%20the%20Blade-Blossom%0ANecrosynthesis%0ANim%20Deathmantle%0ANiv-Mizzet%2C%20Parun%0ANuka-Cola%20Vending%20Machine%0ANyxbloom%20Ancient%0AOrthion%2C%20Hero%20of%20Lavabrink%0APalladium%20Myr%0AParadise%20Mantle%0AParallel%20Lives%0APemmin%27s%20Aura%0APentavus%0APeregrin%20Took%0APersistent%20Constrictor%0APhyrexian%20Altar%0APhyrexian%20Triniform%0APili-Pala%0APitiless%20Plunderer%0APreston%2C%20the%20Vanisher%0APriest%20of%20Urabrask%0APrimal%20Vigor%0APrototype%20Portal%0AProwling%20Geistcatcher%0APuppeteer%20Clique%0APutrid%20Goblin%0AQuietus%20Spike%0AReassembling%20Skeleton%0AReforge%20the%20Soul%0ARelic%20of%20Legends%0ARenata%2C%20Called%20to%20the%20Hunt%0ARetrofitter%20Foundry%0AReveillark%0ARings%20of%20Brighthearth%0ARite%20of%20Flame%0ARite%20of%20Passage%0ARiver%20Kelpie%0ARoaming%20Throne%0ARosie%20Cotton%20of%20South%20Lane%0ARousing%20Refrain%0ASadistic%20Glee%0ASaffi%20Eriksdotter%0ASai%2C%20Master%20Thopterist%0ASanguine%20Bond%0AScourge%20of%20the%20Skyclaves%0AScrap%20Trawler%0AScurry%20Oak%0AScuzzback%20Marauders%0ASeeker%20of%20Skybreak%0ASelvala%2C%20Heart%20of%20the%20Wilds%0ASephiroth%2C%20Fabled%20SOLDIER%20%2F%2F%20Sephiroth%2C%20One-Winged%20Angel%0AShard%20of%20the%20Nightbringer%0ASimic%20Ascendancy%0ASimic%20Growth%20Chamber%0ASisay%2C%20Weatherlight%20Captain%0ASkirk%20Prospector%0ASkullclamp%0ASlimefoot%20and%20Squee%0ASliver%20Queen%0ASmothering%20Tithe%0ASolemnity%0ASoulherder%0ASpawning%20Pit%0ASpawnsire%20of%20Ulamog%0ASplinter%20Twin%0ASpringheart%20Nantuko%0ASprout%20Swarm%0AStaff%20of%20Domination%0AStrangleroot%20Geist%0AStridehangar%20Automaton%0ASummoning%20Station%0ASun%20Titan%0ATaigam%2C%20Master%20Opportunist%0ATainted%20Pact%0ATarrian%27s%20Soulcleaver%0ATeferi%2C%20Time%20Raveler%0ATeferi%2C%20Who%20Slows%20the%20Sunset%0ATeleportation%20Circle%0ATemporal%20Manipulation%0ATendrils%20of%20Agony%0ATeshar%2C%20Ancestor%27s%20Apostle%0AThassa%27s%20Oracle%0AThassa%2C%20Deep-Dwelling%0AThe%20Enigma%20Jewel%20%2F%2F%20Locus%20of%20Enlightenment%0AThe%20Eternity%20Elevator%0AThe%20Jolly%20Balloon%20Man%0AThe%20Tenth%20Doctor%0AThere%20and%20Back%20Again%0AThornbite%20Staff%0AThousand-Year%20Elixir%0AThrill%20of%20Possibility%0AThunderblust%0ATidewater%20Minion%0ATime%20Warp%0ATimestream%20Navigator%0ATimetwister%0ATireless%20Provisioner%0AToph%2C%20the%20First%20Metalbender%0ATorgaar%2C%20Famine%20Incarnate%0ATorment%20of%20Hailfire%0ATormenting%20Voice%0ATraining%20Grounds%0ATrazyn%20the%20Infinite%0ATriskelavus%0ATuktuk%20Rubblefort%0ATwilight%20Shepherd%0ATwinflame%0AUlasht%2C%20the%20Hate%20Seed%0AUmbral%20Mantle%0AUnctus%2C%20Grand%20Metatect%0AUnderworld%20Breach%0AUrtet%2C%20Remnant%20of%20Memnarch%0AUrza%2C%20Lord%20High%20Artificer%0AVenerated%20Stormsinger%0AVengeful%20Bloodwitch%0AVigean%20Graftmage%0AVillage%20Bell-Ringer%0AVindictive%20Vampire%0AVirtus%20the%20Veiled%0AViscera%20Seer%0AVito%2C%20Thorn%20of%20the%20Dusk%20Rose%0AVizier%20of%20Tumbling%20Sands%0AVoice%20of%20Victory%0AVoltaic%20Construct%0AVoltaic%20Key%0AWalking%20Ballista%0AWarleader%27s%20Call%0AWarlock%20Class%0AWarren%20Soultrader%0AWheel%20of%20Fortune%0AWindfall%0AWoe%20Strider%0AWoodfall%20Primus%0AWound%20Reflection%0AYurlok%20of%20Scorch%20Thrash%0AZulaport%20Cutthroat%0AAbrade%0AArid%20Mesa%0ABadlands%0ABayou%0ABitter%20Triumph%0ABloodstained%20Mire%0ACollective%20Brutality%0ACounterspell%0ADismember%0AFateful%20Absence%0AFlame%20Slash%0AFlooded%20Strand%0AForce%20of%20Vigor%0AForce%20of%20Will%0AIndatha%20Triome%0AJetmir%27s%20Garden%0AKetria%20Triome%0ALightning%20Bolt%0AMana%20Drain%0AMana%20Leak%0AMarsh%20Flats%0AMisty%20Rainforest%0AMox%20Emerald%0AMox%20Jet%0AMox%20Pearl%0AMox%20Ruby%0AMox%20Sapphire%0ANature%27s%20Claim%0APath%20to%20Exile%0APest%20Infestation%0APlateau%0APolluted%20Delta%0APyroblast%0ARaffine%27s%20Tower%0ARaugrin%20Triome%0ASavai%20Triome%0ASavannah%0AScalding%20Tarn%0AScrubland%0ASol%20Ring%0ASpara%27s%20Headquarters%0ASuplex%0ASwan%20Song%0ASwords%20to%20Plowshares%0ATaiga%0ATalisman%20of%20Conviction%0ATalisman%20of%20Creativity%0ATalisman%20of%20Curiosity%0ATalisman%20of%20Dominance%0ATalisman%20of%20Hierarchy%0ATalisman%20of%20Impulse%0ATalisman%20of%20Indulgence%0ATalisman%20of%20Progress%0ATalisman%20of%20Resilience%0ATalisman%20of%20Unity%0AThoughtseize%0AToxic%20Deluge%0ATropical%20Island%0ATundra%0AUnderground%20Sea%0AUnexpectedly%20Absent%0AVerdant%20Catacombs%0AVolcanic%20Island%0AWasteland%0AWinds%20of%20Abandon%0AWindswept%20Heath%0AWooded%20Foothills%0AWrath%20of%20God%0AXander%27s%20Lounge%0AZagoth%20Triome%0AZiatora%27s%20Proving%20Ground",
   "pieces": [
-    {
-      "piece": "Lotus Cobra",
-      "kind": "candidate",
-      "variant_count": 4,
-      "distinct_combo_count": 4,
-      "new_combo_count": 0,
-      "popularity": 185897,
-      "max_popularity": 89098,
-      "example_cards": [
-        "Lotus Cobra",
-        "Springheart Nantuko"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A3470-5702--131%20OR%20sid%3A3470-5702--143%20OR%20sid%3A3470-5702-6871%20OR%20sid%3A3438-3470-5702"
-      ]
-    },
     {
       "piece": "Forsaken Miner",
       "kind": "candidate",
-      "variant_count": 11,
+      "variant_count": 9,
       "distinct_combo_count": 5,
       "new_combo_count": 5,
-      "popularity": 116212,
+      "popularity": 114400,
       "max_popularity": 29587,
       "example_cards": [
         "Blood Artist",
@@ -34,8 +18,7 @@
         "Warren Soultrader"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2842-5544-5670%20OR%20sid%3A5544-5670-6578%20OR%20sid%3A2842-4050-5544%20OR%20sid%3A4050-5544-6578%20OR%20sid%3A5544-5670-6094%20OR%20sid%3A4050-5544-6094%20OR%20sid%3A4871-5147-5544%20OR%20sid%3A4871-5256-5544%20OR%20sid%3A413-4871-5544%20OR%20sid%3A323-5544-5670",
-        "https://commanderspellbook.com/search/?q=sid%3A323-4050-5544"
+        "https://commanderspellbook.com/search/?q=sid%3A2842-5544-5670%20OR%20sid%3A5544-5670-6578%20OR%20sid%3A2842-4050-5544%20OR%20sid%3A4050-5544-6578%20OR%20sid%3A5544-5670-6094%20OR%20sid%3A4050-5544-6094%20OR%20sid%3A4871-5147-5544%20OR%20sid%3A4871-5256-5544%20OR%20sid%3A413-4871-5544"
       ]
     },
     {
@@ -55,87 +38,36 @@
       ]
     },
     {
-      "piece": "Zulaport Cutthroat",
-      "kind": "payoff",
-      "variant_count": 4,
-      "distinct_combo_count": 3,
-      "new_combo_count": 0,
-      "popularity": 106850,
-      "max_popularity": 41472,
-      "example_cards": [
-        "Gravecrawler",
-        "Warren Soultrader",
-        "Zulaport Cutthroat"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1385-2577-5670%20OR%20sid%3A1385-1580-4871-5670%20OR%20sid%3A1385-3000-5670%20OR%20sid%3A1385-5670-6291"
-      ]
-    },
-    {
-      "piece": "Ghostly Flicker",
-      "kind": "candidate",
-      "variant_count": 8,
-      "distinct_combo_count": 6,
-      "new_combo_count": 3,
-      "popularity": 88143,
-      "max_popularity": 37514,
-      "example_cards": [
-        "Archaeomancer",
-        "Ghostly Flicker",
-        "Peregrine Drake"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1987-2493-3821%20OR%20sid%3A147-1987%20OR%20sid%3A864-1987-3821%20OR%20sid%3A1987-2781-4605%20OR%20sid%3A372-1987-2493%20OR%20sid%3A372-1987-2781%20OR%20sid%3A372-864-1987%20OR%20sid%3A1283-1987-2493"
-      ]
-    },
-    {
       "piece": "Restoration Angel",
       "kind": "candidate",
-      "variant_count": 12,
-      "distinct_combo_count": 6,
+      "variant_count": 6,
+      "distinct_combo_count": 5,
       "new_combo_count": 1,
-      "popularity": 83723,
+      "popularity": 98705,
       "max_popularity": 53194,
       "example_cards": [
         "Felidar Guardian",
         "Restoration Angel"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1090-2781%20OR%20sid%3A372-1090-5144%20OR%20sid%3A372-1090-1734%20OR%20sid%3A618-1090%20OR%20sid%3A1090-2440-5917%20OR%20sid%3A1090-3817-5256%20OR%20sid%3A1090-2292-3817%20OR%20sid%3A1090-2034-3817%20OR%20sid%3A1090-3817-6798%20OR%20sid%3A1090-3817-5147",
-        "https://commanderspellbook.com/search/?q=sid%3A1090-3817-4050%20OR%20sid%3A1090-2438-3817"
-      ]
-    },
-    {
-      "piece": "Tidespout Tyrant",
-      "kind": "candidate",
-      "variant_count": 6,
-      "distinct_combo_count": 2,
-      "new_combo_count": 2,
-      "popularity": 73241,
-      "max_popularity": 37351,
-      "example_cards": [
-        "Sol Ring",
-        "Tidespout Tyrant"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A542-5034%20OR%20sid%3A542-2364%20OR%20sid%3A542-3682%20OR%20sid%3A542-2585%20OR%20sid%3A527-542-1322%20OR%20sid%3A527-542-5295"
+        "https://commanderspellbook.com/search/?q=sid%3A1090-2781%20OR%20sid%3A372-1090-5144%20OR%20sid%3A372-1090-3603%20OR%20sid%3A372-1090-1734%20OR%20sid%3A618-1090%20OR%20sid%3A1090-2440-5917"
       ]
     },
     {
       "piece": "Rhythm of the Wild",
       "kind": "candidate",
       "variant_count": 16,
-      "distinct_combo_count": 7,
+      "distinct_combo_count": 8,
       "new_combo_count": 4,
-      "popularity": 70942,
+      "popularity": 71497,
       "max_popularity": 19056,
       "example_cards": [
         "Goblin Bombardment",
         "Rhythm of the Wild"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2376-5147--5%20OR%20sid%3A2034-2376--5%20OR%20sid%3A2376-4050--5%20OR%20sid%3A2292-2376--5%20OR%20sid%3A2376-5256--5%20OR%20sid%3A1657-2376%20OR%20sid%3A413-2376--5%20OR%20sid%3A2376-2438--5%20OR%20sid%3A1657-2376-4050%20OR%20sid%3A1096-2034-2376",
-        "https://commanderspellbook.com/search/?q=sid%3A2376-6798--5%20OR%20sid%3A38-301-2376%20OR%20sid%3A997-2376--5%20OR%20sid%3A2376-5231--5%20OR%20sid%3A1096-2376-4050%20OR%20sid%3A1096-2376-5256"
+        "https://commanderspellbook.com/search/?q=sid%3A2376-5147--5%20OR%20sid%3A2034-2376--5%20OR%20sid%3A2376-4050--5%20OR%20sid%3A2292-2376--5%20OR%20sid%3A2376-5256--5%20OR%20sid%3A1657-2376%20OR%20sid%3A413-2376--5%20OR%20sid%3A2376-2438--5%20OR%20sid%3A2376-3899--5%20OR%20sid%3A1657-2376-4050",
+        "https://commanderspellbook.com/search/?q=sid%3A1096-2034-2376%20OR%20sid%3A38-301-2376%20OR%20sid%3A997-2376--5%20OR%20sid%3A1096-2376-4050%20OR%20sid%3A1096-2376-5256%20OR%20sid%3A38-2376-2420"
       ]
     },
     {
@@ -155,81 +87,96 @@
       ]
     },
     {
-      "piece": "Thran Vigil",
+      "piece": "Peregrine Drake",
       "kind": "candidate",
-      "variant_count": 11,
+      "variant_count": 12,
+      "distinct_combo_count": 6,
+      "new_combo_count": 6,
+      "popularity": 65072,
+      "max_popularity": 47163,
+      "example_cards": [
+        "Deadeye Navigator",
+        "Peregrine Drake"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A1409-3821%20OR%20sid%3A3821-4499%20OR%20sid%3A3821-4013%20OR%20sid%3A2034-3821-5003%20OR%20sid%3A2034-3821-5140%20OR%20sid%3A539-618-3821%20OR%20sid%3A3821-4050-5140%20OR%20sid%3A3821-4050-5003%20OR%20sid%3A2292-3821-5140%20OR%20sid%3A3821-5140-5256",
+        "https://commanderspellbook.com/search/?q=sid%3A3821-5003-5256%20OR%20sid%3A3821-5140-5147"
+      ]
+    },
+    {
+      "piece": "Tidespout Tyrant",
+      "kind": "candidate",
+      "variant_count": 5,
       "distinct_combo_count": 2,
       "new_combo_count": 2,
-      "popularity": 65005,
+      "popularity": 64315,
+      "max_popularity": 37351,
+      "example_cards": [
+        "Sol Ring",
+        "Tidespout Tyrant"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A542-5034%20OR%20sid%3A542-2364%20OR%20sid%3A542-3682%20OR%20sid%3A527-542-1322%20OR%20sid%3A527-542-5295"
+      ]
+    },
+    {
+      "piece": "Thran Vigil",
+      "kind": "candidate",
+      "variant_count": 10,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 62099,
       "max_popularity": 11578,
       "example_cards": [
         "Thran Vigil",
         "Viscera Seer"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2131-2292--5%20OR%20sid%3A2034-2131--5%20OR%20sid%3A2131-2438--5%20OR%20sid%3A2131-5147--5%20OR%20sid%3A301-2131--42%20OR%20sid%3A2131-4050--5%20OR%20sid%3A2131-5256--5%20OR%20sid%3A2131-6798--5%20OR%20sid%3A997-2131--5%20OR%20sid%3A413-2131--5",
-        "https://commanderspellbook.com/search/?q=sid%3A2131-5231--5"
+        "https://commanderspellbook.com/search/?q=sid%3A2131-2292--5%20OR%20sid%3A2034-2131--5%20OR%20sid%3A2131-2438--5%20OR%20sid%3A2131-5147--5%20OR%20sid%3A301-2131--42%20OR%20sid%3A2131-4050--5%20OR%20sid%3A2131-5256--5%20OR%20sid%3A997-2131--5%20OR%20sid%3A413-2131--5%20OR%20sid%3A2131-3899--5"
       ]
     },
     {
       "piece": "Priest of Titania",
       "kind": "candidate",
-      "variant_count": 6,
-      "distinct_combo_count": 6,
-      "new_combo_count": 2,
-      "popularity": 61540,
+      "variant_count": 5,
+      "distinct_combo_count": 5,
+      "new_combo_count": 1,
+      "popularity": 61483,
       "max_popularity": 36911,
       "example_cards": [
         "Priest of Titania",
         "Staff of Domination"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1376-2645%20OR%20sid%3A1376-2816%20OR%20sid%3A539-1376-4657%20OR%20sid%3A1376-3457-4235%20OR%20sid%3A1376-2608-4499%20OR%20sid%3A1283-1376-4222"
+        "https://commanderspellbook.com/search/?q=sid%3A1376-2645%20OR%20sid%3A1376-2816%20OR%20sid%3A539-1376-4657%20OR%20sid%3A1376-3457-4235%20OR%20sid%3A1376-2608-4499"
       ]
     },
     {
       "piece": "Yahenni, Undying Partisan",
       "kind": "candidate",
-      "variant_count": 33,
-      "distinct_combo_count": 31,
+      "variant_count": 31,
+      "distinct_combo_count": 26,
       "new_combo_count": 0,
-      "popularity": 58954,
+      "popularity": 60438,
       "max_popularity": 11363,
       "example_cards": [
         "Luminous Broodmoth",
         "Yahenni, Undying Partisan"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2018-3967--73%20OR%20sid%3A2744-3967--5%20OR%20sid%3A628-3967--5%20OR%20sid%3A2577-3967-4871%20OR%20sid%3A1580-3967-4871-5111%20OR%20sid%3A1580-2018-3967-4871%20OR%20sid%3A345-3967--5%20OR%20sid%3A67-3967-4681%20OR%20sid%3A628-2018-3967%20OR%20sid%3A1734-3967-4681",
-        "https://commanderspellbook.com/search/?q=sid%3A3967-4535--5%20OR%20sid%3A1734-3175-3967%20OR%20sid%3A3967-4053--73%20OR%20sid%3A2850-3967--71%20OR%20sid%3A3305-3967-4681%20OR%20sid%3A372-3967-4681%20OR%20sid%3A3817-3967-4681%20OR%20sid%3A618-3967-4681%20OR%20sid%3A2018-3967-4053%20OR%20sid%3A3967-4871-6291",
-        "https://commanderspellbook.com/search/?q=sid%3A856-3967-4231-4871%20OR%20sid%3A2781-3967-4681%20OR%20sid%3A67-2781-3967%20OR%20sid%3A2281-3967-4681%20OR%20sid%3A618-1734-3967%20OR%20sid%3A222-3967-4871--73%20OR%20sid%3A2281-3175-3967%20OR%20sid%3A3305-3817-3967%20OR%20sid%3A2281-3305-3967%20OR%20sid%3A147-3967-7682",
-        "https://commanderspellbook.com/search/?q=sid%3A3967-4871-7686%20OR%20sid%3A3764-3967-4871%20OR%20sid%3A3967-4186-5445"
-      ]
-    },
-    {
-      "piece": "Celes, Rune Knight",
-      "kind": "candidate",
-      "variant_count": 11,
-      "distinct_combo_count": 2,
-      "new_combo_count": 2,
-      "popularity": 57972,
-      "max_popularity": 9147,
-      "example_cards": [
-        "Celes, Rune Knight",
-        "Murderous Redcap"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1657-6431%20OR%20sid%3A5147-6431--5%20OR%20sid%3A2292-6431--5%20OR%20sid%3A2034-6431--5%20OR%20sid%3A5256-6431--5%20OR%20sid%3A4050-6431--5%20OR%20sid%3A6431-6798--5%20OR%20sid%3A2438-6431--5%20OR%20sid%3A413-6431--5%20OR%20sid%3A997-6431--5",
-        "https://commanderspellbook.com/search/?q=sid%3A5231-6431--5"
+        "https://commanderspellbook.com/search/?q=sid%3A2018-3967--73%20OR%20sid%3A2744-3967--5%20OR%20sid%3A628-3967--5%20OR%20sid%3A2577-3967-4871%20OR%20sid%3A1580-3967-4871-5111%20OR%20sid%3A1580-2018-3967-4871%20OR%20sid%3A345-3967--5%20OR%20sid%3A67-3967-4681%20OR%20sid%3A3967-4419--5%20OR%20sid%3A254-3967--5",
+        "https://commanderspellbook.com/search/?q=sid%3A628-2018-3967%20OR%20sid%3A1734-3967-4681%20OR%20sid%3A3967-4535--5%20OR%20sid%3A1734-3175-3967%20OR%20sid%3A3967-4053--73%20OR%20sid%3A2850-3967--71%20OR%20sid%3A372-3967-4681%20OR%20sid%3A618-3967-4681%20OR%20sid%3A2018-3967-4053%20OR%20sid%3A3967-4871-6291",
+        "https://commanderspellbook.com/search/?q=sid%3A856-3967-4231-4871%20OR%20sid%3A2781-3967-4681%20OR%20sid%3A67-2781-3967%20OR%20sid%3A2281-3967-4681%20OR%20sid%3A618-1734-3967%20OR%20sid%3A222-3967-4871--73%20OR%20sid%3A2281-3175-3967%20OR%20sid%3A1580-3967-4871-5334%20OR%20sid%3A147-3967-7682%20OR%20sid%3A3764-3967-4871",
+        "https://commanderspellbook.com/search/?q=sid%3A3967-4186-5445"
       ]
     },
     {
       "piece": "The Great Henge",
       "kind": "candidate",
       "variant_count": 12,
-      "distinct_combo_count": 4,
-      "new_combo_count": 2,
-      "popularity": 56601,
+      "distinct_combo_count": 5,
+      "new_combo_count": 1,
+      "popularity": 56432,
       "max_popularity": 17346,
       "example_cards": [
         "Ashnod's Altar",
@@ -237,16 +184,16 @@
       ],
       "spellbook_urls": [
         "https://commanderspellbook.com/search/?q=sid%3A2034-3139--5%20OR%20sid%3A3139-4050--5%20OR%20sid%3A3139-5256--5%20OR%20sid%3A3139-5147--5%20OR%20sid%3A2292-3139--5%20OR%20sid%3A2438-3139--5%20OR%20sid%3A413-3139--5%20OR%20sid%3A997-3139--5%20OR%20sid%3A1657-3139%20OR%20sid%3A1170-3139-4761",
-        "https://commanderspellbook.com/search/?q=sid%3A3139-5231--5%20OR%20sid%3A38-301-3139"
+        "https://commanderspellbook.com/search/?q=sid%3A38-301-3139%20OR%20sid%3A38-2420-3139"
       ]
     },
     {
       "piece": "Bartolom\u00e9 del Presidio",
       "kind": "candidate",
-      "variant_count": 37,
-      "distinct_combo_count": 33,
+      "variant_count": 34,
+      "distinct_combo_count": 29,
       "new_combo_count": 0,
-      "popularity": 56219,
+      "popularity": 55646,
       "max_popularity": 16053,
       "example_cards": [
         "Bartolom\u00e9 del Presidio",
@@ -254,9 +201,9 @@
       ],
       "spellbook_urls": [
         "https://commanderspellbook.com/search/?q=sid%3A2018-2921--73%20OR%20sid%3A2744-2921--5%20OR%20sid%3A1580-2018-2921-4871%20OR%20sid%3A1580-2921-4871-5111%20OR%20sid%3A67-2921-4681%20OR%20sid%3A628-2921--5%20OR%20sid%3A2577-2921-4871%20OR%20sid%3A2921-4535--5%20OR%20sid%3A628-2018-2921%20OR%20sid%3A345-2921--5",
-        "https://commanderspellbook.com/search/?q=sid%3A2921-4053--73%20OR%20sid%3A1575-2921-4231%20OR%20sid%3A2018-2921-4053%20OR%20sid%3A2921-3490-4871%20OR%20sid%3A1734-2921-4681%20OR%20sid%3A1734-2921-3175%20OR%20sid%3A2921-3305-4681%20OR%20sid%3A2921-3817-4681%20OR%20sid%3A2281-2921-4681%20OR%20sid%3A2921-4871-6291",
-        "https://commanderspellbook.com/search/?q=sid%3A1429-2018-2921%20OR%20sid%3A2281-2921-3175%20OR%20sid%3A2781-2921-4681%20OR%20sid%3A372-2921-4681%20OR%20sid%3A2850-2921--71%20OR%20sid%3A856-2921-4231-4871%20OR%20sid%3A618-2921-4681%20OR%20sid%3A2921-3305-3817%20OR%20sid%3A67-2781-2921%20OR%20sid%3A618-1734-2921",
-        "https://commanderspellbook.com/search/?q=sid%3A2866-2921-4986-5034%20OR%20sid%3A2281-2921-3305%20OR%20sid%3A1734-2921-3817%20OR%20sid%3A2781-2921-3817%20OR%20sid%3A2921-4186-5445%20OR%20sid%3A147-2921-7682%20OR%20sid%3A2082-2921-4186"
+        "https://commanderspellbook.com/search/?q=sid%3A2921-4053--73%20OR%20sid%3A1575-2921-4231%20OR%20sid%3A2018-2921-4053%20OR%20sid%3A2921-3490-4871%20OR%20sid%3A1734-2921-4681%20OR%20sid%3A1734-2921-3175%20OR%20sid%3A2281-2921-4681%20OR%20sid%3A254-2921--5%20OR%20sid%3A2921-4871-6291%20OR%20sid%3A1429-2018-2921",
+        "https://commanderspellbook.com/search/?q=sid%3A2281-2921-3175%20OR%20sid%3A2781-2921-4681%20OR%20sid%3A2921-4419--5%20OR%20sid%3A372-2921-4681%20OR%20sid%3A2850-2921--71%20OR%20sid%3A856-2921-4231-4871%20OR%20sid%3A618-2921-4681%20OR%20sid%3A67-2781-2921%20OR%20sid%3A1580-2921-4871-5334%20OR%20sid%3A618-1734-2921",
+        "https://commanderspellbook.com/search/?q=sid%3A2866-2921-4986-5034%20OR%20sid%3A2921-4186-5445%20OR%20sid%3A147-2921-7682%20OR%20sid%3A2082-2921-4186"
       ]
     },
     {
@@ -277,19 +224,19 @@
       ]
     },
     {
-      "piece": "Heliod, Sun-Crowned",
+      "piece": "Celes, Rune Knight",
       "kind": "candidate",
-      "variant_count": 9,
-      "distinct_combo_count": 3,
-      "new_combo_count": 3,
-      "popularity": 53771,
-      "max_popularity": 51853,
+      "variant_count": 10,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 53719,
+      "max_popularity": 9147,
       "example_cards": [
-        "Heliod, Sun-Crowned",
-        "Walking Ballista"
+        "Celes, Rune Knight",
+        "Murderous Redcap"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1274-3693%20OR%20sid%3A261-1274-4186%20OR%20sid%3A261-1274-5641%20OR%20sid%3A1274-2811-4186%20OR%20sid%3A261-1274-3197%20OR%20sid%3A261-1274-2034-3490%20OR%20sid%3A1274-2034-2811-3490%20OR%20sid%3A1274-2811-3197%20OR%20sid%3A1274-4968"
+        "https://commanderspellbook.com/search/?q=sid%3A1657-6431%20OR%20sid%3A5147-6431--5%20OR%20sid%3A2292-6431--5%20OR%20sid%3A2034-6431--5%20OR%20sid%3A5256-6431--5%20OR%20sid%3A4050-6431--5%20OR%20sid%3A2438-6431--5%20OR%20sid%3A413-6431--5%20OR%20sid%3A997-6431--5%20OR%20sid%3A3899-6431--5"
       ]
     },
     {
@@ -325,20 +272,19 @@
       ]
     },
     {
-      "piece": "Camellia, the Seedmiser",
+      "piece": "Heliod, Sun-Crowned",
       "kind": "candidate",
-      "variant_count": 9,
+      "variant_count": 5,
       "distinct_combo_count": 3,
       "new_combo_count": 3,
-      "popularity": 52618,
-      "max_popularity": 16343,
+      "popularity": 52343,
+      "max_popularity": 51853,
       "example_cards": [
-        "Ashnod's Altar",
-        "Camellia, the Seedmiser",
-        "Peregrin Took"
+        "Heliod, Sun-Crowned",
+        "Walking Ballista"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2034-4321-5777%20OR%20sid%3A4231-4321-4772-5777%20OR%20sid%3A2557-4231-4321-5777%20OR%20sid%3A4321-4659-5777%20OR%20sid%3A3129-4231-4321-5777%20OR%20sid%3A4321-5777-6798%20OR%20sid%3A3698-4321-5777%20OR%20sid%3A4231-4321-4365-5777%20OR%20sid%3A1308-4231-4321-5777"
+        "https://commanderspellbook.com/search/?q=sid%3A1274-3693%20OR%20sid%3A1274-2811-4186%20OR%20sid%3A1274-2034-2811-3490%20OR%20sid%3A1274-2811-3197%20OR%20sid%3A1274-4968"
       ]
     },
     {
@@ -355,6 +301,23 @@
       ],
       "spellbook_urls": [
         "https://commanderspellbook.com/search/?q=sid%3A2436-2645%20OR%20sid%3A2436-2816%20OR%20sid%3A539-2436-4657%20OR%20sid%3A2436-2608-4499"
+      ]
+    },
+    {
+      "piece": "Sensei's Divining Top",
+      "kind": "candidate",
+      "variant_count": 1,
+      "distinct_combo_count": 1,
+      "new_combo_count": 1,
+      "popularity": 51193,
+      "max_popularity": 51193,
+      "example_cards": [
+        "Aetherflux Reservoir",
+        "Bolas's Citadel",
+        "Sensei's Divining Top"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A2173-4740-5078"
       ]
     },
     {
@@ -390,86 +353,68 @@
       ]
     },
     {
-      "piece": "Combat Celebrant",
+      "piece": "Camellia, the Seedmiser",
       "kind": "candidate",
-      "variant_count": 3,
+      "variant_count": 8,
       "distinct_combo_count": 3,
       "new_combo_count": 3,
-      "popularity": 49393,
-      "max_popularity": 26114,
+      "popularity": 49943,
+      "max_popularity": 16343,
       "example_cards": [
-        "Combat Celebrant",
-        "Helm of the Host"
+        "Ashnod's Altar",
+        "Camellia, the Seedmiser",
+        "Peregrin Took"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1692-2105%20OR%20sid%3A618-2105%20OR%20sid%3A2105-4702"
+        "https://commanderspellbook.com/search/?q=sid%3A2034-4321-5777%20OR%20sid%3A4231-4321-4772-5777%20OR%20sid%3A2557-4231-4321-5777%20OR%20sid%3A4321-4659-5777%20OR%20sid%3A3129-4231-4321-5777%20OR%20sid%3A3698-4321-5777%20OR%20sid%3A4231-4321-4365-5777%20OR%20sid%3A1308-4231-4321-5777"
+      ]
+    },
+    {
+      "piece": "Niv-Mizzet, Visionary",
+      "kind": "candidate",
+      "variant_count": 1,
+      "distinct_combo_count": 1,
+      "new_combo_count": 0,
+      "popularity": 48679,
+      "max_popularity": 48679,
+      "example_cards": [
+        "Niv-Mizzet, Parun",
+        "Niv-Mizzet, Visionary"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A2353-6092"
       ]
     },
     {
       "piece": "Circle of Dreams Druid",
       "kind": "candidate",
-      "variant_count": 7,
-      "distinct_combo_count": 7,
-      "new_combo_count": 3,
-      "popularity": 48384,
+      "variant_count": 5,
+      "distinct_combo_count": 5,
+      "new_combo_count": 1,
+      "popularity": 48251,
       "max_popularity": 28399,
       "example_cards": [
         "Circle of Dreams Druid",
         "Staff of Domination"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1526-2645%20OR%20sid%3A1526-2816%20OR%20sid%3A539-1526-4657%20OR%20sid%3A1526-2608-4499%20OR%20sid%3A1526-3457-4235%20OR%20sid%3A1283-1526-4222%20OR%20sid%3A1283-1526-3525"
+        "https://commanderspellbook.com/search/?q=sid%3A1526-2645%20OR%20sid%3A1526-2816%20OR%20sid%3A539-1526-4657%20OR%20sid%3A1526-2608-4499%20OR%20sid%3A1526-3457-4235"
       ]
     },
     {
       "piece": "Beacon of Immortality",
       "kind": "candidate",
-      "variant_count": 3,
-      "distinct_combo_count": 3,
-      "new_combo_count": 3,
-      "popularity": 48031,
+      "variant_count": 4,
+      "distinct_combo_count": 4,
+      "new_combo_count": 4,
+      "popularity": 48174,
       "max_popularity": 17543,
       "example_cards": [
         "Beacon of Immortality",
         "Vito, Thorn of the Dusk Rose"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A314-4996%20OR%20sid%3A690-4996%20OR%20sid%3A4996-5755"
-      ]
-    },
-    {
-      "piece": "Cloudshift",
-      "kind": "candidate",
-      "variant_count": 12,
-      "distinct_combo_count": 11,
-      "new_combo_count": 8,
-      "popularity": 47968,
-      "max_popularity": 15580,
-      "example_cards": [
-        "Cloudshift",
-        "Felidar Guardian",
-        "Preston, the Vanisher"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2781-3603-4605%20OR%20sid%3A372-2781-3603%20OR%20sid%3A372-2493-3603%20OR%20sid%3A147-3603%20OR%20sid%3A372-1734-3603-4605%20OR%20sid%3A372-864-3603%20OR%20sid%3A2034-3603-4605-4681%20OR%20sid%3A1734-2034-3603-4605%20OR%20sid%3A3603-4050-4605-4681%20OR%20sid%3A413-3603-4605-4681",
-        "https://commanderspellbook.com/search/?q=sid%3A413-1734-3603-4605%20OR%20sid%3A1734-3603-4050-4605"
-      ]
-    },
-    {
-      "piece": "First Day of Class",
-      "kind": "candidate",
-      "variant_count": 17,
-      "distinct_combo_count": 8,
-      "new_combo_count": 6,
-      "popularity": 47875,
-      "max_popularity": 6823,
-      "example_cards": [
-        "First Day of Class",
-        "Goblin Bombardment"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A254-5147--5%20OR%20sid%3A254-1657%20OR%20sid%3A254-301-5147%20OR%20sid%3A254-2292--5%20OR%20sid%3A38-254-301%20OR%20sid%3A254-2034--5%20OR%20sid%3A254-1657-2292%20OR%20sid%3A254-301-2292%20OR%20sid%3A254-4050--5%20OR%20sid%3A254-2438--5",
-        "https://commanderspellbook.com/search/?q=sid%3A254-301-2438%20OR%20sid%3A254-5256--5%20OR%20sid%3A254-301-5256%20OR%20sid%3A254-413--5%20OR%20sid%3A254-6798--5%20OR%20sid%3A254-997--5%20OR%20sid%3A254-5231--5"
+        "https://commanderspellbook.com/search/?q=sid%3A314-4996%20OR%20sid%3A690-4996%20OR%20sid%3A4996-5755%20OR%20sid%3A742-2173-4996"
       ]
     },
     {
@@ -491,49 +436,45 @@
       ]
     },
     {
-      "piece": "Eirdu, Carrier of Dawn // Isilu, Carrier of Twilight",
+      "piece": "Narset's Reversal",
       "kind": "candidate",
-      "variant_count": 36,
-      "distinct_combo_count": 6,
-      "new_combo_count": 6,
-      "popularity": 45753,
-      "max_popularity": 2820,
+      "variant_count": 2,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 45311,
+      "max_popularity": 33068,
       "example_cards": [
-        "Eirdu, Carrier of Dawn // Isilu, Carrier of Twilight",
-        "Luminous Broodmoth",
-        "Viscera Seer"
+        "Isochron Scepter",
+        "Narset's Reversal"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2018-2292-6972%20OR%20sid%3A2018-2034-6972%20OR%20sid%3A628-2034-6972%20OR%20sid%3A2018-6798-6972%20OR%20sid%3A628-2292-6972%20OR%20sid%3A2018-2438-6972%20OR%20sid%3A2018-4050-6972%20OR%20sid%3A2292-5319-6972%20OR%20sid%3A628-4050-6972%20OR%20sid%3A2292-4053-6972",
-        "https://commanderspellbook.com/search/?q=sid%3A2034-5319-6972%20OR%20sid%3A2034-4053-6972%20OR%20sid%3A628-2438-6972%20OR%20sid%3A2438-5319-6972%20OR%20sid%3A628-6798-6972%20OR%20sid%3A5319-6798-6972%20OR%20sid%3A4050-4053-6972%20OR%20sid%3A2438-4053-6972%20OR%20sid%3A4053-6798-6972%20OR%20sid%3A4050-5319-6972",
-        "https://commanderspellbook.com/search/?q=sid%3A997-2018-6972%20OR%20sid%3A2018-5256-6972%20OR%20sid%3A628-5256-6972%20OR%20sid%3A997-5319-6972%20OR%20sid%3A4053-5256-6972%20OR%20sid%3A628-997-6972%20OR%20sid%3A5256-5319-6972%20OR%20sid%3A997-4053-6972%20OR%20sid%3A413-2018-6972%20OR%20sid%3A413-628-6972",
-        "https://commanderspellbook.com/search/?q=sid%3A413-5319-6972%20OR%20sid%3A413-4053-6972%20OR%20sid%3A2018-5147-6972%20OR%20sid%3A2034-5189-6972%20OR%20sid%3A5296-6972%20OR%20sid%3A628-5147-6972"
+        "https://commanderspellbook.com/search/?q=sid%3A11-5261--41%20OR%20sid%3A11-553"
       ]
     },
     {
       "piece": "Gev, Scaled Scorch",
       "kind": "candidate",
-      "variant_count": 12,
+      "variant_count": 11,
       "distinct_combo_count": 3,
       "new_combo_count": 0,
-      "popularity": 45663,
+      "popularity": 44531,
       "max_popularity": 8883,
       "example_cards": [
         "Gev, Scaled Scorch",
         "Goblin Bombardment"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A5147-5805--5%20OR%20sid%3A1657-5805%20OR%20sid%3A2292-5805--5%20OR%20sid%3A2034-5805--5%20OR%20sid%3A2438-5805--5%20OR%20sid%3A4050-5805--5%20OR%20sid%3A5256-5805--5%20OR%20sid%3A38-301-5805%20OR%20sid%3A997-5805--5%20OR%20sid%3A5805-6798--5",
-        "https://commanderspellbook.com/search/?q=sid%3A413-5805--5%20OR%20sid%3A5231-5805--5"
+        "https://commanderspellbook.com/search/?q=sid%3A5147-5805--5%20OR%20sid%3A1657-5805%20OR%20sid%3A2292-5805--5%20OR%20sid%3A2034-5805--5%20OR%20sid%3A2438-5805--5%20OR%20sid%3A4050-5805--5%20OR%20sid%3A5256-5805--5%20OR%20sid%3A38-301-5805%20OR%20sid%3A997-5805--5%20OR%20sid%3A413-5805--5",
+        "https://commanderspellbook.com/search/?q=sid%3A3899-5805--5"
       ]
     },
     {
       "piece": "Goblin Warchief",
       "kind": "candidate",
-      "variant_count": 3,
-      "distinct_combo_count": 3,
-      "new_combo_count": 3,
-      "popularity": 42710,
+      "variant_count": 2,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 41599,
       "max_popularity": 35443,
       "example_cards": [
         "Goblin Warchief",
@@ -541,24 +482,27 @@
         "Skirk Prospector"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A38-659-1288%20OR%20sid%3A659-1288-4050%20OR%20sid%3A659-1288-5231"
+        "https://commanderspellbook.com/search/?q=sid%3A38-659-1288%20OR%20sid%3A659-1288-4050"
       ]
     },
     {
-      "piece": "Scute Swarm",
+      "piece": "Umbral Collar Zealot",
       "kind": "candidate",
-      "variant_count": 5,
-      "distinct_combo_count": 1,
+      "variant_count": 33,
+      "distinct_combo_count": 28,
       "new_combo_count": 0,
-      "popularity": 40959,
-      "max_popularity": 20269,
+      "popularity": 41054,
+      "max_popularity": 10137,
       "example_cards": [
-        "Kodama of the East Tree",
-        "Scute Swarm",
-        "Simic Growth Chamber"
+        "Gravecrawler",
+        "Pitiless Plunderer",
+        "Umbral Collar Zealot"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1479-1671-2907%20OR%20sid%3A573-1479-2907%20OR%20sid%3A1479-2907-3756%20OR%20sid%3A1479-2907-3478%20OR%20sid%3A1479-2907-3147"
+        "https://commanderspellbook.com/search/?q=sid%3A2577-4871-6798%20OR%20sid%3A628-6798--5%20OR%20sid%3A1580-4871-5111-6798%20OR%20sid%3A2744-6798--5%20OR%20sid%3A1575-4231-6798%20OR%20sid%3A1580-2018-4871-6798%20OR%20sid%3A222-4871-6798--73%20OR%20sid%3A856-4231-4871-6798%20OR%20sid%3A4871-6291-6798%20OR%20sid%3A345-6798--5",
+        "https://commanderspellbook.com/search/?q=sid%3A254-6798--5%20OR%20sid%3A2173-4740-5220-6798%20OR%20sid%3A2850-6798--71%20OR%20sid%3A2281-4681-6798%20OR%20sid%3A372-4681-6798%20OR%20sid%3A1734-4681-6798%20OR%20sid%3A2781-4681-6798%20OR%20sid%3A4535-6798--5%20OR%20sid%3A1734-3175-6798%20OR%20sid%3A1778-2173-5220-6798",
+        "https://commanderspellbook.com/search/?q=sid%3A147-6798-7682%20OR%20sid%3A4419-6798--5%20OR%20sid%3A618-4681-6798%20OR%20sid%3A67-2781-6798%20OR%20sid%3A2082-4186-6798%20OR%20sid%3A3764-4871-6798%20OR%20sid%3A1580-4871-5334-6798%20OR%20sid%3A4186-5445-6798%20OR%20sid%3A856-2173-5220-6798%20OR%20sid%3A618-1734-6798",
+        "https://commanderspellbook.com/search/?q=sid%3A2082-3197-6798%20OR%20sid%3A2866-4986-5034-6798%20OR%20sid%3A539-6798-7008"
       ]
     },
     {
@@ -578,12 +522,28 @@
       ]
     },
     {
+      "piece": "Reiterate",
+      "kind": "candidate",
+      "variant_count": 2,
+      "distinct_combo_count": 1,
+      "new_combo_count": 1,
+      "popularity": 39890,
+      "max_popularity": 37343,
+      "example_cards": [
+        "Jeska's Will",
+        "Reiterate"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A1878-3368%20OR%20sid%3A1397-3368"
+      ]
+    },
+    {
       "piece": "Plague Belcher",
       "kind": "candidate",
       "variant_count": 9,
       "distinct_combo_count": 1,
       "new_combo_count": 1,
-      "popularity": 39716,
+      "popularity": 39420,
       "max_popularity": 12774,
       "example_cards": [
         "Carrion Feeder",
@@ -591,34 +551,70 @@
         "Plague Belcher"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A243-628-2438%20OR%20sid%3A243-628-4050%20OR%20sid%3A243-628-2034%20OR%20sid%3A243-628-5256%20OR%20sid%3A243-628-2292%20OR%20sid%3A243-413-628%20OR%20sid%3A243-628-6798%20OR%20sid%3A243-628-997%20OR%20sid%3A243-628-5147"
+        "https://commanderspellbook.com/search/?q=sid%3A243-628-2438%20OR%20sid%3A243-628-4050%20OR%20sid%3A243-628-2034%20OR%20sid%3A243-628-5256%20OR%20sid%3A243-628-2292%20OR%20sid%3A243-413-628%20OR%20sid%3A243-628-997%20OR%20sid%3A243-628-5147%20OR%20sid%3A243-628-3899"
       ]
     },
     {
-      "piece": "Imotekh the Stormlord",
+      "piece": "Ophidian Eye",
       "kind": "candidate",
-      "variant_count": 10,
-      "distinct_combo_count": 10,
-      "new_combo_count": 10,
-      "popularity": 39019,
-      "max_popularity": 5927,
+      "variant_count": 1,
+      "distinct_combo_count": 1,
+      "new_combo_count": 0,
+      "popularity": 38529,
+      "max_popularity": 38529,
       "example_cards": [
-        "Ashnod's Altar",
-        "Imotekh the Stormlord",
-        "Myr Retriever",
-        "Scrap Trawler"
+        "Niv-Mizzet, Parun",
+        "Ophidian Eye"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1020-1913-2034-2866%20OR%20sid%3A1020-1913-2866-4659%20OR%20sid%3A1020-1117-1913-2034%20OR%20sid%3A1913-2034-5003%20OR%20sid%3A1020-1913-2034-3689%20OR%20sid%3A1020-1117-1913-4659%20OR%20sid%3A1117-1913-2034-3689%20OR%20sid%3A1913-4659-5003%20OR%20sid%3A1020-1913-3689-4659%20OR%20sid%3A1117-1913-3689-4659"
+        "https://commanderspellbook.com/search/?q=sid%3A2353-2396"
+      ]
+    },
+    {
+      "piece": "Eirdu, Carrier of Dawn // Isilu, Carrier of Twilight",
+      "kind": "candidate",
+      "variant_count": 32,
+      "distinct_combo_count": 5,
+      "new_combo_count": 5,
+      "popularity": 37875,
+      "max_popularity": 2820,
+      "example_cards": [
+        "Eirdu, Carrier of Dawn // Isilu, Carrier of Twilight",
+        "Luminous Broodmoth",
+        "Viscera Seer"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A2018-2292-6972%20OR%20sid%3A2018-2034-6972%20OR%20sid%3A628-2034-6972%20OR%20sid%3A628-2292-6972%20OR%20sid%3A2018-2438-6972%20OR%20sid%3A2018-4050-6972%20OR%20sid%3A628-4050-6972%20OR%20sid%3A2292-4053-6972%20OR%20sid%3A2034-4053-6972%20OR%20sid%3A628-2438-6972",
+        "https://commanderspellbook.com/search/?q=sid%3A2292-4350-6972%20OR%20sid%3A4050-4053-6972%20OR%20sid%3A2034-4350-6972%20OR%20sid%3A2438-4053-6972%20OR%20sid%3A997-2018-6972%20OR%20sid%3A2438-4350-6972%20OR%20sid%3A2018-5256-6972%20OR%20sid%3A628-5256-6972%20OR%20sid%3A4050-4350-6972%20OR%20sid%3A4053-5256-6972",
+        "https://commanderspellbook.com/search/?q=sid%3A628-997-6972%20OR%20sid%3A997-4350-6972%20OR%20sid%3A997-4053-6972%20OR%20sid%3A413-2018-6972%20OR%20sid%3A413-628-6972%20OR%20sid%3A413-4053-6972%20OR%20sid%3A4350-5256-6972%20OR%20sid%3A413-4350-6972%20OR%20sid%3A2018-5147-6972%20OR%20sid%3A628-3899-6972",
+        "https://commanderspellbook.com/search/?q=sid%3A2034-5189-6972%20OR%20sid%3A628-5147-6972"
+      ]
+    },
+    {
+      "piece": "Grim Monolith",
+      "kind": "candidate",
+      "variant_count": 12,
+      "distinct_combo_count": 12,
+      "new_combo_count": 5,
+      "popularity": 37736,
+      "max_popularity": 13148,
+      "example_cards": [
+        "Displacer Kitten",
+        "Grim Monolith",
+        "Teferi, Time Raveler"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A1170-2585-4761%20OR%20sid%3A2585-3430%20OR%20sid%3A2585-4235-4547%20OR%20sid%3A2585-2608-4499%20OR%20sid%3A1978-2585-5089%20OR%20sid%3A132-2585-2645%20OR%20sid%3A579-2585%20OR%20sid%3A74-2585%20OR%20sid%3A2585-2645-3918%20OR%20sid%3A1247-2585-3918",
+        "https://commanderspellbook.com/search/?q=sid%3A132-1978-2585%20OR%20sid%3A1978-2585-3918"
       ]
     },
     {
       "piece": "Goblin Chieftain",
       "kind": "candidate",
-      "variant_count": 3,
-      "distinct_combo_count": 3,
-      "new_combo_count": 3,
-      "popularity": 38106,
+      "variant_count": 2,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 37231,
       "max_popularity": 31437,
       "example_cards": [
         "Goblin Chieftain",
@@ -626,39 +622,7 @@
         "Skirk Prospector"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A38-659-3954%20OR%20sid%3A659-3954-4050%20OR%20sid%3A659-3954-5231"
-      ]
-    },
-    {
-      "piece": "Cloud of Faeries",
-      "kind": "candidate",
-      "variant_count": 9,
-      "distinct_combo_count": 5,
-      "new_combo_count": 5,
-      "popularity": 37884,
-      "max_popularity": 18773,
-      "example_cards": [
-        "Cloud of Faeries",
-        "Deadeye Navigator"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1409-1741%20OR%20sid%3A513-1741-3821%20OR%20sid%3A1741-4499-4893%20OR%20sid%3A1741-1912-4499%20OR%20sid%3A539-618-1741%20OR%20sid%3A1741-2092-4499%20OR%20sid%3A1741-4013-4893%20OR%20sid%3A1741-1912-4013%20OR%20sid%3A618-1741-4222"
-      ]
-    },
-    {
-      "piece": "Reiterate",
-      "kind": "candidate",
-      "variant_count": 1,
-      "distinct_combo_count": 1,
-      "new_combo_count": 1,
-      "popularity": 37343,
-      "max_popularity": 37343,
-      "example_cards": [
-        "Jeska's Will",
-        "Reiterate"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1878-3368"
+        "https://commanderspellbook.com/search/?q=sid%3A38-659-3954%20OR%20sid%3A659-3954-4050"
       ]
     },
     {
@@ -678,30 +642,12 @@
       ]
     },
     {
-      "piece": "Teysa Karlov",
-      "kind": "candidate",
-      "variant_count": 9,
-      "distinct_combo_count": 3,
-      "new_combo_count": 2,
-      "popularity": 37072,
-      "max_popularity": 14539,
-      "example_cards": [
-        "Pitiless Plunderer",
-        "Reassembling Skeleton",
-        "Teysa Karlov",
-        "Viscera Seer"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1580-2292-4647-4871%20OR%20sid%3A1580-2438-4647-4871%20OR%20sid%3A997-1580-4647-4871%20OR%20sid%3A1580-4647-4871-6798%20OR%20sid%3A1580-4647-4871-5256%20OR%20sid%3A4647-4871-5189%20OR%20sid%3A413-1580-4647-4871%20OR%20sid%3A1580-4647-4871-5147%20OR%20sid%3A1020-2866-4647-4659"
-      ]
-    },
-    {
       "piece": "The One Ring",
       "kind": "candidate",
-      "variant_count": 4,
+      "variant_count": 3,
       "distinct_combo_count": 2,
       "new_combo_count": 2,
-      "popularity": 37049,
+      "popularity": 36927,
       "max_popularity": 27979,
       "example_cards": [
         "Displacer Kitten",
@@ -709,41 +655,40 @@
         "The One Ring"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1170-3363-4761%20OR%20sid%3A1329-3363-4659%20OR%20sid%3A1329-3363-3698%20OR%20sid%3A1329-3363-6798"
-      ]
-    },
-    {
-      "piece": "Rampaging Baloths",
-      "kind": "candidate",
-      "variant_count": 5,
-      "distinct_combo_count": 1,
-      "new_combo_count": 0,
-      "popularity": 36690,
-      "max_popularity": 15782,
-      "example_cards": [
-        "Kodama of the East Tree",
-        "Rampaging Baloths",
-        "Simic Growth Chamber"
-      ],
-      "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1479-1671-4488%20OR%20sid%3A573-1479-4488%20OR%20sid%3A1479-3756-4488%20OR%20sid%3A1479-3478-4488%20OR%20sid%3A1479-3147-4488"
+        "https://commanderspellbook.com/search/?q=sid%3A1170-3363-4761%20OR%20sid%3A1329-3363-4659%20OR%20sid%3A1329-3363-3698"
       ]
     },
     {
       "piece": "Uncivil Unrest",
       "kind": "candidate",
-      "variant_count": 12,
+      "variant_count": 11,
       "distinct_combo_count": 3,
       "new_combo_count": 0,
-      "popularity": 35641,
+      "popularity": 35187,
       "max_popularity": 6983,
       "example_cards": [
         "Ashnod's Altar",
         "Uncivil Unrest"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2034-5961--5%20OR%20sid%3A5147-5961--5%20OR%20sid%3A2438-5961--5%20OR%20sid%3A2292-5961--5%20OR%20sid%3A4050-5961--5%20OR%20sid%3A1657-5961%20OR%20sid%3A5256-5961--5%20OR%20sid%3A5961-6798--5%20OR%20sid%3A997-5961--5%20OR%20sid%3A38-301-5961",
-        "https://commanderspellbook.com/search/?q=sid%3A413-5961--5%20OR%20sid%3A5231-5961--5"
+        "https://commanderspellbook.com/search/?q=sid%3A2034-5961--5%20OR%20sid%3A5147-5961--5%20OR%20sid%3A2438-5961--5%20OR%20sid%3A2292-5961--5%20OR%20sid%3A4050-5961--5%20OR%20sid%3A1657-5961%20OR%20sid%3A5256-5961--5%20OR%20sid%3A997-5961--5%20OR%20sid%3A3899-5961--5%20OR%20sid%3A38-301-5961",
+        "https://commanderspellbook.com/search/?q=sid%3A413-5961--5"
+      ]
+    },
+    {
+      "piece": "Ghostly Flicker",
+      "kind": "candidate",
+      "variant_count": 5,
+      "distinct_combo_count": 4,
+      "new_combo_count": 0,
+      "popularity": 34823,
+      "max_popularity": 17499,
+      "example_cards": [
+        "Dualcaster Mage",
+        "Ghostly Flicker"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A147-1987%20OR%20sid%3A1987-2781-4605%20OR%20sid%3A372-1987-2493%20OR%20sid%3A372-1987-2781%20OR%20sid%3A372-864-1987"
       ]
     },
     {
@@ -763,54 +708,72 @@
       ]
     },
     {
-      "piece": "Glaring Fleshraker",
+      "piece": "Tandem Lookout",
       "kind": "candidate",
-      "variant_count": 9,
+      "variant_count": 1,
       "distinct_combo_count": 1,
-      "new_combo_count": 1,
-      "popularity": 33874,
-      "max_popularity": 7091,
+      "new_combo_count": 0,
+      "popularity": 33959,
+      "max_popularity": 33959,
       "example_cards": [
-        "Glaring Fleshraker",
-        "Krark-Clan Ironworks",
-        "Myr Retriever",
-        "Scrap Trawler"
+        "Niv-Mizzet, Parun",
+        "Tandem Lookout"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A1020-2866-4659-5705%20OR%20sid%3A1020-1117-4659-5705%20OR%20sid%3A1020-2034-2866-5705%20OR%20sid%3A1020-1117-2034-5705%20OR%20sid%3A1020-3689-4659-5705%20OR%20sid%3A1117-3689-4659-5705%20OR%20sid%3A1020-2034-3689-5705%20OR%20sid%3A1117-2034-3689-5705%20OR%20sid%3A2034-2866-3689-5705"
+        "https://commanderspellbook.com/search/?q=sid%3A406-2353"
       ]
     },
     {
-      "piece": "Gorma, the Gullet",
+      "piece": "Teysa Karlov",
       "kind": "candidate",
-      "variant_count": 9,
-      "distinct_combo_count": 1,
-      "new_combo_count": 0,
-      "popularity": 32970,
-      "max_popularity": 8987,
+      "variant_count": 8,
+      "distinct_combo_count": 3,
+      "new_combo_count": 2,
+      "popularity": 33868,
+      "max_popularity": 14539,
       "example_cards": [
-        "Gorma, the Gullet",
+        "Pitiless Plunderer",
+        "Reassembling Skeleton",
+        "Teysa Karlov",
         "Viscera Seer"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A2292-7430--5%20OR%20sid%3A6798-7430--5%20OR%20sid%3A997-7430--5%20OR%20sid%3A2034-7430--5%20OR%20sid%3A4050-7430--5%20OR%20sid%3A2438-7430--5%20OR%20sid%3A5256-7430--5%20OR%20sid%3A413-7430--5%20OR%20sid%3A5147-7430--5"
+        "https://commanderspellbook.com/search/?q=sid%3A1580-2292-4647-4871%20OR%20sid%3A1580-2438-4647-4871%20OR%20sid%3A997-1580-4647-4871%20OR%20sid%3A1580-4647-4871-5256%20OR%20sid%3A4647-4871-5189%20OR%20sid%3A413-1580-4647-4871%20OR%20sid%3A1580-4647-4871-5147%20OR%20sid%3A1020-2866-4647-4659"
       ]
     },
     {
       "piece": "Kami of Whispered Hopes",
       "kind": "candidate",
-      "variant_count": 11,
-      "distinct_combo_count": 9,
+      "variant_count": 14,
+      "distinct_combo_count": 11,
       "new_combo_count": 4,
-      "popularity": 32621,
+      "popularity": 33599,
       "max_popularity": 9677,
       "example_cards": [
         "Freed from the Real",
         "Kami of Whispered Hopes"
       ],
       "spellbook_urls": [
-        "https://commanderspellbook.com/search/?q=sid%3A81-4222%20OR%20sid%3A81-2645%20OR%20sid%3A81-3525%20OR%20sid%3A81-2816%20OR%20sid%3A81-4019%20OR%20sid%3A81-292-3693%20OR%20sid%3A81-539-4657%20OR%20sid%3A81-2608-4499%20OR%20sid%3A81-1912-2060-5140%20OR%20sid%3A81-2060-2092-5140",
-        "https://commanderspellbook.com/search/?q=sid%3A81-2060-4893-5140"
+        "https://commanderspellbook.com/search/?q=sid%3A81-4222%20OR%20sid%3A81-2645%20OR%20sid%3A81-3525%20OR%20sid%3A81-2816%20OR%20sid%3A81-4019%20OR%20sid%3A81-292-3693%20OR%20sid%3A81-2021-2060-4772%20OR%20sid%3A81-539-4657%20OR%20sid%3A81-2608-4499%20OR%20sid%3A81-3099-4762-4772",
+        "https://commanderspellbook.com/search/?q=sid%3A81-2021-2060-3129%20OR%20sid%3A81-1912-2060-5140%20OR%20sid%3A81-2060-2092-5140%20OR%20sid%3A81-2060-4893-5140"
+      ]
+    },
+    {
+      "piece": "Bloodsoaked Champion",
+      "kind": "candidate",
+      "variant_count": 16,
+      "distinct_combo_count": 4,
+      "new_combo_count": 0,
+      "popularity": 33357,
+      "max_popularity": 8359,
+      "example_cards": [
+        "Ashnod's Altar",
+        "Bloodsoaked Champion",
+        "Pitiless Plunderer"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A1263-2034-4871%20OR%20sid%3A1263-4050-4871%20OR%20sid%3A1263-2842-4871-5670%20OR%20sid%3A1263-1385-4871-5670%20OR%20sid%3A1263-3025-4871-5670%20OR%20sid%3A1263-4871-5670-6578%20OR%20sid%3A1263-4871-5670-6094%20OR%20sid%3A1263-2018-2292-4871%20OR%20sid%3A1263-2018-2438-4871%20OR%20sid%3A1263-2018-4050",
+        "https://commanderspellbook.com/search/?q=sid%3A1263-1829-4871-5670%20OR%20sid%3A997-1263-2018-4871%20OR%20sid%3A1263-2018-4871-5256%20OR%20sid%3A1263-4871-5670-6559%20OR%20sid%3A413-1263-2018-4871%20OR%20sid%3A1263-4871-5670-7452"
       ]
     },
     {
@@ -830,6 +793,23 @@
       ]
     },
     {
+      "piece": "Kilo, Apogee Mind",
+      "kind": "candidate",
+      "variant_count": 7,
+      "distinct_combo_count": 2,
+      "new_combo_count": 2,
+      "popularity": 32178,
+      "max_popularity": 7245,
+      "example_cards": [
+        "Freed from the Real",
+        "Kilo, Apogee Mind",
+        "Relic of Legends"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A4222-4549-6702%20OR%20sid%3A4222-4474-6702%20OR%20sid%3A3525-4549-6702%20OR%20sid%3A3609-4222-6702%20OR%20sid%3A3525-4474-6702%20OR%20sid%3A3525-3609-6702%20OR%20sid%3A2645-3609-6702"
+      ]
+    },
+    {
       "piece": "Aurelia, the Warleader",
       "kind": "candidate",
       "variant_count": 1,
@@ -843,6 +823,23 @@
       ],
       "spellbook_urls": [
         "https://commanderspellbook.com/search/?q=sid%3A1692-4364"
+      ]
+    },
+    {
+      "piece": "Howlsquad Heavy",
+      "kind": "candidate",
+      "variant_count": 4,
+      "distinct_combo_count": 4,
+      "new_combo_count": 2,
+      "popularity": 31425,
+      "max_popularity": 16932,
+      "example_cards": [
+        "Howlsquad Heavy",
+        "Krenko, Mob Boss",
+        "Skirk Prospector"
+      ],
+      "spellbook_urls": [
+        "https://commanderspellbook.com/search/?q=sid%3A38-659-6410%20OR%20sid%3A2645-6410%20OR%20sid%3A2816-6410%20OR%20sid%3A659-4050-6410"
       ]
     }
   ]

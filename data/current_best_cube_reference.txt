@@ -6,7 +6,6 @@ Aetherflux Reservoir
 Agatha of the Vile Cauldron
 Akroma's Will
 Altar of Dementia
-Anger
 Animation Module
 Anointed Procession
 Aphetto Alchemist
@@ -24,6 +23,7 @@ Basking Broodscale
 Basri's Lieutenant
 Bastion of Remembrance
 Biomancer's Familiar
+Biotransference
 Blade of the Bloodchief
 Blasting Station
 Blood Artist
@@ -31,7 +31,7 @@ Bloodletter of Aclazotz
 Bloodstained Mire
 Bloodthirsty Conqueror
 Bloom Tender
-Body Launderer
+Bolas's Citadel
 Boromir, Warden of the Tower
 Brain Freeze
 Branching Evolution
@@ -56,6 +56,7 @@ Crime Novelist
 Cryptic Trilobite
 Cryptolith Rite
 Crystalline Crawler
+Curiosity
 Dark Ritual
 Deadeye Navigator
 Death's Presence
@@ -64,9 +65,11 @@ Deathrender
 Demonic Consultation
 Derevi, Empyrial Tactician
 Desperate Ritual
+Devoted Druid
 Dimir Aqueduct
 Displacer Kitten
 Doubling Season
+Dramatic Reversal
 Drivnod, Carnage Dominus
 Dross Scorpion
 Dualcaster Mage
@@ -74,7 +77,6 @@ Earthcraft
 Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
 Emiel the Blessed
-Empowered Autogenerator
 Emry, Lurker of the Loch
 Enduring Renewal
 Enduring Tenacity
@@ -85,7 +87,9 @@ Exsanguinate
 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
 Faeburrow Elder
 Faerie Mastermind
+Faithless Looting
 Fatestitcher
+Feldon of the Third Path
 Felidar Guardian
 Fiend Hunter
 Finale of Devastation
@@ -100,7 +104,6 @@ Goblin Sharpshooter
 Good-Fortune Unicorn
 Gravecrawler
 Grievous Wound
-Grim Monolith
 Grinding Station
 Gruul Turf
 Gwenna, Eyes of Gaea
@@ -108,15 +111,14 @@ Hardened Scales
 Heartstone
 Helm of the Host
 Herd Baloth
-Hope Tender
 Horseshoe Crab
 Hullbreaker Horror
 Illusionist's Bracers
 Imotekh the Stormlord
-Impact Tremors
 Incubation Druid
 Intruder Alarm
 Irenicus's Vile Duplication
+Isochron Scepter
 Ivy Lane Denizen
 Izzet Boilerworks
 Jan Jansen, Chaos Crafter
@@ -138,7 +140,6 @@ Lightning Bolt
 Lightning Greaves
 Lion's Eye Diamond
 Lively Dirge
-Living Death
 Lotus Cobra
 Lotus Field
 Lotus Petal
@@ -146,6 +147,7 @@ Luminous Broodmoth
 Magistrate's Scepter
 Magus of the Candelabra
 Mana Echoes
+Mana Reflection
 Mana Vault
 Marath, Will of the Wild
 Marauding Raptor
@@ -159,6 +161,8 @@ Mishra's Bauble
 Misty Rainforest
 Molten Echoes
 Mondrak, Glory Dominus
+Mortuary
+Mox Amber
 Mox Emerald
 Mox Jet
 Mox Pearl
@@ -172,10 +176,13 @@ Myr Galvanizer
 Myr Retriever
 Myr Turbine
 Myr Welder
+Najeela, the Blade-Blossom
 Necrosynthesis
 Nim Deathmantle
+Niv-Mizzet, Parun
 Nuka-Cola Vending Machine
 Nyxbloom Ancient
+Ojer Taq, Deepest Foundation // Temple of Civilization
 Orthion, Hero of Lavabrink
 Palladium Myr
 Paradise Mantle
@@ -189,15 +196,12 @@ Phyrexian Altar
 Phyrexian Triniform
 Pili-Pala
 Pitiless Plunderer
-Plaza of Heroes
 Preston, the Vanisher
 Priest of Urabrask
 Primal Vigor
-Prossh, Skyraider of Kher
 Prototype Portal
 Prowling Geistcatcher
 Puppeteer Clique
-Purphoros, God of the Forge
 Putrid Goblin
 Quietus Spike
 Reassembling Skeleton
@@ -208,9 +212,9 @@ Reveillark
 Rings of Brighthearth
 Rite of Passage
 River Kelpie
+Roaming Throne
 Rograkh, Son of Rohgahh
 Rosie Cotton of South Lane
-Ruthless Technomancer
 Sadistic Glee
 Saffi Eriksdotter
 Sai, Master Thopterist
@@ -221,6 +225,7 @@ Scurry Oak
 Seeker of Skybreak
 Seething Song
 Selvala, Heart of the Wilds
+Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel
 Shard of the Nightbringer
 Simic Ascendancy
 Simic Growth Chamber
@@ -240,11 +245,11 @@ Spawnsire of Ulamog
 Splinter Twin
 Springheart Nantuko
 Sprout Swarm
+Stadium Headliner
 Staff of Domination
 Stimulus Package
 Strangleroot Geist
 Stridehangar Automaton
-Su-Chi Cave Guard
 Summoning Station
 Sun Titan
 Suspended Sentence
@@ -256,7 +261,6 @@ Talisman of Hierarchy
 Talisman of Indulgence
 Talisman of Progress
 Tarrian's Soulcleaver
-Taurean Mauler
 Temporal Manipulation
 Tendrils of Agony
 Teshar, Ancestor's Apostle
@@ -281,20 +285,20 @@ Toxic Deluge
 Training Grounds
 Transmutation Font
 Trazyn the Infinite
-Tribute to the World Tree
 Triskelavus
 Twilight Shepherd
 Twinflame
 Ulasht, the Hate Seed
 Umbral Mantle
+Unbreakable Formation
 Unctus, Grand Metatect
 Underworld Breach
-Unmarked Grave
 Urtet, Remnant of Memnarch
 Urza, Lord High Artificer
 Urza, Prince of Kroog
 Utopia Mycon
 Venerated Stormsinger
+Vengeful Bloodwitch
 Venture Forth
 Verdant Catacombs
 Vigean Graftmage
@@ -304,8 +308,8 @@ Virtus the Veiled
 Viscera Seer
 Vito, Thorn of the Dusk Rose
 Vizier of Tumbling Sands
+Voice of Victory
 Voltaic Construct
-Vorinclex, Monstrous Raider
 Voyaging Satyr
 Walking Ballista
 Warlock Class
@@ -315,7 +319,6 @@ Wheel of Misfortune
 Windfall
 Windswept Heath
 Witch's Oven
-Woe Strider
 Wooded Foothills
 Woodfall Primus
 Workhorse
@@ -325,7 +328,4 @@ Wrath of God
 Xavier Sal, Infested Captain
 Yawgmoth, Thran Physician
 Young Wolf
-Yurlok of Scorch Thrash
 Zulaport Cutthroat
-Zurgo Stormrender
-Zurgo, Thunder's Decree

@@ -57,10 +57,17 @@ class TestDefaultTable:
         definitions = load_config().enablers
 
         assert definitions is not None
-        assert definitions.names == ("fast_mana", "ritual", "wheel", "graveyard", "recursion")
+        assert definitions.names == (
+            "fast_mana",
+            "ritual",
+            "wheel",
+            "graveyard",
+            "recursion",
+            "top_deck",
+        )
         # Fast mana and rituals come from queries; the wheels and graveyard fillers are
         # named, since a query also finds cards nobody wants in the slot
-        fast_mana, ritual, wheel, graveyard, recursion = definitions
+        fast_mana, ritual, wheel, graveyard, recursion, top_deck = definitions
         assert fast_mana.queries and ritual.queries
         assert not wheel.queries and not graveyard.queries
         assert wheel.require == ("Wheel of Fortune",)
@@ -69,12 +76,15 @@ class TestDefaultTable:
         # The recursion engine is required and is the whole category, with no floor of its own
         assert recursion.require == ("Underworld Breach",)
         assert recursion.minimum == 0 and recursion.maximum == 0
-        assert definitions.required == {"Wheel of Fortune", "Underworld Breach"}
+        # So is Bolas's Citadel, the top-of-library engine the user wants in the cube
+        assert top_deck.require == ("Bolas's Citadel",)
+        assert top_deck.minimum == 0 and top_deck.maximum == 0
+        assert definitions.required == {"Wheel of Fortune", "Underworld Breach", "Bolas's Citadel"}
         # The suspend rocks and the double-faced reprint are excluded, not re-queried
         assert {"Sol Talisman", "Mox Tantalite"} <= fast_mana.exclude
         assert "Blazing Firesinger // Seething Song" in ritual.exclude
-        assert definitions.min_enablers == {"recursion": 0}
-        assert definitions.max_enablers == {"recursion": 0}
+        assert definitions.min_enablers == {"recursion": 0, "top_deck": 0}
+        assert definitions.max_enablers == {"recursion": 0, "top_deck": 0}
 
 
 class TestResolve:

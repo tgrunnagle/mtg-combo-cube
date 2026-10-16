@@ -236,7 +236,7 @@ class TestSolve:
 
 
 class TestDefaults:
-    def test_the_rule_is_on_by_default_at_twenty_of_the_top_twenty_five(self):
+    def test_the_rule_is_on_by_default_for_every_staple_of_the_top_twenty_five(self):
         """Chosen in Step 4 of the potential-combos plan; the CLI plumbing test checks that
         every layer declares the same values."""
         optimizer = ILPOptimizer(
@@ -245,7 +245,7 @@ class TestDefaults:
 
         assert (ILPOptimizer.DEFAULT_STAPLE_COMBOS, ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS) == (
             25,
-            20,
+            25,
         )
         assert optimizer.staple_combos == 25
         # The pool has fewer staples than the minimum asks for, so every one is required

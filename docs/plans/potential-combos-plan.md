@@ -362,11 +362,10 @@ clear majority of the top 25 for a few percent of the weighted combo count.
 ## Open questions
 
 The questions raised while planning (the lands in the fixed file, where Sol Ring belongs,
-a Spellbook call from the tool) are decisions 1, 6 and 7. Open after Step 4, for the user
-(item 4 of Step 4): the default build leaves three of the top-25 staples out (Dramatic
-Reversal plus Isochron Scepter, Lotus Cobra plus Springheart Nantuko, Curiosity plus
-Niv-Mizzet, Parun); `--min-staple-combos 23` would ask for them all, and a staple nobody
-wants goes to the blocklist by its pieces.
+a Spellbook call from the tool) are decisions 1, 6 and 7. Item 4 of Step 4 (which staples
+to leave out) was settled on 16 October: the user asked for every staple of the top 25 and
+for Bolas's Citadel, alone among the cards that left, to be required; see the end of the
+Results.
 
 ## Results
 
@@ -474,9 +473,9 @@ without buying popular combos with the room. `--popularity-weight` stays 0.
 20` on every layer, the `ILPOptimizer` constructor included (the tests turn it off in
 their settings, as they do the other rules), and the `evaluate_cube` report defaults to
 the same 25; the 20 of 25 completing
-a clear majority of the top 25 for 4.6% of the weighted combo count. The 25/20 build is the
-new tracked cube (`data/current_best_cube*`, now with `data/current_best_cube_potential_combos.json`
-tracked too). Against the tracked cube of the morning it changes 80 cards: in come the
+a clear majority of the top 25 for 4.6% of the weighted combo count. The 25/20 build became the
+tracked cube (`data/current_best_cube*`, now with `data/current_best_cube_potential_combos.json`
+tracked too) until the build below replaced it. Against the tracked cube of the morning it changes 80 cards: in come the
 staple pieces Jeska's Will, Mana Vault, Tireless Provisioner, Springheart Nantuko, Exquisite
 Blood, Sanguine Bond, Vito, Thorn of the Dusk Rose, Bloodthirsty Conqueror, Enduring
 Tenacity, Dualcaster Mage and Twinflame, with Teferi, Time Raveler, Thran Dynamo and Sliver Queen among the
@@ -491,3 +490,24 @@ headed by Lotus Cobra (4 variants, 0 new combos: Springheart Nantuko is in), For
 Restoration Angel (12, 1), Tidespout Tyrant (6, 2) and Rhythm of the Wild (16). Which of the
 three missing staples to require, and whether any card that left should be a required card,
 is the user's call (Open questions).
+
+**The user's call (16 October 2026, later).** Every staple of the top 25, and of the cards
+that left, Bolas's Citadel alone is to be required. So `--min-staple-combos` defaults to 25
+(the minimum is lowered to the staples there are, 23, with a warning; 0 still asks for all of
+them) and `config.yaml` gets a sixth enabler category, `top_deck`, holding Bolas's Citadel as
+its one required card with no floor of its own, the pattern of the `recursion` category
+(Citadel is a lifegain payoff card too and stays one). The build, from the 25/20 build's
+reference as the hint (which breaks the new required card and three staples, so it hints but
+is not the reference), ended `FEASIBLE` with 1,511 variants / 1,027 distinct / 1,075.4
+weighted against the 25/20 build's 1,619 / 1,036 / 1,094.3: another 1.7% of the weighted
+count and 9 distinct combos for the three staples and the Citadel, the reference falling the
+same 1.7% (1,195.4 against 1,216.1). All 23 staples are completed (Phase 1 completes 4) and
+Bolas's Citadel is in. The balance gives a little back (the top five cards in 34% of the
+combos, the most essential card essential to 131). It changes 51 cards against the 25/20
+build: in come Dramatic Reversal and Isochron Scepter, Lotus Cobra, Curiosity and Niv-Mizzet,
+Parun, Bolas's Citadel, and back come Zulaport Cutthroat, Devoted Druid, Timetwister and Time
+Warp; out go Altar of the Brood, Suture Priest, Peregrine Drake, Thran Dynamo, Grim Monolith,
+Umbral Collar Zealot and Poison-Tip Archer among others. The report is headed by Forsaken
+Miner (9 variants, 5 new combos), Marauding Blight-Priest (2, 0), Restoration Angel (6, 1),
+Rhythm of the Wild (16, 4), Nissa, Resurgent Animist (4, 0) and Peregrine Drake (12, 6). This
+build is the tracked cube (`data/current_best_cube*`).

@@ -327,7 +327,7 @@ if __name__ == "__main__":
         default=ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
         help="Staples rule for phase 2: the number of the --staple-combos staples the cube must "
         f"complete (default: {ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS}; 0 asks for every one "
-        "of them).",
+        "of them too; a minimum above the staples there are is lowered to them).",
     )
     args = argparser.parse_args()
     if args.staple_combos < 0 or args.min_staple_combos < 0:

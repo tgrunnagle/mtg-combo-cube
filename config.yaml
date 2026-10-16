@@ -239,3 +239,11 @@ enablers:
     max_enablers: 0
     require:
       - Underworld Breach
+  top_deck:
+    # Casting combo pieces from the top of the library: Bolas's Citadel is required and is the
+    # whole category, with no floor of its own like the recursion engine. It is a lifegain
+    # payoff card too, and stays one; the user wants it in the cube (16 October 2026)
+    min_enablers: 0
+    max_enablers: 0
+    require:
+      - Bolas's Citadel

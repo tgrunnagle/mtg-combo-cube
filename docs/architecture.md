@@ -193,8 +193,8 @@ table that does not fit the outcome table is an error on load, whatever the sett
 
 `ilp/enablers.py` turns the enabler table (the `enablers` section of `config.yaml`) into the
 `EnablerTable` of a run: for each category (fast mana, rituals, wheels, graveyard fillers and
-the recursion engine Underworld Breach by default; the names are free, not tied to the outcome
-table), the cards that set combos up,
+the recursion engine Underworld Breach and the top-of-library engine Bolas's Citadel by
+default; the names are free, not tied to the outcome table), the cards that set combos up,
 each with its sources. The table has the shape of the payoff table and is parsed and resolved
 by the same code (`ilp/card_table.py`: `parse_card_table`, `resolve_sources`, with
 `min_enablers` / `max_enablers` as the bound keys and `EnablerTableError` as the error), with
@@ -203,9 +203,10 @@ the same cache as the payoff queries. There is no inference: nothing in the Spel
 marks a card as an enabler; a ritual or a wheel appears in a variant only when it is a piece.
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
-wants in the slot, which a build then used to meet the floor. Wheel of Fortune and Underworld
-Breach are required; the recursion category holds Underworld Breach alone, with a floor of 0
-(`min_enablers` and `max_enablers` 0), so the enabler share is split among the other four.
+wants in the slot, which a build then used to meet the floor. Wheel of Fortune, Underworld
+Breach and Bolas's Citadel are required; the recursion and top_deck categories hold
+Underworld Breach and Bolas's Citadel alone, each with a floor of 0 (`min_enablers` and
+`max_enablers` 0), so the enabler share is split among the other four.
 
 `build_cube_ilp` resolves the enabler table after the payoff table and, with the enabler
 floor on, adds every enabler card the pool lacks to the candidate cards as a `CandidateCard`
@@ -442,7 +443,7 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     `g` uses the group indicator; otherwise a bool `s <= sum(y of its variants)`, which the
     solver can only under-count, so the minimum is exact in the one-sided repair models
     too. The named cards of the staples are exempt from the utilization floor
-    (`floor_free_cards`), as the required cards are. On by default at N=25 with 20 of
+    (`floor_free_cards`), as the required cards are. On by default at N=25 with every one of
     them required (`--staple-combos 0` turns it off), chosen in Step 4 of the
     potential-combos plan.
 17. **The objective**, chosen with `--phase2-objective`.
@@ -634,7 +635,7 @@ cards, popularity, whether the cube completes it and what it lacks, and the phas
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
 settings of 16 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
 rules, the outcome minimum of 40, the payoff share of 0.15, the enabler share of 0.05, the
-`essential` objective and the staples rule at 20 of the top 25) at 310 cards and 20,000
+`essential` objective and the staples rule at every staple of the top 25) at 310 cards and 20,000
 variants with 360 s per solve, the fixed cards of `data/fixed_cards.txt` (the tracked list
 `config.yaml` names) outside the 310; `data/current_best_cube_command.txt` is the command
 that built it, `data/current_best_cube_reference.txt` its reference cube,
