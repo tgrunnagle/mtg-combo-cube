@@ -17,8 +17,10 @@ from mtg_combo_cube.ilp.ilp_models import (
     CardInclusionStats,
     CardMixRules,
     ComboGroupStats,
+    ConcentrationStats,
     EnablerStats,
     FixedCardStats,
+    MeasureStats,
     OneCardAwayPiece,
     OneCardAwayReport,
     OptimizationResult,
@@ -34,6 +36,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_card_inclusion,
     format_card_mix_stats,
     format_combo_count,
+    format_concentration,
     format_enabler_stats,
     format_enabler_table,
     format_fixed_card_stats,
@@ -1503,3 +1506,155 @@ class TestCardDataWithFixedCards:
             "1 cards in a single combo; 1 fixed cards in a combo"
         )
         assert format_card_inclusion(INCLUSION).endswith("1 cards in a single combo")
+
+
+class TestWriteStatsMeasures:
+    """The distinct and essential combo measures and the concentration in the stats file."""
+
+    CONCENTRATION = ConcentrationStats(
+        top_card="Card A",
+        top_card_share=0.5,
+        top_five_cards=["Card A", "Card B", "Card C"],
+        top_five_share=1.0,
+        most_essential_card="Card A",
+        max_essential_combos=1,
+    )
+
+    @classmethod
+    def stats_with_measures(cls) -> UtilizationStats:
+        return UtilizationStats(
+            2,
+            4,
+            3.0,
+            0.8,
+            6,
+            3.0,
+            distinct_combos=MeasureStats(1, 2, 1.3, 1.0, 0.5),
+            essential_combos=MeasureStats(0, 1, 0.3, 0.0, 0.5),
+            concentration=cls.CONCENTRATION,
+        )
+
+    def write(self, tmpdir: str, result: OptimizationResult) -> dict:
+        output_file = str(Path(tmpdir) / "data/cube.txt")
+        write_stats(result, output_file, 3)
+        with open(Path(tmpdir) / "data/cube_stats.json", encoding="utf-8") as f:
+            return json.load(f)
+
+    def test_measures_and_concentration_per_phase(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A", "Card B", "Card C"]),
+                completable_combo_ids=["combo1", "combo2"],
+                combo_count=2,
+                objective_value=2.0,
+                solve_time_seconds=3.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 3, "Card C": 4},
+                card_inclusion=INCLUSION,
+                phase1_utilization_stats=UtilizationStats(1, 5, 3.0, 1.5, 10, 3.0),
+                phase2_utilization_stats=self.stats_with_measures(),
+                phase1_solve_time=1.5,
+                phase2_solve_time=1.5,
+                phase2_status="OPTIMAL",
+                phase2_objective="essential",
+                phase2_util_cap=2,
+                phase2_util_cap_measure="essential_combos",
+                is_multi_objective=True,
+            )
+
+            stats = self.write(tmpdir, result)
+
+            # Phase 1 computed none of them: nothing is reported
+            assert "distinct_combos_per_card" not in stats["phase1"]
+            assert "concentration" not in stats["phase1"]
+            phase2 = stats["phase2"]
+            assert phase2["distinct_combos_per_card"] == {
+                "min": 1,
+                "max": 2,
+                "mean": 1.3,
+                "median": 1.0,
+                "std_deviation": 0.5,
+            }
+            assert phase2["essential_combos_per_card"]["max"] == 1
+            assert phase2["concentration"] == {
+                "top_card": "Card A",
+                "top_card_share": 0.5,
+                "top_five_cards": ["Card A", "Card B", "Card C"],
+                "top_five_share": 1.0,
+                "most_essential_card": "Card A",
+                "max_essential_combos": 1,
+            }
+            assert phase2["util_cap"] == 2
+            assert phase2["util_cap_measure"] == "essential_combos"
+            # The most and least used cards carry their distinct and essential counts
+            assert stats["top_utilized_cards"][0] == {
+                "card": "Card C",
+                "utilization": 4,
+                "distinct_combos": 0,
+                "essential_combos": 0,
+            }
+            assert stats["top_utilized_cards"][2] == {
+                "card": "Card A",
+                "utilization": 2,
+                "distinct_combos": 2,
+                "essential_combos": 1,
+            }
+            assert stats["bottom_utilized_cards"][-1]["essential_combos"] == 1
+
+    def test_top_cards_without_card_inclusion(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A", "Card B"]),
+                completable_combo_ids=["combo1"],
+                combo_count=1,
+                objective_value=1.0,
+                solve_time_seconds=1.0,
+                phase1_status="OPTIMAL",
+                utilization_per_card={"Card A": 2, "Card B": 1},
+                phase1_utilization_stats=self.stats_with_measures(),
+                phase1_solve_time=1.0,
+            )
+
+            stats = self.write(tmpdir, result)
+
+            assert stats["top_utilized_cards"] == [
+                {"card": "Card A", "utilization": 2},
+                {"card": "Card B", "utilization": 1},
+            ]
+            assert stats["phase1"]["concentration"]["top_five_share"] == 1.0
+            assert stats["phase1"]["essential_combos_per_card"]["median"] == 0.0
+
+    def test_fallback_records_the_cap_measure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            result = OptimizationResult(
+                selected_cards=make_candidate_cards(["Card A"]),
+                completable_combo_ids=["combo1"],
+                combo_count=1,
+                objective_value=1.0,
+                solve_time_seconds=31.5,
+                phase1_status="OPTIMAL",
+                phase1_solve_time=1.5,
+                phase2_solve_time=30.0,
+                phase2_status="TIMEOUT",
+                phase2_objective="tiered",
+                phase2_util_cap=12,
+                phase2_util_cap_measure="utilization",
+                phase2_fell_back=True,
+            )
+
+            stats = self.write(tmpdir, result)
+
+            assert stats["phase2"] == {
+                "solve_time_seconds": 30.0,
+                "status": "TIMEOUT",
+                "fell_back_to_phase1": True,
+                "objective": "tiered",
+                "util_cap": 12,
+                "util_cap_measure": "utilization",
+            }
+
+    def test_format_concentration(self):
+        assert format_concentration(self.CONCENTRATION) == (
+            "top card Card A in 50% of the combos, top five in 100%, most essential Card A "
+            "(1 combos)"
+        )

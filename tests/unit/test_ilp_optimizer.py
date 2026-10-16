@@ -52,17 +52,20 @@ class TestILPOptimizerInit:
         assert optimizer.num_workers == 4
 
     def test_phase2_objective_default(self):
-        """The default Phase 2 objective is "tiered" (Stage 4 decision)."""
+        """The default Phase 2 objective is "essential" (the balancing plan's decision)."""
         optimizer = ILPOptimizer(combos=[], candidate_cards={}, cube_size=10)
-        assert optimizer.phase2_objective == "tiered"
+        assert optimizer.phase2_objective == "essential"
         assert optimizer.util_cap is None
+        assert optimizer.warm_start_cards == frozenset()
 
     def test_unknown_phase2_objective_raises(self):
         """An unknown Phase 2 objective is an error, not a silent fallback."""
         with pytest.raises(ValueError, match="Unknown phase2_objective: 'maxmin'"):
             ILPOptimizer(combos=[], candidate_cards={}, cube_size=10, phase2_objective="maxmin")
 
-    @pytest.mark.parametrize("objective", ["mad", "minmax", "maxutil", "softcap", "tiered"])
+    @pytest.mark.parametrize(
+        "objective", ["mad", "minmax", "maxutil", "softcap", "tiered", "essential"]
+    )
     def test_known_phase2_objectives_accepted(self, objective: str):
         optimizer = ILPOptimizer(
             combos=[], candidate_cards={}, cube_size=10, phase2_objective=objective

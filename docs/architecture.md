@@ -464,13 +464,32 @@ to the CLI choices.
 
 | Name | Minimizes | Notes |
 |------|-----------|-------|
-| `tiered` (default) | Utilization above T, plus above 2T, plus above 4T | Convex penalty: one card far above the cap costs more than several slightly above it. |
+| `essential` (default) | Essential combos per card above T, plus above 2T, plus above 4T | The tiered penalty on the combos that need the card (below). A redundant piece costs nothing; a hub is relieved by a second card completing its combos. |
+| `tiered` | Utilization above T, plus above 2T, plus above 4T | Convex penalty: one card far above the cap costs more than several slightly above it. The objective the tracked cube was built with. |
 | `softcap` | Total utilization above a cap T | Penalizes every over-used card equally per unit. |
 | `maxutil` | The highest utilization of any selected card | The floor handles the low end. |
 | `minmax` | Highest minus lowest utilization | Two auxiliary variables. |
 | `mad` | Total absolute deviation from the Phase 1 mean | Two deviation variables per card. |
 
-The cap T is `--util-cap` when given, otherwise twice the Phase 1 median utilization.
+The cap T is `--util-cap` when given, otherwise twice the Phase 1 median of the objective's
+measure (the utilization, or the essential combos per card); `_Phase2Objective.cap_measure`
+names the measure and the stats file records it as `util_cap_measure`.
+
+**Essential combos** (`_add_essential_vars`). A card's essential count is the number of
+completed combos (groups) whose every completed variant names it as a piece: the combos the
+cube would lose without the card, as `cube_evaluation.card_inclusion` reports them, except
+that a template filler never counts (another pool card could fill the slot; the ground truth
+counts the only selected card of a pool as essential). `e[c]` is the sum over the groups
+where c is a piece of: the variant's `y` for a group of one variant, the group's `g` when
+every variant names c, and otherwise a boolean with
+`e[c,k] >= g[k] - sum(y[j] for the variants j of k that do not name c)`, which is forced to 1
+only when the group is complete and no completed variant lacks c. That is a lower bound,
+exact when the objective minimizes `e`; `e[c]` is 0 for an unselected card, as `u[c]` is, so
+the overage variables of `tiered` apply unchanged. Why the measure: utilization counts a
+redundant variant like a new combo, so a fourth interchangeable outlet raised its own count
+and its partners' and was the cheapest thing for `tiered` to remove, while the hubs (whose
+combos are theirs alone, so removing them costs the window) stayed. The plan and the
+benchmark numbers are in [plans/balancing-plan.md](plans/balancing-plan.md).
 
 Every objective subtracts a small versatility bonus for cards that satisfy more template groups.
 For all but `mad`, the main term is scaled so that the bonus can never outweigh one unit of it.
@@ -478,9 +497,9 @@ For all but `mad`, the main term is scaled so that the bonus can never outweigh 
 #### Stopping
 
 Each phase has its own `--time-limit`. Phase 2 also stops early once the solution is proven
-within `--gap-limit` of optimal (5% by default). For `softcap` and `tiered` the optimum can be
-near zero, where a relative gap is meaningless, so the limit is measured as a fraction of the
-Phase 1 cube's overage instead.
+within `--gap-limit` of optimal (5% by default). For `essential`, `tiered` and `softcap` the
+optimum can be near zero, where a relative gap is meaningless, so the limit is measured as a
+fraction of the Phase 1 cube's overage instead.
 
 #### Reference cube and warm start
 
@@ -496,7 +515,15 @@ is built, both in the small Phase 1 model with the cube rules added:
    combo score is maximized under all of them, hinted with the Phase 1 cube, for at most the
    time limit. The combo score of the result is the reference the window is measured from.
    It is the best cube found in that time, not a proven maximum. If the Phase 1 cube already
-   satisfies every rule, it is the reference.
+   satisfies every rule, it is the reference. With `--warm-start` (a cube list from an
+   earlier build), the solve is hinted with that cube instead when it is a whole cube of
+   candidate cards that satisfies the rules (`_reference_hint`): a feasible hint is a floor
+   on what the solve returns, and if it returns nothing better the warm-start cube is the
+   reference outright. The reference cube is written beside the output as
+   `<output>_reference.txt`, which is the natural warm start for the next build: the
+   reference solve stops at the time limit, and at full size its weighted combo count moved
+   12% over four runs of the same inputs, so the window every objective is measured against
+   was noisier than the differences between objectives.
 2. **Floor repair** (`_repair_floor`). If the reference cube has cards below the utilization
    floor, the lower edge of the window and the floor as a penalty are added, the total
    shortfall is minimized, and the search stops at the first cube with none, within the
@@ -552,14 +579,20 @@ constraint counts, timings and solver statistics per phase.
 | File | Contents |
 |------|----------|
 | `<output>.txt` | The cube, one card name per line. |
-| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics, color distribution, combos per draft archetype, card mix, combos per outcome category, popularity, payoff and enabler cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, the number of cards per inclusion reason, per-template coverage, cross-template overlap, the resolved payoff and enabler tables, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics (in variants, distinct combos and essential combos per card, with the concentration of the combos on the most-used cards), color distribution, combos per draft archetype, card mix, combos per outcome category, popularity, payoff and enabler cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, the number of cards per inclusion reason, per-template coverage, cross-template overlap, the resolved payoff and enabler tables, the fixed cards, the staples, the one-card-away totals, and profiling data when `--profile` is set. |
+| `<output>_reference.txt` | The Phase 2 reference cube: the best cube found under the cube rules, which the combo window was measured from. The input for a later build's `--warm-start`. Written whenever Phase 2 ran. |
 | `<output>_card_data.json` | Why each card is in the final cube (`cube_evaluation.card_inclusion`), most-used first: its reason (`essential`, `redundant`, `payoff_only`, `enabler_only` or `no_combo`), completed variants and distinct combos it takes part in, split into named-piece and template-filler variants, the combos the cube would lose without it, the templates it fills, its combos per outcome category, its payoff and enabler categories, after Phase 2 whether Phase 2 added it, and Spellbook search links showing its completed combos, one variant per combo and ten per link (`spellbook_links.py`; Spellbook accepts at most ten ids in a search). The fixed cards that take part in a completed combo follow with the reason `fixed`. The file also links the whole cube (with the fixed cards) on Spellbook's Find My Combos page. `evaluate_cube --card-data` writes the same file for an existing cube. |
 | `<output>_potential_combos.json` | The variants of the pool the cube and the fixed cards together are one piece short of (`cube_evaluation.one_card_away`), by missing piece: the totals, then the fifty pieces with the highest summed popularity, each with its kind (`candidate`, `payoff`, `enabler` or `template`), variants, distinct combos, the combos the cube completes through no other variant, popularity, an example and Spellbook search links to the variants; and the Find My Combos link for the whole cube, whose "potential combos" are the same list over all of Spellbook. The stats file carries the totals and the top ten as `one_card_away`. Written by every build and by `evaluate_cube --card-data`. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
-`two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used and
-the reference cube the window was measured from (variants, distinct combos and the weighted
-count). `combo_count` is always completed variants and `distinct_combo_count` the combos they
+`two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used with
+the measure it applies to (`util_cap_measure`) and the reference cube the window was measured
+from (variants, distinct combos and the weighted count). Both phase blocks carry
+`distinct_combos_per_card` and `essential_combos_per_card` beside the utilization statistics
+(the same cards, counted in distinct combos and in the combos the cube would lose without
+them) and `concentration` (the share of the completed combos the most-used card and the five
+most-used cards take part in, and the card the most combos depend on), and the most and least
+used cards carry the three counts. `combo_count` is always completed variants and `distinct_combo_count` the combos they
 belong to; `metadata.variant_weight` records the weight the run used.
 
 Each phase block has a `colors` entry computed from card color identities: cards per color
@@ -607,7 +640,10 @@ Unit tests live in `tests/unit/` and run with `task test`. `task check` adds lin
 type checking.
 
 - **Optimizer:** behavior tests, characterization tests on a fixed small instance solved to
-  optimality with one worker, and brute-force checks of each Phase 2 objective's optimum.
+  optimality with one worker, and brute-force checks of each Phase 2 objective's optimum
+  (`essential` also on a grouped instance and on one where it keeps a redundant outlet that
+  `tiered` removes); the essential measure against the card data; the warm-start cube that
+  hints the reference solve.
 - **Cube rules:** one module each for combo grouping, color balance, archetype support, the
   card mix, the outcome rules, the popularity weight, the payoff floor and the enabler floor,
   on hand-built instances where Phase 1 breaks the rule and Phase 2 must repair it (or where
@@ -632,10 +668,16 @@ These are open design questions rather than defects. Details are in
 
 - **Utilization definition.** A card is counted for every completed variant whose template pool
   contains it, even when a different card fills that slot. Combined with the coverage
-  constraints, this gives every card in a popular pool a high utilization that no objective can
-  lower. Utilization is also counted in variants, not distinct combos, so a card in many
-  variants of one combo looks like a hub (see
-  [plans/combo-grouping-plan.md](plans/combo-grouping-plan.md), Step 2).
+  constraints, this gives every card in a popular pool a high utilization that no objective
+  on utilization can lower. Utilization is also counted in variants, not distinct combos, so
+  a card in many variants of one combo looks like a hub. The default objective now balances
+  essential combos instead, which has neither problem, but the utilization floor is still in
+  variants (two variants of one combo satisfy it) and the essential measure ignores template
+  fillers (see [plans/balancing-plan.md](plans/balancing-plan.md), "Open questions").
+- **The reference solve is noisy.** It stops at the time limit, and at full size its weighted
+  combo count moved 12% over four runs of the same inputs, so the window moves with it.
+  `--warm-start` with the previous reference cube bounds it from below; a reference the
+  solver proves is out of reach at this size.
 - **Color balance is all or nothing.** The rule requires every color to be present and is a
   hard constraint, and so is the optional mono-colored balance (`--mono-color-ratio`). See
   [plans/color-balance-plan.md](plans/color-balance-plan.md).

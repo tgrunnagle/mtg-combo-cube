@@ -91,19 +91,32 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--phase2-objective",
         type=str,
-        choices=["mad", "minmax", "maxutil", "softcap", "tiered"],
-        default="tiered",
-        help="Phase 2 objective function: 'tiered' (default; minimize total utilization "
-        "above --util-cap, counted again above 2x and 4x the cap), 'softcap' (minimize total "
-        "utilization above --util-cap), 'maxutil' (minimize the maximum utilization), "
-        "'minmax' (minimize max-min range) or 'mad' (minimize mean absolute deviation).",
+        choices=["essential", "tiered", "softcap", "maxutil", "minmax", "mad"],
+        default="essential",
+        help="Phase 2 objective function: 'essential' (default; minimize the total number of "
+        "combos per card the cube would lose without the card above --util-cap, counted "
+        "again above 2x and 4x the cap, so a bottleneck card pays and a redundant piece does "
+        "not), 'tiered' (the same on the completed variants each card is in, its "
+        "utilization), 'softcap' (minimize total utilization above --util-cap), 'maxutil' "
+        "(minimize the maximum utilization), 'minmax' (minimize max-min range) or 'mad' "
+        "(minimize mean absolute deviation).",
     )
     argparser.add_argument(
         "--util-cap",
         type=int,
         default=None,
-        help="Utilization cap for the 'softcap' and 'tiered' phase 2 objectives: utilization "
-        "above this is penalized (default: 2 x the Phase 1 median utilization).",
+        help="The cap of the 'essential', 'tiered' and 'softcap' phase 2 objectives: essential "
+        "combos per card ('essential') or utilization ('tiered', 'softcap') above this is "
+        "penalized (default: 2 x the Phase 1 median of the measure).",
+    )
+    argparser.add_argument(
+        "--warm-start",
+        type=str,
+        default=None,
+        help="A cube list from an earlier build (its output file, or the <output>_reference.txt "
+        "written beside it) that hints the Phase 2 reference solve, so the reference the "
+        "combo window is measured from does not fall below it; cards not in the pool are "
+        "ignored (default: the Phase 1 cube hints it).",
     )
     argparser.add_argument(
         "--min-util-floor",
@@ -388,6 +401,7 @@ if __name__ == "__main__":
                 min_utilization_floor=args.min_util_floor,
                 num_workers=args.workers,
                 util_cap=args.util_cap,
+                warm_start_file=args.warm_start,
                 max_color_ratio=args.max_color_ratio,
                 variant_weight=args.variant_weight,
                 min_pair_combos=args.min_pair_combos,

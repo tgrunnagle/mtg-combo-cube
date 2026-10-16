@@ -15,9 +15,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from mtg_combo_cube.blocklist import BlocklistFetchError, BlocklistQueryError, fetch_blocklist
-from mtg_combo_cube.config import ConfigError, load_config, read_card_list
+from mtg_combo_cube.config import ConfigError, load_config
 from mtg_combo_cube.ilp.card_table import CardTableError
 from mtg_combo_cube.ilp.cube_evaluation import (
+    card_combo_groups,
     card_inclusion,
     card_utilization,
     combos_per_outcome,
@@ -26,6 +27,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_archetype_stats,
     compute_card_mix_stats,
     compute_color_stats,
+    compute_concentration_stats,
     compute_utilization_stats,
     fixed_card_stats,
     group_outcomes,
@@ -38,6 +40,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
 )
 from mtg_combo_cube.ilp.enablers import EnablerDefinitions, EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
+    FIXED,
     ArchetypeStats,
     CardInclusionStats,
     ComboGroupStats,
@@ -63,6 +66,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_card_mix_stats,
     format_color_stats,
     format_combo_count,
+    format_concentration,
     format_enabler_stats,
     format_enabler_table,
     format_fixed_card_stats,
@@ -73,6 +77,7 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_popularity_stats,
     format_staple_stats,
     load_instance,
+    read_cube_file,
     write_card_data,
     write_potential_combos,
 )
@@ -84,14 +89,6 @@ from mtg_combo_cube.ilp.payoffs import (
 )
 
 logger = logging.getLogger(__name__)
-
-
-def read_cube_file(path: str) -> list[str]:
-    """
-    Read card names from a cube list file (one name per line, blank lines and `#` comments
-    ignored, a repeated name read once).
-    """
-    return read_card_list(path)
 
 
 @dataclass
@@ -219,12 +216,35 @@ async def evaluate_cube(
     utilization = card_utilization(cube, combos)
     payoff_by_category = payoffs.cards_by_category() if payoffs is not None else None
     enabler_by_category = enablers.cards_by_category() if enablers is not None else None
+    inclusion = card_inclusion(
+        cards,
+        combos,
+        completed,
+        group_categories=(
+            group_outcomes(combos, outcome_categories) if outcome_categories is not None else None
+        ),
+        payoff_cards=payoff_by_category,
+        enabler_cards=enabler_by_category,
+        fixed_cards=fixed_cards,
+    )
+    # The statistics describe the list's combo cards, as a build's do: not the exempt cards
+    # and not the fixed cards (reason FIXED), which are outside the list
+    exempt = set(payoff_only) | set(enabler_only)
+    cube_inclusion = [stats for stats in inclusion if stats.reason != FIXED]
+    utilization_stats = compute_utilization_stats(
+        {card: utilization[card] for card in cards if card not in exempt},
+        cube_inclusion,
+        compute_concentration_stats(
+            card_combo_groups(cards, combos, completed),
+            {stats.card: stats.essential_combo_count for stats in cube_inclusion},
+        ),
+    )
     return CubeEvaluation(
         card_count=len(cards),
         combo_count=len(completed),
         distinct_combo_count=len(group_sizes),
         weighted_combo_count=weighted_combo_count(group_sizes, variant_weight),
-        utilization_stats=compute_utilization_stats({card: utilization[card] for card in cards}),
+        utilization_stats=utilization_stats,
         largest_combo_groups=largest_combo_groups(cube, combos, completed_ids=completed),
         archetype_stats=compute_archetype_stats(cube, combos, completed),
         popularity_stats=popularity_stats(cube, combos, completed),
@@ -233,19 +253,7 @@ async def evaluate_cube(
             if outcome_categories is not None
             else None
         ),
-        card_inclusion=card_inclusion(
-            cards,
-            combos,
-            completed,
-            group_categories=(
-                group_outcomes(combos, outcome_categories)
-                if outcome_categories is not None
-                else None
-            ),
-            payoff_cards=payoff_by_category,
-            enabler_cards=enabler_by_category,
-            fixed_cards=fixed_cards,
-        ),
+        card_inclusion=inclusion,
         payoff_stats=payoffs.stats(cube, payoff_only) if payoffs is not None else None,
         payoffs=payoffs,
         enabler_stats=enablers.stats(cube, enabler_only) if enablers is not None else None,
@@ -405,6 +413,17 @@ if __name__ == "__main__":
         f"mean={stats.mean_utilization:.2f}, median={stats.median_utilization:.1f}, "
         f"std_dev={stats.std_deviation:.2f}"
     )
+    for label, measure in (
+        ("Distinct combos per card", stats.distinct_combos),
+        ("Essential combos per card", stats.essential_combos),
+    ):
+        if measure is not None:
+            print(
+                f"{label}: min={measure.min}, max={measure.max}, mean={measure.mean:.2f}, "
+                f"median={measure.median:.1f}, std_dev={measure.std_deviation:.2f}"
+            )
+    if stats.concentration is not None:
+        print(f"Concentration: {format_concentration(stats.concentration)}")
     if evaluation.archetype_stats is not None:
         print("Archetypes (distinct combos): " + format_archetype_stats(evaluation.archetype_stats))
     if evaluation.outcome_stats is not None:
