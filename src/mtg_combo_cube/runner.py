@@ -24,10 +24,11 @@ async def run(
     config_path: str | None = None,
     profile: bool = False,
     gap_limit: float = 0.05,
-    phase2_objective: str = "tiered",
+    phase2_objective: str = "essential",
     min_utilization_floor: int = 2,
     num_workers: int = 8,
     util_cap: int | None = None,
+    warm_start_file: str | None = None,
     max_color_ratio: float = 2.0,
     variant_weight: float = 0.1,
     min_pair_combos: int = 250,
@@ -61,10 +62,14 @@ async def run(
             the payoff table and the enabler table (default: config.yaml)
         profile: Enable detailed profiling of ILP optimization
         gap_limit: Relative gap limit for Phase 2 early termination (0.05 = 5%)
-        phase2_objective: Phase 2 objective: "minmax", "mad", "maxutil", "softcap" or "tiered"
+        phase2_objective: Phase 2 objective: "essential", "tiered", "softcap", "maxutil",
+            "minmax" or "mad"
         min_utilization_floor: Minimum utilization floor for phase 2 (any objective)
         num_workers: Number of parallel search workers for the ILP solver
-        util_cap: Utilization cap for "softcap" and "tiered" (None: 2 x Phase 1 median)
+        util_cap: The cap T of "essential" (essential combos per card), "softcap" and
+            "tiered" (utilization) (None: 2 x the Phase 1 median of the measure)
+        warm_start_file: A cube list from an earlier build (its output or reference cube)
+            that hints the Phase 2 reference solve (None: the Phase 1 cube hints it)
         max_color_ratio: Phase 2 limit on how many times larger one color may be than another
             (0 disables)
         variant_weight: Value of each further completed variant of a combo the cube already
@@ -113,6 +118,7 @@ async def run(
         min_utilization_floor=min_utilization_floor,
         num_workers=num_workers,
         util_cap=util_cap,
+        warm_start_file=warm_start_file,
         max_color_ratio=max_color_ratio,
         variant_weight=variant_weight,
         min_pair_combos=min_pair_combos,

@@ -5,6 +5,7 @@ import pytest
 from mtg_combo_cube.ilp.cube_evaluation import (
     ARCHETYPES,
     COLOR_PAIRS,
+    card_combo_groups,
     card_inclusion,
     card_utilization,
     combos_by_color_count,
@@ -15,6 +16,8 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_archetype_stats,
     compute_card_mix_stats,
     compute_color_stats,
+    compute_concentration_stats,
+    compute_measure_stats,
     compute_utilization_stats,
     fits_archetype,
     largest_combo_groups,
@@ -503,3 +506,125 @@ class TestComputeCardMixStats:
         assert stats.card_count == 0
         assert sum(stats.type_counts.values()) == 0
         assert stats.mean_mana_value == 0.0
+
+
+class TestCardComboGroups:
+    """card_combo_groups: the completed combos each card takes part in."""
+
+    COMBOS = TestCardInclusion.COMBOS
+    CUBE = TestCardInclusion.CUBE
+
+    def test_groups_count_pieces_and_fillers(self):
+        groups = card_combo_groups(self.CUBE, self.COMBOS)
+
+        assert groups == {
+            "H": {"big"},
+            "P1": {"big"},
+            "S1": {"big"},
+            "S2": {"big"},
+            "A": {"ab"},
+            "B": {"ab"},
+            "F": set(),
+            "Pay": set(),
+        }
+        inclusion = card_inclusion(self.CUBE, self.COMBOS)
+        assert {s.card: s.distinct_combo_count for s in inclusion} == {
+            card: len(keys) for card, keys in groups.items()
+        }
+
+    def test_accepts_completed_ids(self):
+        completed = completable_combo_ids(self.CUBE, self.COMBOS)
+
+        assert card_combo_groups(self.CUBE, self.COMBOS, completed) == card_combo_groups(
+            self.CUBE, self.COMBOS
+        )
+
+
+class TestConcentration:
+    """compute_concentration_stats: how much of the combos rest on a few cards."""
+
+    def test_shares_and_most_essential(self):
+        groups = {
+            "Hub": {"g1", "g2", "g3", "g4"},
+            "A": {"g1", "g5"},
+            "B": {"g2"},
+            "C": {"g3"},
+            "D": {"g4"},
+            "E": {"g5"},
+            "F": {"g6"},
+            "G": set(),
+        }
+        essential = {"Hub": 3, "A": 1, "B": 0, "C": 0, "D": 0, "E": 1, "F": 1, "G": 0}
+
+        stats = compute_concentration_stats(groups, essential)
+
+        assert stats is not None
+        assert (stats.top_card, stats.top_card_share) == ("Hub", 4 / 6)
+        # Ties by distinct combos break on the name
+        assert stats.top_five_cards == ["Hub", "A", "B", "C", "D"]
+        assert stats.top_five_share == 5 / 6
+        assert (stats.most_essential_card, stats.max_essential_combos) == ("Hub", 3)
+
+    def test_fewer_than_five_cards(self):
+        stats = compute_concentration_stats({"A": {"g1"}, "B": {"g1"}}, {"A": 0, "B": 0})
+
+        assert stats is not None
+        assert stats.top_five_cards == ["A", "B"]
+        assert stats.top_card_share == stats.top_five_share == 1.0
+        assert (stats.most_essential_card, stats.max_essential_combos) == ("B", 0)
+
+    def test_no_completed_combo_gives_none(self):
+        assert compute_concentration_stats({"A": set()}, {"A": 0}) is None
+        assert compute_concentration_stats({}, {}) is None
+
+
+class TestComputeMeasureStats:
+    """compute_measure_stats: the five numbers of a per-card count."""
+
+    def test_values(self):
+        stats = compute_measure_stats([1, 2, 3, 6])
+
+        assert (stats.min, stats.max, stats.mean, stats.median) == (1, 6, 3.0, 2.5)
+        assert stats.std_deviation == pytest.approx(1.8708, abs=1e-4)
+
+    def test_empty(self):
+        stats = compute_measure_stats([])
+
+        assert (stats.min, stats.max, stats.mean, stats.median, stats.std_deviation) == (
+            0,
+            0,
+            0.0,
+            0.0,
+            0.0,
+        )
+
+    def test_utilization_stats_with_inclusion(self):
+        cube = TestCardInclusion.CUBE
+        combos = TestCardInclusion.COMBOS
+        inclusion = card_inclusion(cube, combos)
+        utilization = card_utilization(cube, combos)
+        # The statistics describe the cards of `utilization`: Pay is left out
+        combo_cards = {card: value for card, value in utilization.items() if card != "Pay"}
+        concentration = compute_concentration_stats(
+            card_combo_groups(cube, combos), {s.card: s.essential_combo_count for s in inclusion}
+        )
+
+        stats = compute_utilization_stats(combo_cards, inclusion, concentration)
+
+        assert stats.max_utilization == 2
+        assert stats.distinct_combos is not None and stats.essential_combos is not None
+        assert (stats.distinct_combos.min, stats.distinct_combos.max) == (0, 1)
+        assert stats.distinct_combos.mean == pytest.approx(6 / 7)
+        assert (stats.essential_combos.max, stats.essential_combos.median) == (1, 0.0)
+        assert stats.concentration is concentration
+        assert concentration is not None
+        assert concentration.top_card == "A"  # ties by distinct combos break on the name
+        assert concentration.top_five_share == 1.0
+        assert concentration.most_essential_card == "H"
+
+    def test_utilization_stats_without_inclusion(self):
+        stats = compute_utilization_stats({"A": 1})
+
+        assert stats.distinct_combos is None
+        assert stats.essential_combos is None
+        assert stats.concentration is None

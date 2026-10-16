@@ -110,10 +110,13 @@ class TestCliPlumbing:
     def test_defaults(self, monkeypatch: pytest.MonkeyPatch):
         received = run_cli(monkeypatch)
 
-        # The CLI default is the optimizer default (Stage 4 decision: "tiered")
-        assert received["phase2_objective"] == "tiered"
-        assert ILPOptimizer(combos=[], candidate_cards={}, cube_size=1).phase2_objective == "tiered"
+        # The CLI default is the optimizer default (the balancing plan's decision)
+        assert received["phase2_objective"] == "essential"
+        assert (
+            ILPOptimizer(combos=[], candidate_cards={}, cube_size=1).phase2_objective == "essential"
+        )
         assert received["util_cap"] is None
+        assert received["warm_start_file"] is None
         assert received["combo_tolerance"] == 0.1
 
     def test_defaults_agree_on_every_layer(self, monkeypatch: pytest.MonkeyPatch):
@@ -136,6 +139,11 @@ class TestCliPlumbing:
 
         assert received["phase2_objective"] == "softcap"
         assert received["util_cap"] == 40
+
+    def test_warm_start(self, monkeypatch: pytest.MonkeyPatch):
+        received = run_cli(monkeypatch, "--warm-start", "data/cube_reference.txt")
+
+        assert received["warm_start_file"] == "data/cube_reference.txt"
 
     @pytest.mark.parametrize("objective", sorted(ILPOptimizer._PHASE2_OBJECTIVES))
     def test_every_registered_objective_is_a_cli_choice(
@@ -569,6 +577,9 @@ class TestRunnerPlumbing:
         await runner.run(cube_size=10, output_file="unused.txt", variant_weight=0.25)
         assert received["variant_weight"] == 0.25
 
+        await runner.run(cube_size=10, output_file="unused.txt", warm_start_file="old.txt")
+        assert received["warm_start_file"] == "old.txt"
+
         await runner.run(
             cube_size=10,
             output_file="unused.txt",
@@ -621,6 +632,99 @@ class TestRunnerPlumbing:
         assert received["min_outcome_combos"] == 7
         assert received["max_outcome_share"] == 0.5
         assert received["popularity_weight"] == 0.5
+
+    async def test_run_ilp_reads_the_warm_start_and_writes_the_reference_cube(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        combos = [
+            ComboData("ab", frozenset(["A", "B"]), [], 10),
+            ComboData("bc", frozenset(["B", "C"]), [], 10),
+            ComboData("ca", frozenset(["C", "A"]), [], 10),
+        ]
+        cards = {
+            name: CandidateCard(name, frozenset(), frozenset()) for name in ["A", "B", "C", "D"]
+        }
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, cards
+
+        created: list[ILPOptimizer] = []
+
+        class RecordingOptimizer(ILPOptimizer):
+            def __init__(self, *args: Any, **kwargs: Any):
+                super().__init__(*args, **kwargs)
+                created.append(self)
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> None:
+            return None
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "ILPOptimizer", RecordingOptimizer)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        fake_payoff_queries(monkeypatch)
+        warm_start = tmp_path / "old_cube.txt"
+        warm_start.write_text("A\n\nB\nNope\n", encoding="utf-8")
+
+        await ilp_runner.run_ilp(
+            cube_size=3,
+            output_file=str(tmp_path / "cube.txt"),
+            time_limit_seconds=10,
+            num_workers=1,
+            warm_start_file=str(warm_start),
+            max_color_ratio=0,
+            min_pair_combos=0,
+            min_mono_combos=0,
+            max_wide_combo_share=0,
+            min_outcome_combos=0,
+            min_payoffs=0,
+            min_enablers=0,
+        )
+
+        # The file's cards reach the optimizer, less the ones the pool lacks
+        assert len(created) == 1
+        assert created[0].warm_start_cards == {"A", "B"}
+        assert created[0].phase2_objective == "essential"
+        assert (tmp_path / "cube.txt").read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]
+        # The reference cube (here the Phase 1 cube, which satisfies every rule) is written
+        # beside the cube list, for the next build's --warm-start
+        reference = tmp_path / "cube_reference.txt"
+        assert ilp_runner.reference_cube_path(str(tmp_path / "cube.txt")) == reference
+        assert reference.read_text(encoding="utf-8").split("\n") == ["A", "B", "C"]
+        stats = json.loads((tmp_path / "cube_stats.json").read_text(encoding="utf-8"))
+        assert stats["phase2"]["objective"] == "essential"
+        assert stats["phase2"]["util_cap_measure"] == "essential_combos"
+        assert stats["phase2"]["reference_combo_count"] == 3
+        assert stats["phase2"]["concentration"]["top_card"] == "A"
+        assert stats["top_utilized_cards"][0]["essential_combos"] == 2
+
+    async def test_run_ilp_without_phase2_writes_no_reference_cube(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        combos = [ComboData("ab", frozenset(["A", "B"]), [], 10)]
+        cards = {name: CandidateCard(name, frozenset(), frozenset()) for name in ["A", "B", "C"]}
+
+        async def fake_load_instance(**kwargs: Any) -> tuple[list[ComboData], dict]:
+            return combos, cards
+
+        async def fake_fetch_card_attributes(card_names: Any, **kwargs: Any) -> None:
+            return None
+
+        monkeypatch.setattr(ilp_runner, "load_instance", fake_load_instance)
+        monkeypatch.setattr(ilp_runner, "fetch_card_attributes", fake_fetch_card_attributes)
+        fake_payoff_queries(monkeypatch)
+
+        await ilp_runner.run_ilp(
+            cube_size=2,
+            output_file=str(tmp_path / "cube.txt"),
+            time_limit_seconds=10,
+            use_multi_objective=False,
+            num_workers=1,
+            min_payoffs=0,
+            min_enablers=0,
+        )
+
+        assert (tmp_path / "cube.txt").exists()
+        assert not (tmp_path / "cube_reference.txt").exists()
 
     @pytest.mark.parametrize("util_cap", [None, 3])
     async def test_run_ilp_passes_util_cap_to_optimizer(
