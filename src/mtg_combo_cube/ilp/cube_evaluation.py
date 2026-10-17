@@ -12,8 +12,14 @@ from statistics import median
 from mtg_combo_cube.ilp.ilp_models import (
     ENABLER_ONLY,
     ESSENTIAL,
+    FIXED,
     NO_COMBO,
     PAYOFF_ONLY,
+    PIECE_CANDIDATE,
+    PIECE_ENABLER,
+    PIECE_PAYOFF,
+    PIECE_TEMPLATE,
+    PIECE_UNKNOWN,
     REDUNDANT,
     ArchetypeStats,
     CardInclusionStats,
@@ -22,9 +28,14 @@ from mtg_combo_cube.ilp.ilp_models import (
     ComboData,
     ComboGroupStats,
     ConcentrationStats,
+    FixedCardStats,
     MeasureStats,
+    OneCardAwayPiece,
+    OneCardAwayReport,
     OutcomeStats,
     PopularityStats,
+    Staple,
+    StapleStats,
     UtilizationStats,
 )
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories
@@ -411,19 +422,24 @@ def card_inclusion(
     group_categories: Mapping[str, frozenset[str]] | None = None,
     payoff_cards: Mapping[str, Collection[str]] | None = None,
     enabler_cards: Mapping[str, Collection[str]] | None = None,
+    fixed_cards: Collection[str] = (),
 ) -> list[CardInclusionStats]:
     """
     Why each selected card is in the cube: the completed combos it takes part in (counted
     as utilization counts them), the templates it fills, the completed combos the cube
-    would lose without it, and its payoff and enabler categories. Cards come most-used
-    first.
+    would lose without it, the most popular completed variant of each of its combos, and
+    its payoff and enabler categories. Cards come most-used first.
 
-    `completed_ids` saves recomputing the completed variants; `group_categories` (the
-    result of group_outcomes) adds the outcome categories of the card's combos,
-    `payoff_cards` (payoff category -> cards) its payoff categories and `enabler_cards`
-    (enabler category -> cards) its enabler categories.
+    `completed_ids` saves recomputing the completed variants (of the selected and the fixed
+    cards together); `group_categories` (the result of group_outcomes) adds the outcome
+    categories of the card's combos, `payoff_cards` (payoff category -> cards) its payoff
+    categories and `enabler_cards` (enabler category -> cards) its enabler categories.
+    `fixed_cards` (the slots filled by hand, outside the cube) complete combos with the
+    selected cards; those of them that take part in a completed combo come after the
+    selected cards with the reason FIXED, the others are left out.
     """
-    selected = set(selected_cards)
+    fixed = set(fixed_cards)
+    selected = set(selected_cards) | fixed
     variants = _completed_variants(selected, combos, completed_ids)
     # The selected cards that fill each requirement of each completed variant
     fillers = {
@@ -436,12 +452,15 @@ def card_inclusion(
     pieces: dict[str, int] = dict.fromkeys(selected, 0)
     fills: dict[str, int] = dict.fromkeys(selected, 0)
     groups: dict[str, set[str]] = {card: set() for card in selected}
+    # Card -> group -> the most popular completed variant of the group the card is in
+    best_variant: dict[str, dict[str, ComboData]] = {card: {} for card in selected}
     template_keys: dict[str, set[str]] = {card: set() for card in selected}
     template_names: dict[str, set[str]] = {}
-    for combo in variants:
+    for combo in sorted(variants, key=lambda c: (-c.popularity, c.id)):
         for card in combo.required_cards & selected:
             pieces[card] += 1
             groups[card].add(combo.group_key)
+            best_variant[card].setdefault(combo.group_key, combo)
         filled: set[str] = set()
         for opt, cards in zip(combo.requirement_options, fillers[combo.id], strict=True):
             template_names.setdefault(opt.group_key, set()).add(opt.template_name)
@@ -451,12 +470,15 @@ def card_inclusion(
         for card in filled - combo.required_cards:
             fills[card] += 1
             groups[card].add(combo.group_key)
+            best_variant[card].setdefault(combo.group_key, combo)
 
     payoffs_of = _categories_of(selected, payoff_cards)
     enablers_of = _categories_of(selected, enabler_cards)
 
     stats = []
     for card in selected:
+        if card in fixed and not groups[card]:
+            continue  # a fixed card in no completed combo is not reported
         essential = sorted(
             key
             for key in groups[card]
@@ -478,15 +500,213 @@ def card_inclusion(
                     template_display_name(template_names[key]) for key in template_keys[card]
                 ),
                 essential_combos=essential,
+                combo_variants=[
+                    combo.id
+                    for combo in sorted(
+                        best_variant[card].values(), key=lambda c: (-c.popularity, c.id)
+                    )
+                ],
                 outcomes=dict(sorted(outcomes.items(), key=lambda item: (-item[1], item[0]))),
                 payoff_categories=payoffs_of[card],
                 enabler_categories=enablers_of[card],
-                reason=_inclusion_reason(
-                    len(essential), len(groups[card]), payoffs_of[card], enablers_of[card]
+                reason=(
+                    FIXED
+                    if card in fixed
+                    else _inclusion_reason(
+                        len(essential), len(groups[card]), payoffs_of[card], enablers_of[card]
+                    )
                 ),
             )
         )
-    return sorted(stats, key=lambda s: (-s.combo_count, -s.essential_combo_count, s.card))
+    return sorted(
+        stats,
+        key=lambda s: (s.reason == FIXED, -s.combo_count, -s.essential_combo_count, s.card),
+    )
+
+
+def participating_variants(
+    cards: Collection[str], combos: list[ComboData], completed_ids: Collection[str]
+) -> list[ComboData]:
+    """
+    The completed variants one of `cards` takes part in, as utilization counts taking
+    part: as a required card or as a card of one of the variant's option pools.
+    """
+    of_interest = set(cards)
+    completed = set(completed_ids)
+    return [
+        combo
+        for combo in combos
+        if combo.id in completed
+        and (
+            not combo.required_cards.isdisjoint(of_interest)
+            or any(not opt.cards.isdisjoint(of_interest) for opt in combo.requirement_options)
+        )
+    ]
+
+
+def fixed_card_stats(
+    fixed_cards: Collection[str],
+    candidate_cards: Collection[str],
+    combos: list[ComboData],
+    completed_ids: Collection[str],
+    payoff_cards: Mapping[str, Collection[str]] | None = None,
+    enabler_cards: Mapping[str, Collection[str]] | None = None,
+) -> FixedCardStats:
+    """
+    The fixed cards and what they complete: which of them are candidates (the pool names
+    them), the completed variants and distinct combos a fixed card takes part in
+    (`completed_ids`, the variants the cube and the fixed cards complete together), and the
+    fixed cards of each category of the payoff and enabler tables (category -> cards, the
+    categories with none left out).
+    """
+    fixed = set(fixed_cards)
+    variants = participating_variants(fixed, combos, completed_ids)
+
+    def by_category(table: Mapping[str, Collection[str]] | None) -> dict[str, list[str]]:
+        categories = {
+            name: sorted(fixed.intersection(cards)) for name, cards in (table or {}).items()
+        }
+        return {name: cards for name, cards in categories.items() if cards}
+
+    return FixedCardStats(
+        cards=sorted(fixed),
+        candidate_cards=sorted(fixed.intersection(candidate_cards)),
+        combo_count=len(variants),
+        distinct_combo_count=len({combo.group_key for combo in variants}),
+        payoff_categories=by_category(payoff_cards),
+        enabler_categories=by_category(enabler_cards),
+    )
+
+
+def _piece_kind(
+    card: str,
+    candidate_cards: Collection[str] | None,
+    payoff_cards: Collection[str],
+    enabler_cards: Collection[str],
+) -> str:
+    """What a missing card is: a payoff card, an enabler, a plain candidate or no candidate."""
+    if card in payoff_cards:
+        return PIECE_PAYOFF
+    if card in enabler_cards:
+        return PIECE_ENABLER
+    if candidate_cards is None or card in candidate_cards:
+        return PIECE_CANDIDATE
+    return PIECE_UNKNOWN
+
+
+def one_card_away(
+    selected_cards: Collection[str],
+    combos: list[ComboData],
+    fixed_cards: Collection[str] = (),
+    candidate_cards: Collection[str] | None = None,
+    payoff_cards: Collection[str] = (),
+    enabler_cards: Collection[str] = (),
+    limit: int = 50,
+) -> OneCardAwayReport:
+    """
+    The variants of the pool the cube is one piece short of, by missing piece: a variant
+    whose required cards are all in the cube but one and whose template requirements are
+    all filled (the piece is the card), or whose required cards are all in and exactly one
+    template requirement is unfilled (the piece is the template, `template:<name>`).
+
+    The cube is the selected cards and the fixed cards together, so a fixed card is never a
+    missing piece. Per piece: its variants (most popular first), their distinct combos, how
+    many of those the cube completes through no variant, the summed and highest
+    popularity, the most popular variant's named cards, and the piece's kind: a card of
+    `payoff_cards`, of `enabler_cards`, a candidate (one of `candidate_cards`, or any card
+    when None is given) or unknown. The `limit` pieces with the highest summed popularity
+    are kept (ties by name).
+    """
+    cube = set(selected_cards) | set(fixed_cards)
+    completed_groups: set[str] = set()
+    # Missing piece -> its variants; a card by its name, a template by its group key
+    by_piece: dict[tuple[str, str], list[ComboData]] = {}
+    template_names: dict[str, set[str]] = {}
+    for combo in combos:
+        missing = combo.required_cards - cube
+        if len(missing) > 1:
+            continue
+        unfilled = [opt for opt in combo.requirement_options if opt.cards.isdisjoint(cube)]
+        if len(missing) + len(unfilled) == 0:
+            completed_groups.add(combo.group_key)
+        elif missing and not unfilled:
+            by_piece.setdefault(("card", next(iter(missing))), []).append(combo)
+        elif len(unfilled) == 1 and not missing:
+            opt = unfilled[0]
+            template_names.setdefault(opt.group_key, set()).add(opt.template_name)
+            by_piece.setdefault(("template", opt.group_key), []).append(combo)
+
+    pieces = []
+    for (kind, key), variants in by_piece.items():
+        variants.sort(key=lambda c: (-c.popularity, c.id))
+        groups = {combo.group_key for combo in variants}
+        if kind == "template":
+            piece = f"template:{template_display_name(template_names[key])}"
+            piece_kind = PIECE_TEMPLATE
+        else:
+            piece = key
+            piece_kind = _piece_kind(key, candidate_cards, payoff_cards, enabler_cards)
+        pieces.append(
+            OneCardAwayPiece(
+                piece=piece,
+                kind=piece_kind,
+                variant_count=len(variants),
+                distinct_combo_count=len(groups),
+                new_combo_count=len(groups - completed_groups),
+                popularity=sum(combo.popularity for combo in variants),
+                max_popularity=variants[0].popularity,
+                example_cards=sorted(variants[0].required_cards),
+                variant_ids=[combo.id for combo in variants],
+            )
+        )
+    pieces.sort(key=lambda p: (-p.popularity, p.piece))
+    return OneCardAwayReport(
+        variant_count=sum(len(variants) for variants in by_piece.values()),
+        piece_count=len(pieces),
+        pieces=pieces[:limit],
+    )
+
+
+def staples(combos: list[ComboData], count: int) -> list[Staple]:
+    """
+    The staples of the pool: the `count` most popular variants (ties by id), collapsed by
+    their set of named cards, most popular first. Two variants with the same named cards
+    (the same combo with another template filler) are one staple; a variant whose named
+    cards are a superset of another's is its own staple. Variants with no named card
+    (templates only) are left out.
+    """
+    ranked = sorted(
+        (combo for combo in combos if combo.required_cards),
+        key=lambda c: (-c.popularity, c.id),
+    )[:count]
+    by_cards: dict[frozenset[str], list[ComboData]] = {}
+    for combo in ranked:
+        by_cards.setdefault(combo.required_cards, []).append(combo)
+    return [
+        Staple(
+            cards=sorted(cards),
+            popularity=members[0].popularity,
+            variant_ids=[combo.id for combo in members],
+        )
+        for cards, members in by_cards.items()
+    ]
+
+
+def staple_stats(
+    staples_: list[Staple], selected_cards: Collection[str], completed_ids: Collection[str]
+) -> list[StapleStats]:
+    """Which staples the cube completes (a completed variant of each) and what the others lack."""
+    selected = set(selected_cards)
+    completed = set(completed_ids)
+    return [
+        StapleStats(
+            cards=staple.cards,
+            popularity=staple.popularity,
+            completed=not completed.isdisjoint(staple.variant_ids),
+            missing_cards=[card for card in staple.cards if card not in selected],
+        )
+        for staple in staples_
+    ]
 
 
 def compute_measure_stats(values: Collection[int]) -> MeasureStats:

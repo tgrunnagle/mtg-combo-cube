@@ -336,6 +336,81 @@ PAYOFF_ONLY = "payoff_only"  # in no completed combo; a payoff card, there for t
 ENABLER_ONLY = "enabler_only"  # in no completed combo; an enabler, there for the enabler floor
 NO_COMBO = "no_combo"  # in no completed combo, no payoff, no enabler: there for a cube rule
 INCLUSION_REASONS = (ESSENTIAL, REDUNDANT, PAYOFF_ONLY, ENABLER_ONLY, NO_COMBO)
+# A fixed card (one of the slots filled by hand, outside the cube the optimizer builds) that
+# takes part in a completed combo: reported after the cube's cards, not one of the reasons
+# a cube card is in the cube
+FIXED = "fixed"
+
+# What the missing piece of a one-card-away variant is (OneCardAwayPiece.kind)
+PIECE_TEMPLATE = "template"  # a template requirement no card of the cube fills
+PIECE_PAYOFF = "payoff"  # a card of the payoff table
+PIECE_ENABLER = "enabler"  # a card of the enabler table (and not of the payoff table)
+PIECE_CANDIDATE = "candidate"  # a candidate card in neither table
+PIECE_UNKNOWN = "unknown"  # a card that is no candidate (an instance built without the pool)
+PIECE_KINDS = (PIECE_TEMPLATE, PIECE_PAYOFF, PIECE_ENABLER, PIECE_CANDIDATE, PIECE_UNKNOWN)
+
+
+@dataclass
+class OneCardAwayPiece:
+    """
+    A piece the cube lacks and the variants of the pool it would complete: all of a
+    variant's required cards but this one are in the cube and every template requirement
+    is filled, or every required card is in and only this template requirement is not.
+    """
+
+    piece: str  # the card, or "template:<name>" for a template requirement
+    kind: str  # one of PIECE_KINDS
+    variant_count: int  # variants the piece would complete
+    distinct_combo_count: int  # the combos (groups) those variants belong to
+    # Of those combos, the ones the cube completes through no variant: what the piece adds
+    new_combo_count: int
+    popularity: int  # summed over the variants
+    max_popularity: int
+    example_cards: list[str]  # the named cards of the most popular variant
+    variant_ids: list[str]  # most popular first
+
+
+@dataclass
+class OneCardAwayReport:
+    """The variants of the pool a cube is one piece short of, by missing piece."""
+
+    variant_count: int  # variants one piece short
+    piece_count: int  # distinct missing pieces
+    pieces: list[OneCardAwayPiece]  # the top pieces by summed popularity
+
+
+@dataclass
+class FixedCardStats:
+    """The fixed cards of a run (the slots filled by hand) and what they complete."""
+
+    cards: list[str]  # every fixed card
+    candidate_cards: list[str]  # the ones in the pool: the only ones the model can count
+    combo_count: int  # completed variants a fixed card takes part in
+    distinct_combo_count: int  # the combos (groups) those variants belong to
+    payoff_categories: dict[str, list[str]]  # payoff category -> fixed cards in it
+    enabler_categories: dict[str, list[str]]  # enabler category -> fixed cards in it
+
+
+@dataclass
+class Staple:
+    """
+    A staple: the named cards of a variant among the most popular of the pool. Variants
+    with the same named cards (the same combo with another template filler) are one staple.
+    """
+
+    cards: list[str]  # the named cards, sorted
+    popularity: int  # of its most popular variant
+    variant_ids: list[str]  # most popular first
+
+
+@dataclass
+class StapleStats:
+    """Whether a cube completes a staple, and what it lacks if not."""
+
+    cards: list[str]
+    popularity: int
+    completed: bool  # a variant of the staple is complete
+    missing_cards: list[str]  # the named cards the cube lacks
 
 
 @dataclass
@@ -360,6 +435,9 @@ class CardInclusionStats:
     reason: str  # one of INCLUSION_REASONS
     # the enabler table categories it is an enabler of
     enabler_categories: list[str] = dataclasses.field(default_factory=list)
+    # One completed variant per completed combo the card takes part in, the combo's most
+    # popular one, most popular combo first: the variants a Spellbook link shows for the card
+    combo_variants: list[str] = dataclasses.field(default_factory=list)
 
     @property
     def essential_combo_count(self) -> int:
@@ -505,6 +583,20 @@ class OptimizationResult:
     phase2_min_enablers: int | None = None
     phase2_enabler_share: float | None = None
     phase2_enabler_floors: dict[str, int] | None = None
+    # Staples rule applied in Phase 2, when enabled (None otherwise): the number of most
+    # popular variants the staples are taken from, the staples the cube must complete, and
+    # how many each phase's cube completes
+    phase2_staple_combos: int | None = None
+    phase2_min_staple_combos: int | None = None
+    phase1_staples_completed: int | None = None
+    phase2_staples_completed: int | None = None
+    # The staples (with staple_combos above 0) and whether the final cube completes each
+    staple_stats: list[StapleStats] | None = None
+    # The fixed cards of the run (the slots filled by hand, outside the cube size) and what
+    # they complete with the cube; None when there are none
+    fixed_card_stats: FixedCardStats | None = None
+    # The variants of the pool the final cube (with the fixed cards) is one piece short of
+    one_card_away: OneCardAwayReport | None = None
     # Popularity weight: each combo's value is scaled by 1 + weight x its popularity relative
     # to the most popular combo (log scale). The combo score is the weighted combo count under
     # that scaling; it equals weighted_combo_count when the weight is 0.

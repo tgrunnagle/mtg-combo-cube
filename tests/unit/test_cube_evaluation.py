@@ -20,14 +20,25 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_measure_stats,
     compute_utilization_stats,
     fits_archetype,
+    fixed_card_stats,
     largest_combo_groups,
+    one_card_away,
+    participating_variants,
+    staple_stats,
+    staples,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.ilp_models import (
     ENABLER_ONLY,
     ESSENTIAL,
+    FIXED,
     NO_COMBO,
     PAYOFF_ONLY,
+    PIECE_CANDIDATE,
+    PIECE_ENABLER,
+    PIECE_PAYOFF,
+    PIECE_TEMPLATE,
+    PIECE_UNKNOWN,
     REDUNDANT,
     ComboData,
     RequirementOption,
@@ -43,6 +54,7 @@ def make_combo(
     options: list[list[str]] | None = None,
     group: str = "",
     identity: str | None = "",
+    popularity: int = 1,
 ) -> ComboData:
     return ComboData(
         id=combo_id,
@@ -51,7 +63,7 @@ def make_combo(
             RequirementOption(f"Template {i}", f"key:{sorted(cards)}", frozenset(cards))
             for i, cards in enumerate(options or [])
         ],
-        popularity=1,
+        popularity=popularity,
         group_key=group,
         color_identity=identity,
     )
@@ -347,6 +359,28 @@ class TestCardInclusion:
         stats = {s.card: s for s in card_inclusion(["H", "S1"], combos)}
         assert stats["S1"].essential_combos == ["t"]
 
+    def test_combo_variants_one_per_combo(self):
+        stats = self.by_card()
+        # H is in both variants of "big", equally popular: the first id represents the combo
+        assert stats["H"].combo_variants == ["h1"]
+        assert stats["P1"].combo_variants == ["h1"]
+        assert stats["S1"].combo_variants == ["h2"]
+        assert stats["A"].combo_variants == ["ab"]  # "x" is not completed
+        assert stats["F"].combo_variants == []
+
+    def test_combo_variants_are_the_most_popular_and_ordered_by_popularity(self):
+        combos = [
+            make_combo("h1", ["H", "P1"], group="big", popularity=5),
+            make_combo("h2", ["H"], [["S1"]], group="big", popularity=9),
+            make_combo("hb", ["H", "B"], popularity=7),
+            make_combo("s1b", ["S1", "B"], popularity=1),
+        ]
+        stats = {s.card: s for s in card_inclusion(["H", "P1", "S1", "B"], combos)}
+        assert stats["H"].combo_variants == ["h2", "hb"]
+        assert stats["S1"].combo_variants == ["h2", "s1b"]
+        assert stats["B"].combo_variants == ["hb", "s1b"]
+        assert stats["P1"].combo_variants == ["h1"]  # the only variant of "big" it is in
+
     def test_reasons(self):
         stats = self.by_card(payoff_cards={"mana": ["Pay", "A", "Elsewhere"]})
         assert stats["H"].reason == ESSENTIAL
@@ -391,6 +425,219 @@ class TestCardInclusion:
         assert card_inclusion(self.CUBE, self.COMBOS, completed) == card_inclusion(
             self.CUBE, self.COMBOS
         )
+
+    def test_fixed_cards_come_last_with_their_own_reason(self):
+        # Z is fixed: it completes "x" with A, which is then no longer essential to A alone
+        # in a sense but still is (x needs A); S2 is fixed and in no completed combo once
+        # S1 fills the template, so it is still reported (it takes part in h2's pool)
+        stats = card_inclusion(
+            ["H", "P1", "S1", "A", "B", "F"], self.COMBOS, fixed_cards=["Z", "Rock"]
+        )
+
+        assert [s.card for s in stats][-1] == "Z"
+        assert stats[-1].reason == FIXED
+        assert stats[-1].combo_count == 1
+        assert stats[-1].essential_combos == ["x"]
+        assert "Rock" not in {s.card for s in stats}  # fixed, in no combo: not reported
+        by_card = {s.card: s for s in stats}
+        assert by_card["A"].distinct_combo_count == 2  # ab and, with Z, x
+        assert by_card["A"].reason == ESSENTIAL
+        assert [s.card for s in stats if s.reason != FIXED] == [
+            s.card
+            for s in card_inclusion(["H", "P1", "S1", "A", "B", "F", "Z"], self.COMBOS)
+            if s.card != "Z"
+        ]
+
+
+class TestParticipatingVariants:
+    COMBOS = [
+        make_combo("h1", ["H", "P1"], group="big"),
+        make_combo("h2", ["H"], [["S1", "S2"]], group="big"),
+        make_combo("ab", ["A", "B"]),
+    ]
+
+    def test_required_cards_and_option_pool_cards_take_part(self):
+        completed = ["h1", "h2", "ab"]
+
+        assert [c.id for c in participating_variants(["P1"], self.COMBOS, completed)] == ["h1"]
+        # S2 is in h2's pool whether or not it fills it
+        assert [c.id for c in participating_variants(["S2"], self.COMBOS, completed)] == ["h2"]
+        assert [c.id for c in participating_variants(["H", "A"], self.COMBOS, completed)] == [
+            "h1",
+            "h2",
+            "ab",
+        ]
+        assert participating_variants(["A"], self.COMBOS, ["h1"]) == []  # ab not completed
+        assert participating_variants([], self.COMBOS, completed) == []
+
+
+class TestFixedCardStats:
+    COMBOS = TestParticipatingVariants.COMBOS
+
+    def test_counts_and_categories(self):
+        stats = fixed_card_stats(
+            ["H", "Island", "Mox"],
+            ["H", "P1", "A", "B", "Mox"],
+            self.COMBOS,
+            ["h1", "h2", "ab"],
+            payoff_cards={"mana": ["A", "H"], "storm": ["X"]},
+            enabler_cards={"fast_mana": ["Mox"], "ritual": []},
+        )
+
+        assert stats.cards == ["H", "Island", "Mox"]
+        assert stats.candidate_cards == ["H", "Mox"]
+        assert (stats.combo_count, stats.distinct_combo_count) == (2, 1)
+        assert stats.payoff_categories == {"mana": ["H"]}
+        assert stats.enabler_categories == {"fast_mana": ["Mox"]}
+
+    def test_without_tables(self):
+        stats = fixed_card_stats(["Island"], ["H"], self.COMBOS, [])
+
+        assert stats.candidate_cards == []
+        assert (stats.combo_count, stats.distinct_combo_count) == (0, 0)
+        assert stats.payoff_categories == {} and stats.enabler_categories == {}
+
+
+class TestOneCardAway:
+    COMBOS = [
+        # Group "big": h1 is complete, h2 needs P2; the group is complete, so P2 adds no combo
+        make_combo("h1", ["H", "P1"], group="big", popularity=10),
+        make_combo("h2", ["H", "P2"], group="big", popularity=30),
+        # Two variants needing Sol: one named, one through a template Sol fills
+        make_combo("s1", ["A", "Sol"], popularity=100),
+        make_combo("s2", ["B"], [["Sol", "Petal"]], popularity=50),
+        # A complete variant with an unfilled template: the template is the piece
+        make_combo("t", ["A", "B"], [["Z1", "Z2"]], popularity=20),
+        # Two pieces missing: not one card away
+        make_combo("far", ["A", "X", "Y"], popularity=1000),
+        # Missing a card and a template: not one card away
+        make_combo("far2", ["A", "X"], [["Z1"]], popularity=1000),
+        # Complete through the fixed card F: not potential, and F is no piece
+        make_combo("f", ["A", "F"], popularity=400),
+        make_combo("g", ["F", "G"], popularity=5),
+    ]
+    CUBE = ["H", "P1", "A", "B"]
+
+    def test_pieces_and_counts(self):
+        report = one_card_away(
+            self.CUBE,
+            self.COMBOS,
+            fixed_cards=["F"],
+            candidate_cards=["H", "P1", "P2", "A", "B", "Sol", "Petal", "G"],
+            payoff_cards=["G"],
+            enabler_cards=["Sol", "Petal"],
+        )
+
+        # h2, s1, s2, t and g (with F fixed) are one piece short; f is complete through F
+        assert (report.variant_count, report.piece_count) == (5, 5)
+        assert [
+            (p.piece, p.kind, p.variant_count, p.distinct_combo_count) for p in report.pieces
+        ] == [
+            ("Sol", PIECE_ENABLER, 1, 1),  # s1 names it; s2's template is a template piece
+            ("template:Template 0", PIECE_TEMPLATE, 1, 1),  # s2: Sol or Petal
+            ("P2", PIECE_CANDIDATE, 1, 1),
+            ("template:Template 0", PIECE_TEMPLATE, 1, 1),  # t: Z1 or Z2, another template
+            ("G", PIECE_PAYOFF, 1, 1),
+        ]
+        sol, template_s, p2, template_t, g = report.pieces
+        assert (sol.popularity, sol.max_popularity, sol.new_combo_count) == (100, 100, 1)
+        assert sol.example_cards == ["A", "Sol"]
+        assert sol.variant_ids == ["s1"]
+        assert (template_s.popularity, template_s.variant_ids) == (50, ["s2"])
+        assert (template_t.popularity, template_t.example_cards) == (20, ["A", "B"])
+        # P2's variant is a second variant of a complete combo: no new combo
+        assert (p2.popularity, p2.new_combo_count) == (30, 0)
+        assert (g.popularity, g.new_combo_count, g.example_cards) == (5, 1, ["F", "G"])
+
+    def test_fixed_card_brings_variants_within_one_card(self):
+        with_fixed = one_card_away(self.CUBE, self.COMBOS, fixed_cards=["F"], payoff_cards=["G"])
+        without = one_card_away(self.CUBE, self.COMBOS)
+
+        pieces = {p.piece: p for p in with_fixed.pieces}
+        assert pieces["G"].kind == PIECE_PAYOFF
+        assert pieces["G"].new_combo_count == 1
+        assert "F" not in pieces
+        # Without the fixed card F is the piece of f and g needs two cards
+        plain = {p.piece: p for p in without.pieces}
+        assert plain["F"].variant_count == 1
+        assert "G" not in plain
+        assert without.variant_count == with_fixed.variant_count
+
+    def test_kinds_and_sorting(self):
+        report = one_card_away(
+            self.CUBE, self.COMBOS, candidate_cards=["H", "P1", "A", "B"], payoff_cards=["Sol"]
+        )
+
+        kinds = {p.piece: p.kind for p in report.pieces}
+        assert kinds["Sol"] == PIECE_PAYOFF  # the payoff table wins over the enabler table
+        assert kinds["F"] == PIECE_UNKNOWN  # not a candidate
+        assert kinds["P2"] == PIECE_UNKNOWN
+        # Summed popularity descending, ties by name
+        assert [p.popularity for p in report.pieces] == sorted(
+            (p.popularity for p in report.pieces), reverse=True
+        )
+        # Without candidate cards every named piece is a candidate
+        assert {p.kind for p in one_card_away(self.CUBE, self.COMBOS).pieces} == {
+            PIECE_CANDIDATE,
+            PIECE_TEMPLATE,
+        }
+
+    def test_limit(self):
+        report = one_card_away(self.CUBE, self.COMBOS, limit=2)
+
+        assert report.piece_count == 5  # F, Sol, P2 and the two templates
+        assert [p.piece for p in report.pieces] == ["F", "Sol"]
+
+    def test_empty_cube(self):
+        report = one_card_away([], [make_combo("ab", ["A", "B"]), make_combo("c", ["C"])])
+
+        # A single-card combo is one card away from an empty cube; a two-card one is not
+        assert (report.variant_count, report.piece_count) == (1, 1)
+        assert report.pieces[0].piece == "C"
+
+
+class TestStaples:
+    COMBOS = [
+        make_combo("s", ["S1", "S2"], popularity=1000),
+        make_combo("t1", ["T1", "T2"], [["Z1"]], group="t", popularity=500),
+        make_combo("t2", ["T1", "T2"], [["Z2"]], group="t", popularity=400),
+        make_combo("u", ["S1", "S2", "U"], popularity=300),
+        make_combo("only", [], [["A", "B"]], popularity=5000),
+        make_combo("d", ["D1", "D2"], popularity=1),
+    ]
+
+    def test_collapse_by_named_cards(self):
+        found = staples(self.COMBOS, 4)
+
+        assert [(s.cards, s.popularity, s.variant_ids) for s in found] == [
+            (["S1", "S2"], 1000, ["s"]),
+            (["T1", "T2"], 500, ["t1", "t2"]),
+            (["S1", "S2", "U"], 300, ["u"]),
+        ]
+
+    def test_count_and_ties(self):
+        assert [s.cards for s in staples(self.COMBOS, 1)] == [["S1", "S2"]]
+        assert staples(self.COMBOS, 0) == []
+        tied = [make_combo("b", ["B"], popularity=1), make_combo("a", ["A"], popularity=1)]
+        assert [s.cards for s in staples(tied, 1)] == [["A"]]  # ties by id
+
+    def test_status(self):
+        found = staples(self.COMBOS, 4)
+        cube = ["S1", "S2", "T1", "T2", "Z2"]
+
+        status = staple_stats(found, cube, completable_combo_ids(cube, self.COMBOS))
+
+        assert [(s.cards, s.completed, s.missing_cards) for s in status] == [
+            (["S1", "S2"], True, []),
+            (["T1", "T2"], True, []),  # through t2
+            (["S1", "S2", "U"], False, ["U"]),
+        ]
+        assert status[1].popularity == 500
+        # The named cards present but the template unfilled: not completed, nothing missing
+        partial = staple_stats(
+            found, ["T1", "T2"], completable_combo_ids(["T1", "T2"], self.COMBOS)
+        )
+        assert (partial[1].completed, partial[1].missing_cards) == (False, [])
 
 
 class TestComputeUtilizationStats:

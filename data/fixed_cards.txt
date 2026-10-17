@@ -1,0 +1,95 @@
+# The cards of the cube outside the slots the optimizer fills (the 90 reserved slots:
+# lands, ramp and interaction), one per line; a card listed twice is held twice. Named by
+# the fixed_cards key of config.yaml; see the README. Exported from Cube Cobra on
+# 16 October 2026, plus Sol Ring (ramp, so a card for these slots rather than the 310).
+Path to Exile
+Swords to Plowshares
+Fateful Absence
+Unexpectedly Absent
+Winds of Abandon
+Wrath of God
+Mox Pearl
+Swan Song
+Counterspell
+Mana Drain
+Mana Leak
+Force of Will
+Mox Sapphire
+Bitter Triumph
+Dismember
+Thoughtseize
+Collective Brutality
+Toxic Deluge
+Mox Jet
+Lightning Bolt
+Pyroblast
+Abrade
+Flame Slash
+Suplex
+Mox Ruby
+Nature's Claim
+Force of Vigor
+Pest Infestation
+Mox Emerald
+Talisman of Progress
+Talisman of Dominance
+Talisman of Indulgence
+Talisman of Impulse
+Talisman of Unity
+Talisman of Hierarchy
+Talisman of Creativity
+Talisman of Resilience
+Talisman of Conviction
+Talisman of Curiosity
+Tundra
+Tundra
+Underground Sea
+Underground Sea
+Badlands
+Badlands
+Taiga
+Taiga
+Savannah
+Savannah
+Scrubland
+Scrubland
+Volcanic Island
+Volcanic Island
+Bayou
+Bayou
+Plateau
+Plateau
+Tropical Island
+Tropical Island
+Spara's Headquarters
+Raffine's Tower
+Xander's Lounge
+Ziatora's Proving Ground
+Jetmir's Garden
+Savai Triome
+Ketria Triome
+Indatha Triome
+Raugrin Triome
+Zagoth Triome
+Arid Mesa
+Arid Mesa
+Bloodstained Mire
+Bloodstained Mire
+Flooded Strand
+Flooded Strand
+Marsh Flats
+Marsh Flats
+Misty Rainforest
+Misty Rainforest
+Polluted Delta
+Polluted Delta
+Scalding Tarn
+Scalding Tarn
+Verdant Catacombs
+Verdant Catacombs
+Wasteland
+Windswept Heath
+Windswept Heath
+Wooded Foothills
+Wooded Foothills
+Sol Ring

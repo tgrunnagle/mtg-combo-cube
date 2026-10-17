@@ -63,6 +63,7 @@ def build_grouped_instance() -> list[ComboData]:
 def make_grouped_optimizer(cube_size: int, **kwargs: Any) -> ILPOptimizer:
     combos = build_grouped_instance()
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
         "gap_limit": 0,
@@ -132,6 +133,7 @@ class TestEssentialMeasure:
 
     def optimizer(self) -> ILPOptimizer:
         return ILPOptimizer(
+            staple_combos=0,
             combos=self.COMBOS,
             candidate_cards=build_candidate_cards(self.COMBOS),
             cube_size=len(self.CUBE),
@@ -189,6 +191,7 @@ class TestEssentialObjective:
         self, instance: str, cube_size: int, floor: int, tolerance: float, cap: int
     ):
         settings: dict[str, Any] = {
+            "staple_combos": 0,
             "util_cap": cap,
             "min_utilization_floor": floor,
             "combo_tolerance": tolerance,
@@ -236,6 +239,7 @@ class TestEssentialObjective:
         cubes: dict[str, set[str]] = {}
         for objective in ("essential", "tiered"):
             optimizer = ILPOptimizer(
+                staple_combos=0,
                 combos=combos,
                 candidate_cards=build_candidate_cards(combos),
                 cube_size=7,
@@ -436,27 +440,34 @@ class TestWarmStartCube:
         assert "the reference solve is hinted with the warm-start cube" in caplog.text
         assert len(reference.combo_ids) == best_count
 
-    def test_a_cube_breaking_the_rules_is_not_the_hint(
+    def test_a_cube_breaking_the_rules_is_the_hint_but_not_the_reference(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
     ):
         probe = self.coverage_optimizer()
         phase1 = probe.solve()
-        phase1_cards = set(phase1.get_selected_card_names())
-        assert probe._coverage_violations(phase1_cards) == 1
-        optimizer = self.coverage_optimizer(warm_start_cards=phase1_cards)
+        # A whole cube that breaks coverage, different from the Phase 1 cube
+        best, _ = self.best_with_coverage(probe)
+        broken_cube = set(phase1.get_selected_card_names())
+        assert probe._coverage_violations(broken_cube) == 1 and broken_cube != best
+        optimizer = self.coverage_optimizer(warm_start_cards=broken_cube)
         hints: list[set[str]] = []
-        original = ILPOptimizer._best_constrained_cube
 
         def recording(self: ILPOptimizer, hint: _WarmStart) -> tuple[_WarmStart | None, str]:
             hints.append(set(hint.cards))
-            return original(self, hint)
+            return None, "TIMEOUT"  # the solve finds nothing: no cube may fall back on it
 
         monkeypatch.setattr(ILPOptimizer, "_best_constrained_cube", recording)
         with caplog.at_level(logging.WARNING):
-            optimizer._build_warm_start(phase1, None)
+            _, reference, _ = optimizer._build_warm_start(phase1, None)
 
-        assert hints == [phase1_cards]
-        assert "the warm-start cube breaks 1 coverage constraints" in caplog.text
+        assert hints == [broken_cube]
+        assert (
+            "the warm-start cube breaks 1 coverage constraints; it hints the reference solve "
+            "but cannot be the reference"
+        ) in caplog.text
+        # Nothing satisfied the rules, so the window is measured from the Phase 1 cube
+        assert reference.cards == set(phase1.get_selected_card_names())
+        assert "measuring the combo window from the Phase 1 count" in caplog.text
 
     def test_a_partial_cube_is_not_the_hint(self, caplog: pytest.LogCaptureFixture):
         probe = self.coverage_optimizer()

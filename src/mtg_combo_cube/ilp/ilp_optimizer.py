@@ -28,6 +28,7 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_concentration_stats,
     compute_utilization_stats,
     fits_archetype,
+    fixed_card_stats,
     group_outcomes,
     group_popularity,
     is_expensive,
@@ -35,13 +36,17 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     is_spell,
     known_color_identity,
     largest_combo_groups,
+    one_card_away,
     popularity_stats,
+    staple_stats,
+    staples,
     template_display_name,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.enablers import EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
     DEFAULT_CARD_MIX,
+    FIXED,
     ArchetypeStats,
     CandidateCard,
     CardInclusionStats,
@@ -51,6 +56,8 @@ from mtg_combo_cube.ilp.ilp_models import (
     ConcentrationStats,
     CrossTemplateStats,
     EnablerStats,
+    FixedCardStats,
+    OneCardAwayReport,
     OptimizationResult,
     OutcomeStats,
     PayoffStats,
@@ -58,6 +65,8 @@ from mtg_combo_cube.ilp.ilp_models import (
     RequirementCoverageStats,
     RequirementPool,
     RequirementTypeStats,
+    Staple,
+    StapleStats,
     TemplateOverlapPairStats,
     UtilizationStats,
     hundredths,
@@ -96,6 +105,9 @@ class _BaseModel:
     fit_vars: dict[tuple[str, str], tuple[cp_model.IntVar, frozenset[str]]] = field(
         default_factory=dict
     )
+    # Staples rule: s = 1 only if a variant of the staple is completable, for staples whose
+    # variants are not a whole group (see _add_staple_minimum). The variable and the ids.
+    staple_vars: list[tuple[cp_model.IntVar, frozenset[str]]] = field(default_factory=list)
     # Phase 2 only: set by an objective whose optimum can be near zero, where the relative
     # gap limit is not a usable stop rule. In objective units; None = relative gap only.
     absolute_gap_limit: float | None = None
@@ -148,6 +160,9 @@ class _Solution:
     requirement_type_stats: list[RequirementTypeStats]
     requirement_coverage_stats: RequirementCoverageStats
     cross_template_stats: CrossTemplateStats
+    staple_stats: list[StapleStats] | None  # None without staples
+    fixed_card_stats: FixedCardStats | None  # None without fixed cards
+    one_card_away: OneCardAwayReport
 
 
 @dataclass(frozen=True)
@@ -250,6 +265,11 @@ class ILPOptimizer:
     # cube the enabler floors add up to (every layer declares them)
     DEFAULT_MIN_ENABLERS = 2
     DEFAULT_ENABLER_SHARE = 0.05
+    # The staples rule's defaults (every staple of the 25 most popular variants: the minimum
+    # is lowered to the staples there are), chosen in Step 4 of
+    # docs/plans/potential-combos-plan.md; 0 turns the rule off.
+    DEFAULT_STAPLE_COMBOS = 25
+    DEFAULT_MIN_STAPLE_COMBOS = 25
 
     def __init__(
         self,
@@ -284,6 +304,9 @@ class ILPOptimizer:
         enablers: EnablerTable | None = None,
         min_enablers: int = DEFAULT_MIN_ENABLERS,
         enabler_share: float = DEFAULT_ENABLER_SHARE,
+        fixed_cards: Collection[str] = (),
+        staple_combos: int = DEFAULT_STAPLE_COMBOS,
+        min_staple_combos: int = DEFAULT_MIN_STAPLE_COMBOS,
     ):
         self.combos = combos
         self.candidate_cards = candidate_cards
@@ -392,9 +415,27 @@ class ILPOptimizer:
         # Build card universe from candidate cards
         self.all_cards: list[str] = sorted(candidate_cards.keys())
         self.card_to_idx: dict[str, int] = {card: i for i, card in enumerate(self.all_cards)}
+        # The fixed cards: the cube's cards outside the cube_size slots (the slots filled by
+        # hand with lands, ramp and interaction). The candidates among them (fixed_cards) are
+        # in every model with x = 1, so the combos they complete with the cube count for
+        # everything that counts combos: the score and the window, the group indicators, the
+        # archetype, wide, outcome and coverage rules, the utilization of the other cards,
+        # the payoff and enabler floors (a fixed Mox is a fast_mana card) and the required
+        # cards. They take no slot of the cube size and are exempt from everything that
+        # shapes the cube_size cards: the card mix, the color balance, the utilization floor
+        # and statistics and the balancing objectives (exempt_cards). A fixed card the pool
+        # does not name (a dual land) completes nothing and is kept for the record. The free
+        # cards are the candidates the cube_size slots are filled from.
+        given_fixed = frozenset(fixed_cards)
+        self.fixed_cards: frozenset[str] = given_fixed.intersection(self.all_cards)
+        self.fixed_card_names: list[str] = sorted(given_fixed)
+        self.free_cards: list[str] = [
+            card for card in self.all_cards if card not in self.fixed_cards
+        ]
         # A cube from an earlier build that hints the Phase 2 reference solve (see
-        # _build_warm_start); its cards outside the pool are dropped
-        given = set(warm_start_cards or ())
+        # _build_warm_start); its cards outside the pool are dropped, and so are the fixed
+        # cards (a build's cube file lists the free cards; _warm_start_for adds the fixed)
+        given = set(warm_start_cards or ()) - self.fixed_cards
         if unknown := sorted(given.difference(self.all_cards)):
             logger.warning(
                 f"{len(unknown)} warm-start cards are not in the pool and are ignored: "
@@ -403,7 +444,8 @@ class ILPOptimizer:
         self.warm_start_cards: frozenset[str] = frozenset(given.intersection(self.all_cards))
         # The candidate cards each card mix rule counts. Lands are left out of every rule:
         # they are combo pieces rather than the mix being shaped, and colorless lands would
-        # otherwise fill the colorless cap and colored lands the multicolor cap.
+        # otherwise fill the colorless cap and colored lands the multicolor cap. Fixed cards
+        # are left out too: they are not part of the mix being shaped.
         self.multicolor_cards = self._nonland_cards_where(lambda a: a.is_multicolor)
         self.colorless_cards = self._nonland_cards_where(lambda a: a.is_colorless)
         self.expensive_cards = self._nonland_cards_where(
@@ -429,7 +471,9 @@ class ILPOptimizer:
         # left out of the utilization statistics, and capped in number by the floors
         # (_enabler_only_cap). An enabler card the payoff table names too stays a payoff
         # card: payoff-only when it is below the floor, an ordinary combo piece otherwise.
-        # With the floor off there are none, and such a card is excluded as any other.
+        # With the floor off there are none, and such a card is excluded as any other. A
+        # fixed card is neither enabler-only nor payoff-only: it is in the cube by decree
+        # and must not count against the caps on those cards.
         enabler_names = (
             enablers.all_cards
             if enablers is not None and self.enabler_floor_active
@@ -441,6 +485,7 @@ class ILPOptimizer:
             for card in enabler_names
             if card in self.card_to_combos
             and card not in payoff_names
+            and card not in self.fixed_cards
             and len(self.card_to_combos[card]) < max(min_utilization_floor, 1)
         )
         # Payoff-only cards: candidate cards in no combo that are not enabler-only (outlets
@@ -453,7 +498,7 @@ class ILPOptimizer:
         payoff_floor_on = payoffs is not None and outcome_categories is not None and min_payoffs > 0
         self.payoff_only_cards: frozenset[str] = frozenset(
             card
-            for card in self.all_cards
+            for card in self.free_cards
             if card not in self.enabler_only_cards
             and (
                 not self.card_to_combos[card]
@@ -465,8 +510,12 @@ class ILPOptimizer:
             )
         )
         # The cards exempt from the utilization floor (_add_utilization_floor) and left out
-        # of the utilization statistics and of the objectives that balance utilization
-        self.exempt_cards: frozenset[str] = self.payoff_only_cards | self.enabler_only_cards
+        # of the utilization statistics and of the objectives that balance utilization: the
+        # payoff-only and enabler-only cards, and the fixed cards (in the cube whatever they
+        # complete there, and not among the cards the objectives shape)
+        self.exempt_cards: frozenset[str] = (
+            self.payoff_only_cards | self.enabler_only_cards | self.fixed_cards
+        )
         # The payoff cards of each category that Phase 2 can select: candidates (the runner
         # adds every payoff card to the pool; an optimizer built directly may be given a table
         # naming others) that are exempt or in at least min_utilization_floor combos, since
@@ -520,13 +569,36 @@ class ILPOptimizer:
         if missing := sorted(required.difference(self.all_cards)):
             logger.warning(f"Phase 2: required cards not in the pool are ignored: {missing}")
         self.required_cards: frozenset[str] = frozenset(required.intersection(self.all_cards))
+        # Phase 2 staples rule: the named cards of each of the staple_combos most popular
+        # variants of the pool are a staple (cube_evaluation.staples), and the cube must
+        # complete at least min_staple_combos of them, every one at 0. 0 staples disables
+        # it; a minimum above the staples there are is lowered (_check_staple_pool warns).
+        if staple_combos < 0 or min_staple_combos < 0:
+            raise ValueError(
+                f"staple_combos and min_staple_combos must be >= 0, got {staple_combos} and "
+                f"{min_staple_combos}"
+            )
+        self.staple_combos = staple_combos
+        self.min_staple_combos = min_staple_combos
+        self.staples: list[Staple] = staples(combos, staple_combos) if staple_combos > 0 else []
+        self.staple_minimum: int = min(min_staple_combos or len(self.staples), len(self.staples))
+        # The named cards of the staples, which the rule may need in the cube whatever else
+        # they complete: Mindcrank is in two combos of the pool and would need both
+        staple_pieces = (
+            frozenset(card for staple in self.staples for card in staple.cards)
+            if self.staple_minimum
+            else frozenset()
+        )
         # The cards the utilization floor (_add_utilization_floor) leaves alone: the exempt
-        # cards and the required ones. A required card is in the cube by decree, whatever it
-        # completes there: a Comet Storm with two pool variants would otherwise have to
-        # complete both, and the floor made Phase 2 infeasible. The required cards still
-        # count in the utilization statistics and the balancing objectives, unlike the
-        # exempt ones, as the well-connected pieces among them are what those describe.
-        self.floor_free_cards: frozenset[str] = self.exempt_cards | self.required_cards
+        # cards, the required ones and the staple pieces. A required card is in the cube by
+        # decree, whatever it completes there: a Comet Storm with two pool variants would
+        # otherwise have to complete both, and the floor made Phase 2 infeasible. The
+        # required cards and staple pieces still count in the utilization statistics and the
+        # balancing objectives, unlike the exempt ones, as the well-connected pieces among
+        # them are what those describe.
+        self.floor_free_cards: frozenset[str] = (
+            self.exempt_cards | self.required_cards | staple_pieces
+        )
 
         # Combo groups (distinct combos) and the integer score weights, in WEIGHT_SCALE units:
         # a group's first completed variant scores group_scale + variant_scale = WEIGHT_SCALE,
@@ -564,16 +636,29 @@ class ILPOptimizer:
                 (self.payoff_only_cards, "payoff-only"),
                 (self.enabler_only_cards, "enabler-only"),
                 (self.required_cards, "required"),
+                (self.fixed_cards, "fixed"),
             )
             if cards
         ]
         special_text = f" ({', '.join(special)})" if special else ""
+        staples_text = (
+            f", {len(self.staples)} staples from the {staple_combos} most popular variants "
+            f"(at least {self.staple_minimum} required)"
+            if self.staples
+            else ""
+        )
         logger.info(
             f"ILP Optimizer initialized: {len(self.combos)} variants in "
             f"{len(self.combo_groups)} combos, {len(self.all_cards)} cards{special_text}, cube "
             f"size {cube_size}, variant weight {variant_weight:g}, popularity weight "
-            f"{popularity_weight:g}"
+            f"{popularity_weight:g}{staples_text}"
         )
+        if given_fixed:
+            logger.info(
+                f"Fixed cards: {len(given_fixed)} outside the {cube_size} slots, "
+                f"{len(self.fixed_cards)} of them candidate cards (the rest complete no combo "
+                "of the pool)"
+            )
 
     def _floor_card_selectable(self, card: str) -> bool:
         """
@@ -914,7 +999,8 @@ class ILPOptimizer:
         Build the model shared by every phase.
 
         Variables: x[c] = 1 if card c is in the cube, y[j] = 1 if combo j is completable.
-        Constraints: cube size, required cards, and requirement options.
+        Constraints: cube size (over the free cards), the fixed cards at 1, required cards,
+        and requirement options.
         """
         model = cp_model.CpModel()
 
@@ -926,8 +1012,11 @@ class ILPOptimizer:
         for combo in self.combos:
             y[combo.id] = model.new_bool_var(f"combo_{combo.id}")
 
-        # Constraint 1: Cube size
-        model.add(sum(x[card] for card in self.all_cards) == self.cube_size)
+        # Constraint 1: Cube size, over the cards the slots are filled from; the fixed
+        # cards are in the cube beside them
+        model.add(sum(x[card] for card in self.free_cards) == self.cube_size)
+        for card in sorted(self.fixed_cards):
+            model.add(x[card] == 1)
 
         # Constraint 2: Required cards for each combo
         # y[j] <= x[c] for all c in required_cards[j]
@@ -952,6 +1041,8 @@ class ILPOptimizer:
             "required_card": required_constraint_count,
             "requirement_options": options_constraint_count,
         }
+        if self.fixed_cards:
+            counts["fixed_cards"] = len(self.fixed_cards)
         base = _BaseModel(model=model, x=x, y=y, counts=counts)
         self._add_group_vars(base)
         return base
@@ -1189,7 +1280,7 @@ class ILPOptimizer:
 
     def _versatility_bonus(self, base: _BaseModel) -> cp_model.LinearExpr | int:
         """Small bonus for cards that satisfy more templates (subtract when minimizing)."""
-        return sum(self._versatility_weight(card) * base.x[card] for card in self.all_cards)
+        return sum(self._versatility_weight(card) * base.x[card] for card in self.free_cards)
 
     def _tiebreak_scale(self) -> int:
         """
@@ -1331,8 +1422,8 @@ class ILPOptimizer:
         # No big-M needed: u[card] = 0 for unselected cards
         linking_count = 0
         for card in self.all_cards:
-            if not self.card_to_combos[card]:
-                continue  # u is the constant 0
+            if not self.card_to_combos[card] or card in self.exempt_cards:
+                continue  # u is the constant 0, or the card is exempt from the balance
             model.add(max_util >= u[card])
             linking_count += 1
 
@@ -1382,8 +1473,8 @@ class ILPOptimizer:
         for card in self.all_cards:
             bound = len(self.card_to_combos[card]) if bounds is None else bounds[card]
             max_over = bound - cap
-            if max_over <= 0:
-                continue  # the card can never exceed the cap
+            if max_over <= 0 or card in self.exempt_cards:
+                continue  # the card can never exceed the cap, or is exempt from the balance
             over[card] = model.new_int_var(0, max_over, f"over{cap}_{self.card_to_idx[card]}")
             model.add(over[card] >= u[card] - cap)
             model.add_hint(over[card], max(0, hints.get(card, 0) - cap))
@@ -1634,12 +1725,14 @@ class ILPOptimizer:
         """Look up the configured Phase 2 objective (validated in __init__)."""
         return self._PHASE2_OBJECTIVES[self.phase2_objective]
 
-    def _warm_start_for(self, cards: set[str]) -> _WarmStart:
+    def _warm_start_for(self, cards: Collection[str]) -> _WarmStart:
         """
-        The warm start for a cube, with its true combos and the utilization of its combo
-        cards (the exempt payoff-only and enabler-only cards are left out so they do not
-        count as floor violations or as the hinted minimum).
+        The warm start for a cube, with the fixed cards added, its true combos and the
+        utilization of its combo cards (the exempt cards, payoff-only, enabler-only and
+        fixed, are left out so they do not count as floor violations or as the hinted
+        minimum).
         """
+        cards = set(cards) | self.fixed_cards
         return _WarmStart(
             cards=cards,
             combo_ids=set(completable_combo_ids(cards, self.combos)),
@@ -1655,8 +1748,8 @@ class ILPOptimizer:
         return (self.card_attributes or {}).get(card, UNKNOWN_CARD)
 
     def _cards_where(self, predicate: Callable[[CardAttributes], bool]) -> frozenset[str]:
-        """The candidate cards whose attributes satisfy the predicate."""
-        return frozenset(card for card in self.all_cards if predicate(self._attributes_of(card)))
+        """The free candidate cards (not fixed) whose attributes satisfy the predicate."""
+        return frozenset(card for card in self.free_cards if predicate(self._attributes_of(card)))
 
     def _nonland_cards_where(self, predicate: Callable[[CardAttributes], bool]) -> frozenset[str]:
         """The candidate nonland cards whose attributes satisfy the predicate."""
@@ -1695,10 +1788,11 @@ class ILPOptimizer:
         """
         Add the balance constraints: no color has more than `ratio` times the cards of
         another color, where cards_of_color(color, cards) says which cards count for a
-        color. Written as `den * count[a] <= num * count[b]` for every ordered pair.
+        color. Written as `den * count[a] <= num * count[b]` for every ordered pair, over
+        the free cards (the fixed cards are not part of the balance).
         """
         counts = {
-            color: sum(base.x[card] for card in cards_of_color(color, self.all_cards))
+            color: sum(base.x[card] for card in cards_of_color(color, self.free_cards))
             for color in COLORS
         }
         constraints = 0
@@ -1737,7 +1831,8 @@ class ILPOptimizer:
         ratio = self._color_balance_ratio()
         if ratio is None:
             return 0
-        counts = {color: len(self._cards_of_color(color, cards)) for color in COLORS}
+        free = set(cards) - self.fixed_cards
+        counts = {color: len(self._cards_of_color(color, free)) for color in COLORS}
         return self._balance_violations(counts, ratio)
 
     # --- Card mix: shares of the cube by color count, mana value and type ---
@@ -1816,9 +1911,9 @@ class ILPOptimizer:
         """
         for label, cards, share in self._share_caps():
             limit = self._cap_count(share)
-            if limit is not None and len(self.all_cards) - len(cards) < self.cube_size - limit:
+            if limit is not None and len(self.free_cards) - len(cards) < self.cube_size - limit:
                 logger.warning(
-                    f"Phase 2: the pool has only {len(self.all_cards) - len(cards)} cards "
+                    f"Phase 2: the pool has only {len(self.free_cards) - len(cards)} cards "
                     f"outside the {label}, fewer than the {self.cube_size - limit} the cube "
                     f"needs beside the {limit} it allows; Phase 2 cannot meet it"
                 )
@@ -1850,7 +1945,8 @@ class ILPOptimizer:
         ratio = self._mono_color_ratio()
         if ratio is None:
             return 0
-        counts = {color: len(self._mono_cards_of_color(color, cards)) for color in COLORS}
+        free = set(cards) - self.fixed_cards
+        counts = {color: len(self._mono_cards_of_color(color, free)) for color in COLORS}
         return self._balance_violations(counts, ratio)
 
     def _share_caps(self) -> list[tuple[str, frozenset[str], float]]:
@@ -2319,6 +2415,8 @@ class ILPOptimizer:
             parts.append(f"payoffs below their floor: {payoffs}")
         if enablers := self._describe_enabler_shortfalls(cards):
             parts.append(f"enablers below their floor: {enablers}")
+        if staples_short := self._describe_staple_shortfall(cards):
+            parts.append(staples_short)
         return f" ({'; '.join(parts)})" if parts else ""
 
     def _outcome_info(self) -> dict[str, Any]:
@@ -2683,6 +2781,91 @@ class ILPOptimizer:
             "phase2_enabler_floors": self.enabler_floors or None,
         }
 
+    # --- Staples: the most popular combos of the pool ---
+
+    def _staple_indicator(self, base: _BaseModel, staple: Staple) -> cp_model.IntVar:
+        """
+        A variable that is 1 only if a variant of the staple is completable: the group
+        indicator when the staple's variants are a whole group, otherwise a bool
+        s <= sum(y of its variants), which the solver can only under-count, so a minimum
+        over these is exact (as _fitting_group_count).
+        """
+        first = next(combo for combo in self.combos if combo.id == staple.variant_ids[0])
+        group = self.combo_groups[first.group_key]
+        ids = frozenset(staple.variant_ids)
+        if ids == {combo.id for combo in group} and (len(group) == 1 or first.group_key in base.g):
+            return self._group_indicator(base, first.group_key)
+        s = base.model.new_bool_var(f"staple_{len(base.staple_vars)}")
+        base.model.add(s <= sum(base.y[variant_id] for variant_id in staple.variant_ids))
+        base.staple_vars.append((s, ids))
+        return s
+
+    def _add_staple_minimum(self, base: _BaseModel) -> None:
+        """At least staple_minimum of the staples have a completable variant."""
+        if not self.staple_minimum:
+            return
+        indicators = [self._staple_indicator(base, staple) for staple in self.staples]
+        base.model.add(cp_model.LinearExpr.sum(indicators) >= self.staple_minimum)
+        logger.info(
+            f"Phase 2: Added the staples rule (at least {self.staple_minimum} of the "
+            f"{len(self.staples)} staples of the {self.staple_combos} most popular variants; "
+            f"{len(base.staple_vars)} staple variables)"
+        )
+        base.counts["staple_minimum"] = 1
+
+    def _staples_completed(self, cards: Collection[str]) -> int:
+        """The number of staples a cube completes (a completable variant of each)."""
+        completed = set(completable_combo_ids(cards, self.combos))
+        return sum(1 for staple in self.staples if not completed.isdisjoint(staple.variant_ids))
+
+    def _staple_violations(self, cards: Collection[str]) -> int:
+        """The staples a cube falls short of the minimum by (_add_staple_minimum)."""
+        if not self.staple_minimum:
+            return 0
+        return max(0, self.staple_minimum - self._staples_completed(cards))
+
+    def _describe_staple_shortfall(self, cards: Collection[str]) -> str:
+        """'staples completed 3 < 5' when a cube breaks the staples rule, or ''."""
+        if not self.staple_minimum:
+            return ""
+        completed = self._staples_completed(cards)
+        if completed >= self.staple_minimum:
+            return ""
+        return f"staples completed {completed} < {self.staple_minimum}"
+
+    def _check_staple_pool(self) -> None:
+        """Warn when the staples rule asks for more than the pool has, before solving."""
+        if self.staple_combos <= 0:
+            return
+        if self.staple_combos > len(self.combos):
+            logger.warning(
+                f"Phase 2: the pool has {len(self.combos)} variants, fewer than the "
+                f"{self.staple_combos} the staples are taken from; every variant is a staple"
+            )
+        if self.min_staple_combos > len(self.staples):
+            logger.warning(
+                f"Phase 2: the {self.staple_combos} most popular variants are {len(self.staples)} "
+                f"staples, fewer than the minimum of {self.min_staple_combos}; the minimum is "
+                f"lowered to {len(self.staples)} (every staple must be completed)"
+            )
+
+    def _staple_stats_of(
+        self, cards: Collection[str], completed_ids: Collection[str]
+    ) -> list[StapleStats] | None:
+        """Which staples a cube completes; None without staples."""
+        if not self.staples:
+            return None
+        return staple_stats(self.staples, cards, completed_ids)
+
+    def _staple_info(self) -> dict[str, Any]:
+        """The staples rule Phase 2 applies, for the result (empty when off)."""
+        if not self.staple_minimum:
+            return {}
+        return {
+            "phase2_staple_combos": self.staple_combos,
+            "phase2_min_staple_combos": self.staple_minimum,
+        }
+
     # --- The Phase 2 cube rules together ---
 
     def _cube_rules(self) -> list[_CubeRule]:
@@ -2710,6 +2893,7 @@ class ILPOptimizer:
             _CubeRule("payoff floor", self._add_payoff_floor, self._payoff_violations),
             _CubeRule("enabler floor", self._add_enabler_floor, self._enabler_violations),
             _CubeRule("required cards", self._add_required_cards, self._required_violations),
+            _CubeRule("staples", self._add_staple_minimum, self._staple_violations),
         ]
 
     def _add_required_cards(self, base: _BaseModel) -> None:
@@ -2781,7 +2965,9 @@ class ILPOptimizer:
             base.model.add_hint(g, 1 if key in completed_groups else 0)
         for h, fitting_ids in base.fit_vars.values():
             base.model.add_hint(h, 0 if fitting_ids.isdisjoint(combo_ids) else 1)
-        return len(base.g) + len(base.fit_vars)
+        for s, staple_ids in base.staple_vars:
+            base.model.add_hint(s, 0 if staple_ids.isdisjoint(combo_ids) else 1)
+        return len(base.g) + len(base.fit_vars) + len(base.staple_vars)
 
     def _solve_repair(
         self,
@@ -2898,11 +3084,13 @@ class ILPOptimizer:
           becomes the reference. If none is found, the Phase 1 count is kept.
 
         The reference solve is hinted with the Phase 1 cube, or with the warm-start cube
-        (warm_start_cards, a cube from an earlier build) when that is a whole cube that
-        satisfies the cube rules (_reference_hint): a feasible hint is a floor on what the
-        solve returns, so a reference that satisfied the rules last time is not lost to
-        the time limit this time. The warm-start cube is the reference outright if the
-        solve finds nothing better.
+        (warm_start_cards, a cube from an earlier build) when that is a whole cube
+        (_reference_hint). When the warm-start cube satisfies the cube rules a feasible
+        hint is a floor on what the solve returns, so a reference that satisfied the rules
+        last time is not lost to the time limit this time, and the warm-start cube is the
+        reference outright if the solve finds nothing better; when it breaks a rule (one
+        added since) it is still the hint, being closer to a cube under this run's rules
+        than the Phase 1 cube is, but cannot be the reference.
 
         The hint is the reference cube when it also satisfies the combo window and the
         utilization floor. Otherwise CP-SAT would first have to repair the hint inside the
@@ -2995,24 +3183,29 @@ class ILPOptimizer:
     def _reference_hint(self, phase1_start: _WarmStart) -> tuple[_WarmStart, _WarmStart | None]:
         """
         The cube the reference solve is hinted with: the warm-start cube when it is a whole
-        cube of candidate cards that satisfies the cube rules, otherwise the Phase 1 cube.
-        Returns (the hint, the warm-start cube when it is the hint, else None).
+        cube of candidate cards (the fixed cards apart), otherwise the Phase 1 cube. Returns
+        (the hint, the warm-start cube when it also satisfies the cube rules and so may be
+        the reference, else None).
         """
         if not self.warm_start_cards:
             return phase1_start, None
         given = self._warm_start_for(set(self.warm_start_cards))
-        if len(given.cards) != self.cube_size:
+        free_given = len(given.cards - self.fixed_cards)  # the fixed cards take no slot
+        if free_given != self.cube_size:
             logger.warning(
-                f"Phase 2: the warm-start cube has {len(given.cards)} candidate cards, not "
+                f"Phase 2: the warm-start cube has {free_given} candidate cards, not "
                 f"{self.cube_size}; the reference solve is hinted with the Phase 1 cube"
             )
             return phase1_start, None
         if broken := self._describe_broken_rules(given.cards):
+            # A hint need not be feasible: the Phase 1 cube breaks rules too, and a cube
+            # that satisfied last build's rules is closer to this build's than it is (a new
+            # rule, the staples, breaks it by a few cards). It cannot be the reference.
             logger.warning(
-                f"Phase 2: the warm-start cube breaks {broken} constraints; the reference "
-                f"solve is hinted with the Phase 1 cube"
+                f"Phase 2: the warm-start cube breaks {broken} constraints; it hints the "
+                f"reference solve but cannot be the reference"
             )
-            return phase1_start, None
+            return given, None
         logger.info(
             f"Phase 2: the reference solve is hinted with the warm-start cube "
             f"({self._describe_combos(given.combo_ids)})"
@@ -3100,11 +3293,15 @@ class ILPOptimizer:
     ) -> _Solution:
         """Read the solved model and compute the statistics every phase reports."""
         extract_start = time.perf_counter()
-        selected_names = [card for card in self.all_cards if solver.value(base.x[card]) == 1]
+        # The cube is the selected free cards; the fixed cards are in every model and
+        # complete combos beside them
+        in_cube = [card for card in self.all_cards if solver.value(base.x[card]) == 1]
+        selected_names = [card for card in in_cube if card not in self.fixed_cards]
         selected = [self.candidate_cards[name] for name in selected_names]
+        cube = set(in_cube)
 
         # Everything reported is computed from the selected cards, not from the solver's y
-        completed = completable_combo_ids(set(selected_names), self.combos)
+        completed = completable_combo_ids(cube, self.combos)
         solver_completed = {
             combo.id for combo in self.combos if solver.value(base.y[combo.id]) == 1
         }
@@ -3119,43 +3316,67 @@ class ILPOptimizer:
         utilization = self._calculate_utilization(selected_names, completed)
         selected_name_set = set(selected_names)
         completed_set = set(completed)
+        payoff_by_category = self.payoffs.cards_by_category() if self.payoffs is not None else None
+        enabler_by_category = (
+            self.enablers.cards_by_category() if self.enablers is not None else None
+        )
         inclusion = card_inclusion(
             selected_name_set,
             self.combos,
             completed_set,
             group_categories=self.group_categories,
-            payoff_cards=(self.payoffs.cards_by_category() if self.payoffs is not None else None),
-            enabler_cards=(
-                self.enablers.cards_by_category() if self.enablers is not None else None
-            ),
+            payoff_cards=payoff_by_category,
+            enabler_cards=enabler_by_category,
+            fixed_cards=self.fixed_cards,
         )
         # The statistics describe the combo cards; a payoff-only card is 0 by definition and
         # an enabler-only card below the floor by definition, and both are reported in the
-        # payoff and enabler statistics instead
+        # payoff and enabler statistics instead; the fixed cards (reason FIXED) are outside
+        # the cube
+        cube_inclusion = [stats for stats in inclusion if stats.reason != FIXED]
         utilization_stats = self._compute_utilization_stats(
             {card: value for card, value in utilization.items() if card not in self.exempt_cards},
-            inclusion,
+            cube_inclusion,
             compute_concentration_stats(
                 card_combo_groups(selected_name_set, self.combos, completed_set),
-                {stats.card: stats.essential_combo_count for stats in inclusion},
+                {stats.card: stats.essential_combo_count for stats in cube_inclusion},
             ),
         )
 
-        # Calculate requirement type stats
+        # Calculate requirement type stats. Everything that counts combos counts the fixed
+        # cards (cube); the cards' own make-up is the selected cards'
         group_sizes = completed_group_sizes(completed_set, self.combos)
-        combo_groups = largest_combo_groups(
-            selected_name_set, self.combos, completed_ids=completed_set
-        )
+        combo_groups = largest_combo_groups(cube, self.combos, completed_ids=completed_set)
         archetype_stats = (
-            compute_archetype_stats(selected_name_set, self.combos, completed_set)
+            compute_archetype_stats(cube, self.combos, completed_set)
             if self.has_color_identities
             else None
         )
-        outcome_stats = self._outcome_stats_of(selected_name_set, completed_set)
-        payoff_stats = self._payoff_stats_of(selected_name_set)
-        enabler_stats = self._enabler_stats_of(selected_name_set)
-        req_stats = self._calculate_requirement_stats(selected_name_set, completed_set)
+        outcome_stats = self._outcome_stats_of(cube, completed_set)
+        payoff_stats = self._payoff_stats_of(cube)
+        enabler_stats = self._enabler_stats_of(cube)
+        req_stats = self._calculate_requirement_stats(cube, completed_set)
         coverage_stats = self._compute_coverage_stats(req_stats)
+        fixed_stats = (
+            fixed_card_stats(
+                self.fixed_card_names,
+                self.all_cards,
+                self.combos,
+                completed_set,
+                payoff_by_category,
+                enabler_by_category,
+            )
+            if self.fixed_card_names
+            else None
+        )
+        potential = one_card_away(
+            selected_name_set,
+            self.combos,
+            fixed_cards=self.fixed_cards,
+            candidate_cards=self.card_to_idx,
+            payoff_cards=self.payoffs.all_cards if self.payoffs is not None else (),
+            enabler_cards=self.enablers.all_cards if self.enablers is not None else (),
+        )
 
         # Calculate cross-template stats
         group_key_to_name = self._build_group_key_to_name_map(completed_set)
@@ -3180,11 +3401,14 @@ class ILPOptimizer:
             outcome_stats=outcome_stats,
             payoff_stats=payoff_stats,
             enabler_stats=enabler_stats,
-            popularity_stats=popularity_stats(selected_name_set, self.combos, completed_set),
+            popularity_stats=popularity_stats(cube, self.combos, completed_set),
             combo_score=self._combo_score_value(completed_set),
             requirement_type_stats=req_stats,
             requirement_coverage_stats=coverage_stats,
             cross_template_stats=cross_template_stats,
+            staple_stats=self._staple_stats_of(cube, completed_set),
+            fixed_card_stats=fixed_stats,
+            one_card_away=potential,
         )
 
     @staticmethod
@@ -3221,9 +3445,9 @@ class ILPOptimizer:
             )
 
         # Handle edge case: not enough cards for cube size
-        if len(self.all_cards) < self.cube_size:
+        if len(self.free_cards) < self.cube_size:
             logger.warning(
-                f"Only {len(self.all_cards)} cards available, but cube size is {self.cube_size}"
+                f"Only {len(self.free_cards)} cards available, but cube size is {self.cube_size}"
             )
             return OptimizationResult(
                 selected_cards=[],
@@ -3307,8 +3531,19 @@ class ILPOptimizer:
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
             cross_template_stats=solution.cross_template_stats,
+            staple_stats=solution.staple_stats,
+            phase1_staples_completed=self._completed_staple_count(solution.staple_stats),
+            fixed_card_stats=solution.fixed_card_stats,
+            one_card_away=solution.one_card_away,
             profile_data=profile_data,
         )
+
+    @staticmethod
+    def _completed_staple_count(staple_stats_: list[StapleStats] | None) -> int | None:
+        """How many staples a cube completes; None without staples."""
+        if staple_stats_ is None:
+            return None
+        return sum(1 for staple in staple_stats_ if staple.completed)
 
     @staticmethod
     def _require_phase1_stats(
@@ -3473,6 +3708,8 @@ class ILPOptimizer:
         self._check_payoff_pool()
         enabler_info = self._enabler_info()
         self._check_enabler_pool()
+        staple_info = self._staple_info()
+        self._check_staple_pool()
 
         warm_start, reference, prep_seconds = self._build_warm_start(phase1_result, profile_result)
         reference_score = self._combo_score(reference.combo_ids)
@@ -3538,6 +3775,7 @@ class ILPOptimizer:
                 **outcome_info,
                 **payoff_info,
                 **enabler_info,
+                **staple_info,
                 **reference_info,
                 profile_data=profile_data,
             )
@@ -3592,11 +3830,17 @@ class ILPOptimizer:
             **outcome_info,
             **payoff_info,
             **enabler_info,
+            **staple_info,
             **reference_info,
             is_multi_objective=True,
             requirement_type_stats=solution.requirement_type_stats,
             requirement_coverage_stats=solution.requirement_coverage_stats,
             cross_template_stats=solution.cross_template_stats,
+            staple_stats=solution.staple_stats,
+            phase1_staples_completed=phase1_result.phase1_staples_completed,
+            phase2_staples_completed=self._completed_staple_count(solution.staple_stats),
+            fixed_card_stats=solution.fixed_card_stats,
+            one_card_away=solution.one_card_away,
             phase1_selected_cards=phase1_result.selected_cards,
             phase1_combo_count=phase1_result.combo_count,
             profile_data=profile_data,

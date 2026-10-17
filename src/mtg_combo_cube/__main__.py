@@ -303,7 +303,35 @@ if __name__ == "__main__":
         f"table override) (default: {ILPOptimizer.DEFAULT_ENABLER_SHARE}). 0 keeps the floor "
         "at --min-enablers per category. Below 1.",
     )
+    argparser.add_argument(
+        "--fixed-cards",
+        type=str,
+        default=None,
+        help="A card list file (one name per line, # comments) naming the cube's cards outside "
+        "the slots the optimizer fills, in place of the configuration's fixed_cards file. "
+        "Fixed cards count for every rule that counts combos and take no slot of the cube "
+        "size.",
+    )
+    argparser.add_argument(
+        "--staple-combos",
+        type=int,
+        default=ILPOptimizer.DEFAULT_STAPLE_COMBOS,
+        help="Staples rule for phase 2: the named cards of each of the pool's N most popular "
+        "variants are a staple (variants with the same named cards are one), and the cube "
+        "must complete at least --min-staple-combos of them "
+        f"(default: {ILPOptimizer.DEFAULT_STAPLE_COMBOS}; 0 turns the rule off).",
+    )
+    argparser.add_argument(
+        "--min-staple-combos",
+        type=int,
+        default=ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS,
+        help="Staples rule for phase 2: the number of the --staple-combos staples the cube must "
+        f"complete (default: {ILPOptimizer.DEFAULT_MIN_STAPLE_COMBOS}; 0 asks for every one "
+        "of them too; a minimum above the staples there are is lowered to them).",
+    )
     args = argparser.parse_args()
+    if args.staple_combos < 0 or args.min_staple_combos < 0:
+        argparser.error("--staple-combos and --min-staple-combos must be 0 or more")
     if not math.isfinite(args.max_color_ratio) or 0 < args.max_color_ratio < 1:
         argparser.error("--max-color-ratio must be 0 or at least 1")
     if not 0 <= args.variant_weight <= 1:
@@ -343,7 +371,7 @@ if __name__ == "__main__":
         argparser.error(str(e).replace(e.field, f"--{e.field.replace('_', '-')}", 1))
     # A missing, invalid or incomplete configuration is a usage error, not a traceback
     try:
-        config = load_config(args.config)
+        config = load_config(args.config, args.fixed_cards)
         config.require(
             outcome_categories=outcome_rules_requested(
                 args.min_outcome_combos, args.max_outcome_share
@@ -390,11 +418,15 @@ if __name__ == "__main__":
                 payoff_inference_min=args.payoff_inference_min,
                 min_enablers=args.min_enablers,
                 enabler_share=args.enabler_share,
+                fixed_cards_file=args.fixed_cards,
+                staple_combos=args.staple_combos,
+                min_staple_combos=args.min_staple_combos,
             )
         )
-    except (CardTableError, BlocklistQueryError) as e:
-        # A payoff or enabler query that matches no card or that Scryfall rejects, or a
-        # blocklist query Scryfall rejects: a configuration error
+    except (CardTableError, BlocklistQueryError, ConfigError) as e:
+        # A payoff or enabler query that matches no card or that Scryfall rejects, a
+        # blocklist query Scryfall rejects, or a fixed card a blocklist query blocks: a
+        # configuration error
         argparser.error(str(e))
     except (CardTableFetchError, BlocklistFetchError) as e:
         # Scryfall could not be reached for a query the payoff floor, the enabler floor or

@@ -63,6 +63,7 @@ def make_optimizer(
     for name in sorted(extra_cards):
         candidate_cards[name] = CandidateCard(name, frozenset(), frozenset())
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 6,
         "time_limit_seconds": 30,
         # The window holds the score exactly, so the objective cannot trade combos away
@@ -519,6 +520,6 @@ class TestViolations:
     def test_floor_is_a_cube_rule(self):
         labels = [rule.label for rule in make_optimizer()._cube_rules()]
 
-        assert labels[-2] == "enabler floor"
+        assert labels[-3] == "enabler floor"
         violations = make_optimizer(min_enablers=1)._cube_rule_violations(HUB | {"Q1", "Q2"})
         assert violations["enabler floor"] == 1

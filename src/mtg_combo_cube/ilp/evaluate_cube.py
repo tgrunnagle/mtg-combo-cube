@@ -29,22 +29,31 @@ from mtg_combo_cube.ilp.cube_evaluation import (
     compute_color_stats,
     compute_concentration_stats,
     compute_utilization_stats,
+    fixed_card_stats,
     group_outcomes,
     largest_combo_groups,
+    one_card_away,
     popularity_stats,
+    staple_stats,
+    staples,
     weighted_combo_count,
 )
 from mtg_combo_cube.ilp.enablers import EnablerDefinitions, EnablerTable
 from mtg_combo_cube.ilp.ilp_models import (
+    FIXED,
     ArchetypeStats,
     CardInclusionStats,
     ComboGroupStats,
     EnablerStats,
+    FixedCardStats,
+    OneCardAwayReport,
     OutcomeStats,
     PayoffStats,
     PopularityStats,
+    StapleStats,
     UtilizationStats,
 )
+from mtg_combo_cube.ilp.ilp_optimizer import ILPOptimizer
 from mtg_combo_cube.ilp.ilp_runner import (
     add_enabler_cards,
     add_payoff_cards,
@@ -61,13 +70,17 @@ from mtg_combo_cube.ilp.ilp_runner import (
     format_concentration,
     format_enabler_stats,
     format_enabler_table,
+    format_fixed_card_stats,
+    format_one_card_away,
     format_outcome_stats,
     format_payoff_stats,
     format_payoff_table,
     format_popularity_stats,
+    format_staple_stats,
     load_instance,
     read_cube_file,
     write_card_data,
+    write_potential_combos,
 )
 from mtg_combo_cube.ilp.outcomes import OutcomeCategories, OutcomeCategoryError
 from mtg_combo_cube.ilp.payoffs import (
@@ -97,6 +110,12 @@ class CubeEvaluation:
     payoffs: PayoffTable | None = None  # the resolved payoff table, with one
     enabler_stats: EnablerStats | None = None  # enabler cards per category, with a table
     enablers: EnablerTable | None = None  # the resolved enabler table, with one
+    # The fixed cards (the cube's cards outside the list) and what they complete, with any
+    fixed_card_stats: FixedCardStats | None = None
+    # The variants of the pool the cube (with the fixed cards) is one piece short of
+    one_card_away: OneCardAwayReport | None = None
+    # Which staples (of the staple_combos most popular variants) the cube completes, with any
+    staple_stats: list[StapleStats] | None = None
 
 
 async def evaluate_cube(
@@ -109,6 +128,8 @@ async def evaluate_cube(
     payoff_inference_min: int = DEFAULT_INFERENCE_THRESHOLD,
     enabler_definitions: EnablerDefinitions | None = None,
     min_utilization_floor: int = 2,
+    fixed_cards: frozenset[str] = frozenset(),
+    staple_combos: int = 0,
 ) -> CubeEvaluation:
     """
     Evaluate a cube list against the instance built from the cached API data.
@@ -121,8 +142,13 @@ async def evaluate_cube(
     reported. enabler_definitions is the enabler table, resolved the same way; its
     enabler-only cards are the enabler cards in fewer combos of the pool than
     min_utilization_floor (a build's --min-util-floor), as a build reports them.
+    fixed_cards are the cube's cards outside the list (a build's fixed cards): they complete
+    combos with the list's cards and count for everything that counts combos, as in a
+    build, while the utilization statistics describe the list's cards. staple_combos (a
+    build's --staple-combos) reports which staples the cube completes.
     """
     cards = read_cube_file(cube_file)
+    cube = list(dict.fromkeys(cards + sorted(fixed_cards)))
     query_results: dict[str, list[str]] = {}
     if payoff_definitions is not None and outcome_categories is not None:
         payoff_definitions.check_categories(outcome_categories)
@@ -184,8 +210,13 @@ async def evaluate_cube(
             f"(they count with utilization 0): {unknown[:5]}"
         )
 
-    completed = completable_combo_ids(cards, combos)
+    # Everything that counts combos counts the fixed cards (cube); the utilization
+    # statistics and the card data describe the list's cards
+    completed = completable_combo_ids(cube, combos)
     group_sizes = completed_group_sizes(completed, combos)
+    utilization = card_utilization(cube, combos)
+    payoff_by_category = payoffs.cards_by_category() if payoffs is not None else None
+    enabler_by_category = enablers.cards_by_category() if enablers is not None else None
     inclusion = card_inclusion(
         cards,
         combos,
@@ -193,21 +224,20 @@ async def evaluate_cube(
         group_categories=(
             group_outcomes(combos, outcome_categories) if outcome_categories is not None else None
         ),
-        payoff_cards=payoffs.cards_by_category() if payoffs is not None else None,
-        enabler_cards=enablers.cards_by_category() if enablers is not None else None,
+        payoff_cards=payoff_by_category,
+        enabler_cards=enabler_by_category,
+        fixed_cards=fixed_cards,
     )
-    # The statistics describe the combo cards, as a build's do
+    # The statistics describe the list's combo cards, as a build's do: not the exempt cards
+    # and not the fixed cards (reason FIXED), which are outside the list
     exempt = set(payoff_only) | set(enabler_only)
+    cube_inclusion = [stats for stats in inclusion if stats.reason != FIXED]
     utilization_stats = compute_utilization_stats(
-        {
-            card: value
-            for card, value in card_utilization(cards, combos).items()
-            if card not in exempt
-        },
-        inclusion,
+        {card: utilization[card] for card in cards if card not in exempt},
+        cube_inclusion,
         compute_concentration_stats(
             card_combo_groups(cards, combos, completed),
-            {stats.card: stats.essential_combo_count for stats in inclusion},
+            {stats.card: stats.essential_combo_count for stats in cube_inclusion},
         ),
     )
     return CubeEvaluation(
@@ -216,19 +246,44 @@ async def evaluate_cube(
         distinct_combo_count=len(group_sizes),
         weighted_combo_count=weighted_combo_count(group_sizes, variant_weight),
         utilization_stats=utilization_stats,
-        largest_combo_groups=largest_combo_groups(cards, combos, completed_ids=completed),
-        archetype_stats=compute_archetype_stats(cards, combos, completed),
-        popularity_stats=popularity_stats(cards, combos, completed),
+        largest_combo_groups=largest_combo_groups(cube, combos, completed_ids=completed),
+        archetype_stats=compute_archetype_stats(cube, combos, completed),
+        popularity_stats=popularity_stats(cube, combos, completed),
         outcome_stats=(
-            combos_per_outcome(cards, combos, outcome_categories, completed)
+            combos_per_outcome(cube, combos, outcome_categories, completed)
             if outcome_categories is not None
             else None
         ),
         card_inclusion=inclusion,
-        payoff_stats=payoffs.stats(cards, payoff_only) if payoffs is not None else None,
+        payoff_stats=payoffs.stats(cube, payoff_only) if payoffs is not None else None,
         payoffs=payoffs,
-        enabler_stats=enablers.stats(cards, enabler_only) if enablers is not None else None,
+        enabler_stats=enablers.stats(cube, enabler_only) if enablers is not None else None,
         enablers=enablers,
+        fixed_card_stats=(
+            fixed_card_stats(
+                fixed_cards,
+                candidate_cards,
+                combos,
+                completed,
+                payoff_by_category,
+                enabler_by_category,
+            )
+            if fixed_cards
+            else None
+        ),
+        one_card_away=one_card_away(
+            cards,
+            combos,
+            fixed_cards=fixed_cards,
+            candidate_cards=candidate_cards,
+            payoff_cards=payoff_names,
+            enabler_cards=enabler_names,
+        ),
+        staple_stats=(
+            staple_stats(staples(combos, staple_combos), cube, completed)
+            if staple_combos > 0
+            else None
+        ),
     )
 
 
@@ -273,20 +328,38 @@ if __name__ == "__main__":
         "is reported as enabler-only, as the build reports it",
     )
     argparser.add_argument(
+        "--fixed-cards",
+        type=str,
+        default=None,
+        help="A card list file naming the cube's cards outside the list (the slots filled by "
+        "hand), in place of the configuration's fixed_cards file; they count for every "
+        "combo count, as in a build",
+    )
+    argparser.add_argument(
+        "--staple-combos",
+        type=int,
+        default=ILPOptimizer.DEFAULT_STAPLE_COMBOS,
+        help="Report which staples (the named cards of the pool's N most popular variants) "
+        "the cube completes, as a build's --staple-combos defines them "
+        f"(default: {ILPOptimizer.DEFAULT_STAPLE_COMBOS}; 0 for none)",
+    )
+    argparser.add_argument(
         "--card-data",
         action="store_true",
-        help="Also write why each card is in the cube to <cube>_card_data.json beside the "
-        "cube list",
+        help="Also write why each card is in the cube to <cube>_card_data.json and the pieces "
+        "the cube is one card short of to <cube>_potential_combos.json beside the cube list",
     )
     args = argparser.parse_args()
     if args.payoff_inference_min < 1:
         argparser.error("--payoff-inference-min must be at least 1")
     if args.min_util_floor < 0:
         argparser.error("--min-util-floor must be 0 or more")
+    if args.staple_combos < 0:
+        argparser.error("--staple-combos must be 0 or more")
     # A missing or invalid configuration is a usage error; without an outcome, payoff or
     # enabler table the outcome, payoff and enabler counts are left out
     try:
-        config = load_config(args.config)
+        config = load_config(args.config, args.fixed_cards)
     except (FileNotFoundError, ConfigError, OutcomeCategoryError, CardTableError) as e:
         argparser.error(str(e))
     logging.basicConfig(level=logging.WARNING)
@@ -300,6 +373,8 @@ if __name__ == "__main__":
                 read_cache=True,
             )
         )
+        if blocked := sorted(config.fixed_cards & blocklist):
+            argparser.error(f"fixed cards cannot be blocked by a blocklist query: {blocked}")
         evaluation = asyncio.run(
             evaluate_cube(
                 cube_file=args.cube_file,
@@ -311,6 +386,8 @@ if __name__ == "__main__":
                 payoff_inference_min=args.payoff_inference_min,
                 enabler_definitions=config.enablers,
                 min_utilization_floor=args.min_util_floor,
+                fixed_cards=config.fixed_cards,
+                staple_combos=args.staple_combos,
             )
         )
     except (CardTableError, BlocklistQueryError) as e:
@@ -367,6 +444,12 @@ if __name__ == "__main__":
             print(f"  {name}: {', '.join(found) if found else '(none)'}")
         if evaluation.enabler_stats.enabler_only:
             print(f"  enabler-only: {', '.join(evaluation.enabler_stats.enabler_only)}")
+    if evaluation.fixed_card_stats is not None:
+        print(f"Fixed cards: {format_fixed_card_stats(evaluation.fixed_card_stats)}")
+    if evaluation.staple_stats is not None:
+        print(f"Staples: {format_staple_stats(evaluation.staple_stats)}")
+    if evaluation.one_card_away is not None:
+        print(f"One card away: {format_one_card_away(evaluation.one_card_away)}")
 
     cube_cards = read_cube_file(args.cube_file)
     attributes = asyncio.run(fetch_card_attributes(cube_cards, read_cache=True))
@@ -376,4 +459,11 @@ if __name__ == "__main__":
         card_mix = compute_card_mix_stats(cube_cards, attributes)
         print(f"Card mix: {format_card_mix_stats(card_mix)}")
     if args.card_data:
-        print(f"Per-card data: {write_card_data(evaluation.card_inclusion, args.cube_file)}")
+        fixed = sorted(config.fixed_cards)
+        card_data = write_card_data(evaluation.card_inclusion, args.cube_file, fixed_cards=fixed)
+        print(f"Per-card data: {card_data}")
+        if evaluation.one_card_away is not None:
+            potential = write_potential_combos(
+                evaluation.one_card_away, args.cube_file, cube_cards, fixed
+            )
+            print(f"Potential combos: {potential}")

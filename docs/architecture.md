@@ -60,7 +60,7 @@ All code lives under `src/mtg_combo_cube/`.
 | `__main__.py` | CLI. Parses flags and calls `runner.run`. |
 | `runner.py` | Loads the configuration and calls the ILP runner. |
 | `models.py` | Pydantic models for Commander Spellbook responses (`Variant`, `CardUse`, `Requirement`, `Template`, ...) and `CardAttributes`, a card's Scryfall data (color identity, type line, mana value). |
-| `config.py` | Reads `config.yaml` into a `CubeConfig`: the `blocklist`, `blocklist_queries`, `outcome_categories`, `payoffs` and `enablers` sections, each optional, the payoff table checked against the outcome table on load; `require` names the sections the rules that are on need. |
+| `config.py` | Reads `config.yaml` into a `CubeConfig`: the `fixed_cards` file (read with `read_card_list`, the cube file format with `#` comments and repeats collapsed; `--fixed-cards` overrides), `blocklist`, `blocklist_queries`, `outcome_categories`, `payoffs` and `enablers` sections, each optional, the payoff table checked against the outcome table and the fixed cards against the blocklist on load; `require` names the sections the rules that are on need. |
 | `blocklist.py` | `fetch_blocklist`: the blocked cards of a run, the `blocklist` names and the cards matching the `blocklist_queries` (Scryfall searches such as `t:stickers`), resolved through the payoff query cache before the instance is loaded. A rejected query is a configuration error, one that could not be fetched stops the run. |
 | `precache.py` | Command-line entry point that fills the caches ahead of a build. |
 | `spellbook/commander_spellbook.py` | Async client for the Spellbook API: paged variant listing. |
@@ -72,11 +72,12 @@ All code lives under `src/mtg_combo_cube/`.
 | `ilp/combo_preprocessor.py` | Turns variants into the ILP instance (`ComboData`, `CandidateCard`). |
 | `ilp/ilp_models.py` | Dataclasses for the instance, statistics and `OptimizationResult`. |
 | `ilp/ilp_optimizer.py` | `ILPOptimizer`: builds and solves the CP-SAT models. |
-| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, combos per outcome category, popularity, color distribution, card mix. |
+| `ilp/cube_evaluation.py` | Pure functions that score a set of cards: completed variants and distinct combos, utilization, combos per draft archetype, combos per outcome category, popularity, color distribution, card mix, the variants a cube is one piece short of (`one_card_away`), the pool's staples (`staples`) and what the fixed cards complete (`fixed_card_stats`). |
 | `ilp/outcomes.py` | The outcome category table (the `outcome_categories` section of `config.yaml`): category names with feature-name patterns, an optional catch-all category without patterns, and `categorize`. |
 | `ilp/card_table.py` | The generic card table the payoff and enabler tables are built on: a category's queries, cards, exclusions and floor bounds, the parsing and validation with each table's own keys and errors (`TableKind`), the query result check and the resolution of each category's cards with their sources (`CardTable`). |
 | `ilp/payoffs.py` | The payoff table (the `payoffs` section of `config.yaml`): per outcome category the queries, cards and exclusions that find its outlets; the outlet inference from bundled variants; the resolved `PayoffTable`. |
 | `ilp/enablers.py` | The enabler table (the `enablers` section of `config.yaml`): per free-form category (fast mana, rituals, wheels, graveyard fillers) the queries, cards and exclusions that find the cards that set combos up; the resolved `EnablerTable`. |
+| `ilp/spellbook_links.py` | Commander Spellbook links for the card data file: searches listing variants by id, ten per link, and the Find My Combos page for a whole card list. |
 | `ilp/evaluate_cube.py` | Command-line entry point that scores an existing cube file. |
 | `ilp/profiling.py` | Timing, variable and constraint counts, solver statistics. |
 | `ilp/ilp_runner.py` | Orchestrates an ILP build and writes the outputs. |
@@ -192,8 +193,8 @@ table that does not fit the outcome table is an error on load, whatever the sett
 
 `ilp/enablers.py` turns the enabler table (the `enablers` section of `config.yaml`) into the
 `EnablerTable` of a run: for each category (fast mana, rituals, wheels, graveyard fillers and
-the recursion engine Underworld Breach by default; the names are free, not tied to the outcome
-table), the cards that set combos up,
+the recursion engine Underworld Breach and the top-of-library engine Bolas's Citadel by
+default; the names are free, not tied to the outcome table), the cards that set combos up,
 each with its sources. The table has the shape of the payoff table and is parsed and resolved
 by the same code (`ilp/card_table.py`: `parse_card_table`, `resolve_sources`, with
 `min_enablers` / `max_enablers` as the bound keys and `EnablerTableError` as the error), with
@@ -202,9 +203,10 @@ the same cache as the payoff queries. There is no inference: nothing in the Spel
 marks a card as an enabler; a ritual or a wheel appears in a variant only when it is a piece.
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
-wants in the slot, which a build then used to meet the floor. Wheel of Fortune and Underworld
-Breach are required; the recursion category holds Underworld Breach alone, with a floor of 0
-(`min_enablers` and `max_enablers` 0), so the enabler share is split among the other four.
+wants in the slot, which a build then used to meet the floor. Wheel of Fortune, Underworld
+Breach and Bolas's Citadel are required; the recursion and top_deck categories hold
+Underworld Breach and Bolas's Citadel alone, each with a floor of 0 (`min_enablers` and
+`max_enablers` 0), so the enabler share is split among the other four.
 
 `build_cube_ilp` resolves the enabler table after the payoff table and, with the enabler
 floor on, adds every enabler card the pool lacks to the candidate cards as a `CandidateCard`
@@ -250,7 +252,8 @@ x[c] in {0,1}     card c is in the cube
 y[j] in {0,1}     variant j is counted as complete
 g[k] in {0,1}     combo group k has a complete variant
 
-sum_c x[c] = N                                  cube size
+sum_{c free} x[c] = N                           cube size, over the cards that are not fixed
+x[f] = 1                for each fixed card f the pool names
 y[j] <= x[c]            for each required card c of variant j
 y[j] <= sum x[c]        over the pool of each template requirement of variant j
 g[k] <= sum_{j in k} y[j],  g[k] >= y[j]        for each group k of two or more variants
@@ -262,6 +265,20 @@ and enabler cards the pool lacks (payoff-only and enabler-only cards, see "Payof
 something. That is sufficient whenever `y` is being maximized. `g` is exact in both directions; the group
 variables exist when `--variant-weight` is below 1 (the score needs them) or an archetype or
 outcome rule is on (the rules count groups), and are left out otherwise.
+
+The *fixed cards* (`CubeConfig.fixed_cards`, the file `config.yaml` names: the cube's cards
+outside the N slots, filled by hand) that are candidates are in every model with `x = 1`
+and take no slot. Nothing else in the model changes: the `y` constraints see `x[f] = 1`, so
+the combos they complete with the cube count in the score, the window, the group
+indicators, the utilization of the other cards and every rule that counts combos, and a
+fixed Mox is a card of its enabler category for the enabler floor. They are exempt cards
+(`exempt_cards`, with the payoff-only and enabler-only cards): not in the card mix sets or
+the color balance (both built over `free_cards`), the utilization floor, the utilization
+statistics or the balancing objectives, and never payoff-only or enabler-only themselves.
+Every check on a card set that counts combos is given the selected cards plus the fixed
+cards (`_warm_start_for` adds them); the card mix and color checks subtract them.
+`OptimizationResult.selected_cards` is the N free cards, `fixed_card_stats` the fixed cards
+and what they complete.
 
 ### Combo score
 
@@ -418,15 +435,28 @@ Phase 2 builds a fresh model: the base model plus the following, in this order.
     the utilization statistics and the balancing objectives. A required card the pool
     lacks is ignored with a warning (the runner adds every table card, and fails on one
     Scryfall does not know).
-16. **The objective**, chosen with `--phase2-objective`.
-17. **Warm start.** The model is hinted with a starting cube.
+16. **Staples.** With `--staple-combos N`, the N most popular variants of the pool are
+    collapsed by their set of named cards into *staples* (`cube_evaluation.staples`; the two
+    Springheart Nantuko plus Tireless Provisioner variants, which differ only by template,
+    are one), and at least `--min-staple-combos` of them (all at 0, never more than there
+    are) must have a completable variant. A staple whose variants are a whole group with a
+    `g` uses the group indicator; otherwise a bool `s <= sum(y of its variants)`, which the
+    solver can only under-count, so the minimum is exact in the one-sided repair models
+    too. The named cards of the staples are exempt from the utilization floor
+    (`floor_free_cards`), as the required cards are. On by default at N=25 with every one of
+    them required (`--staple-combos 0` turns it off), chosen in Step 4 of the
+    potential-combos plan.
+17. **The objective**, chosen with `--phase2-objective`.
+18. **Warm start.** The model is hinted with a starting cube.
 
 Coverage, color balance, the archetype minimums, the wide combo cap, the card mix rules, the
-outcome rules, the payoff floor, the enabler floor and the required cards are the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and
+outcome rules, the payoff floor, the enabler floor, the required cards and the staples are the *cube rules* (`_cube_rules`): each is a pair of `add(base)` and
 `violations(cards)`, and the list is applied by the Phase 2 model, by the warm-start repair
 models and by the check that decides whether the Phase 1 cube needs repairing. A new hard
 constraint on the cube is one entry in that list; the card mix rules are built from one
-share-cap helper and one share-floor helper (`_card_mix_rules`).
+share-cap helper and one share-floor helper (`_card_mix_rules`). The `cards` a check
+receives are the cube's cards plus the fixed cards; a rule that shapes the cube's cards
+rather than counting combos (the card mix, the color balances) subtracts the fixed cards.
 
 #### Objectives
 
@@ -490,9 +520,12 @@ is built, both in the small Phase 1 model with the cube rules added:
    It is the best cube found in that time, not a proven maximum. If the Phase 1 cube already
    satisfies every rule, it is the reference. With `--warm-start` (a cube list from an
    earlier build), the solve is hinted with that cube instead when it is a whole cube of
-   candidate cards that satisfies the rules (`_reference_hint`): a feasible hint is a floor
-   on what the solve returns, and if it returns nothing better the warm-start cube is the
-   reference outright. The reference cube is written beside the output as
+   candidate cards, the fixed cards apart (`_reference_hint`). When it also satisfies the
+   rules, a feasible hint is a floor on what the solve returns, and if it returns nothing
+   better the warm-start cube is the reference outright; when it breaks a rule (one added
+   since it was built, such as the staples) it still hints the solve, being closer to a
+   cube under this run's rules than the Phase 1 cube, but cannot be the reference. The
+   reference cube is written beside the output as
    `<output>_reference.txt`, which is the natural warm start for the next build: the
    reference solve stops at the time limit, and at full size its weighted combo count moved
    12% over four runs of the same inputs, so the window every objective is measured against
@@ -552,9 +585,10 @@ constraint counts, timings and solver statistics per phase.
 | File | Contents |
 |------|----------|
 | `<output>.txt` | The cube, one card name per line. |
-| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics (in variants, distinct combos and essential combos per card, with the concentration of the combos on the most-used cards), color distribution, combos per draft archetype, card mix, combos per outcome category, popularity, payoff and enabler cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, the number of cards per inclusion reason, per-template coverage, cross-template overlap, the resolved payoff and enabler tables, and profiling data when `--profile` is set. |
+| `<output>_stats.json` | Metadata, Phase 1 and Phase 2 variant and distinct combo counts, utilization statistics (in variants, distinct combos and essential combos per card, with the concentration of the combos on the most-used cards), color distribution, combos per draft archetype, card mix, combos per outcome category, popularity, payoff and enabler cards, the Phase 2 settings in force, improvement and card changes, the largest combo groups, most and least used cards, the number of cards per inclusion reason, per-template coverage, cross-template overlap, the resolved payoff and enabler tables, the fixed cards, the staples, the one-card-away totals, and profiling data when `--profile` is set. |
 | `<output>_reference.txt` | The Phase 2 reference cube: the best cube found under the cube rules, which the combo window was measured from. The input for a later build's `--warm-start`. Written whenever Phase 2 ran. |
-| `<output>_card_data.json` | Why each card is in the final cube (`cube_evaluation.card_inclusion`), most-used first: its reason (`essential`, `redundant`, `payoff_only`, `enabler_only` or `no_combo`), completed variants and distinct combos it takes part in, split into named-piece and template-filler variants, the combos the cube would lose without it, the templates it fills, its combos per outcome category, its payoff and enabler categories and, after Phase 2, whether Phase 2 added it. `evaluate_cube --card-data` writes the same file for an existing cube. |
+| `<output>_card_data.json` | Why each card is in the final cube (`cube_evaluation.card_inclusion`), most-used first: its reason (`essential`, `redundant`, `payoff_only`, `enabler_only` or `no_combo`), completed variants and distinct combos it takes part in, split into named-piece and template-filler variants, the combos the cube would lose without it, the templates it fills, its combos per outcome category, its payoff and enabler categories, after Phase 2 whether Phase 2 added it, and Spellbook search links showing its completed combos, one variant per combo and ten per link (`spellbook_links.py`; Spellbook accepts at most ten ids in a search). The fixed cards that take part in a completed combo follow with the reason `fixed`. The file also links the whole cube (with the fixed cards) on Spellbook's Find My Combos page. `evaluate_cube --card-data` writes the same file for an existing cube. |
+| `<output>_potential_combos.json` | The variants of the pool the cube and the fixed cards together are one piece short of (`cube_evaluation.one_card_away`), by missing piece: the totals, then the fifty pieces with the highest summed popularity, each with its kind (`candidate`, `payoff`, `enabler` or `template`), variants, distinct combos, the combos the cube completes through no other variant, popularity, an example and Spellbook search links to the variants; and the Find My Combos link for the whole cube, whose "potential combos" are the same list over all of Spellbook. The stats file carries the totals and the top ten as `one_card_away`. Written by every build and by `evaluate_cube --card-data`. |
 
 The stats file's `optimization_method` is `single_phase`, `two_phase` or
 `two_phase_fallback_to_phase1`. Its `phase2` block records the objective, the cap T used with
@@ -592,12 +626,21 @@ everything the inference found with its counts, so the table can be tuned from a
 table (`enabler_only` in place of `payoff_only`).
 `metadata.popularity_weight` records the weight; with a weight above 0 each block also carries
 the popularity-weighted `combo_score` (the `phase2` block also `reference_combo_score`).
+With fixed cards a top-level `fixed_cards` block lists them, the candidates among them, the
+completed variants and distinct combos a fixed card takes part in and their payoff and
+enabler categories. With `--staple-combos` a top-level `staples` list gives each staple's
+cards, popularity, whether the cube completes it and what it lacks, and the phase blocks
+`staples_completed` (the `phase2` block also `staple_combos` and `min_staple_combos`).
 
 `data/current_best_cube.txt` and its stats file are the tracked reference result: the default
-settings of 12 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
-rules, the outcome minimum of 40, the payoff share of 0.15 and the enabler share of 0.05)
-at 310 cards and 20,000 variants with 360 s per solve; `data/current_best_cube_command.txt`
-is the command that built it. Everything else
+settings of 16 October 2026 (`--variant-weight 0.1`, the archetype minimums, the card mix
+rules, the outcome minimum of 40, the payoff share of 0.15, the enabler share of 0.05, the
+`essential` objective and the staples rule at every staple of the top 25) at 310 cards and 20,000
+variants with 360 s per solve, the fixed cards of `data/fixed_cards.txt` (the tracked list
+`config.yaml` names) outside the 310; `data/current_best_cube_command.txt` is the command
+that built it, `data/current_best_cube_reference.txt` its reference cube,
+`data/current_best_cube_card_data.json` its card data and
+`data/current_best_cube_potential_combos.json` its one-card-away report. Everything else
 under `data/` is ignored by git, including `data/cache/`.
 
 ## Testing

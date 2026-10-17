@@ -52,6 +52,7 @@ MONO = [
 
 def make_optimizer(combos: list[ComboData], **kwargs: Any) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "time_limit_seconds": 30,
         "combo_tolerance": 0.5,
         "gap_limit": 0,

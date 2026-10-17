@@ -80,6 +80,7 @@ def build_instance() -> list[ComboData]:
 def make_optimizer(cube_size: int, **kwargs: Any) -> ILPOptimizer:
     combos = build_instance()
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "time_limit_seconds": 30,
         "combo_tolerance": 0,
         "gap_limit": 0,

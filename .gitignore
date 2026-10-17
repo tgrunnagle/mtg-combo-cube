@@ -4,7 +4,9 @@ data/*
 !data/current_best_cube_stats.json
 !data/current_best_cube_card_data.json
 !data/current_best_cube_command.txt
+!data/fixed_cards.txt
 !data/current_best_cube_reference.txt
+!data/current_best_cube_potential_combos.json
 .claude/settings.local.json
 
 # Byte-compiled / optimized / DLL files

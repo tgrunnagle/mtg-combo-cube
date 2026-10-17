@@ -29,6 +29,7 @@ CARD_ATTRIBUTES = {
 
 def make_optimizer(**kwargs: Any) -> ILPOptimizer:
     settings: dict[str, Any] = {
+        "staple_combos": 0,
         "cube_size": 9,
         "time_limit_seconds": 30,
         "combo_tolerance": 0.5,
@@ -98,6 +99,7 @@ class TestColorBalance:
         # combo window rules out the empty-of-color cube
         combos = [combo for combo in COMBOS if combo.id != "g"]
         optimizer = ILPOptimizer(
+            staple_combos=0,
             combos=combos,
             candidate_cards=build_candidate_cards(combos),
             cube_size=6,

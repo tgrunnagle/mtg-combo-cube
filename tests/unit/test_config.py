@@ -13,6 +13,8 @@ from mtg_combo_cube.config import (
     parse_blocklist,
     parse_blocklist_queries,
     parse_config,
+    parse_fixed_cards_file,
+    read_card_list,
 )
 from mtg_combo_cube.ilp.enablers import EnablerTableError, parse_enabler_table
 from mtg_combo_cube.ilp.outcomes import OutcomeCategoryError, parse_outcome_categories
@@ -99,6 +101,68 @@ class TestLoad:
         assert config.enablers is not None
         assert config.enablers.names == ("ritual",)
         config.require(enablers=True)
+
+
+class TestFixedCards:
+    def test_read_card_list_skips_comments_blanks_and_repeats(self, tmp_path: Path):
+        path = tmp_path / "fixed.txt"
+        path.write_text(
+            "# mainboard\nSol Ring\n\n  Wasteland  \nSol Ring\n# a comment\nMox Pearl\n",
+            encoding="utf-8",
+        )
+
+        assert read_card_list(path) == ["Sol Ring", "Wasteland", "Mox Pearl"]
+        assert read_card_list(str(path)) == ["Sol Ring", "Wasteland", "Mox Pearl"]
+
+    def test_loaded_from_the_file_the_key_names(self, tmp_path: Path):
+        fixed = tmp_path / "fixed.txt"
+        fixed.write_text("Sol Ring\nSol Ring\nWasteland\n", encoding="utf-8")
+
+        config = load_config(write(tmp_path, f"fixed_cards: {fixed.as_posix()}\n"))
+
+        assert config.fixed_cards == frozenset({"Sol Ring", "Wasteland"})
+        assert config.fixed_cards_file == fixed.as_posix()
+
+    def test_missing_file(self, tmp_path: Path):
+        with pytest.raises(FileNotFoundError, match="Fixed cards file not found"):
+            load_config(write(tmp_path, "fixed_cards: nowhere.txt\n"))
+
+    def test_override_replaces_the_configured_file(self, tmp_path: Path):
+        configured = tmp_path / "configured.txt"
+        configured.write_text("Sol Ring\n", encoding="utf-8")
+        override = tmp_path / "override.txt"
+        override.write_text("Wasteland\n", encoding="utf-8")
+
+        config = load_config(
+            write(tmp_path, f"fixed_cards: {configured.as_posix()}\n"), str(override)
+        )
+
+        assert config.fixed_cards == frozenset({"Wasteland"})
+        assert config.fixed_cards_file == str(override)
+        # The override works without the key too
+        assert load_config(write(tmp_path, ""), str(override)).fixed_cards == {"Wasteland"}
+
+    def test_fixed_card_on_the_blocklist_is_an_error(self, tmp_path: Path):
+        fixed = tmp_path / "fixed.txt"
+        fixed.write_text("Sol Ring\n", encoding="utf-8")
+
+        with pytest.raises(ConfigError, match=r"cannot be on the blocklist: \['Sol Ring'\]"):
+            load_config(
+                write(tmp_path, f"fixed_cards: {fixed.as_posix()}\nblocklist: [Sol Ring]\n")
+            )
+        with pytest.raises(ConfigError, match="cannot be on the blocklist"):
+            CubeConfig(fixed_cards=frozenset({"A"}), blocklist=frozenset({"A"}))
+
+    @pytest.mark.parametrize("entry", ["", "  ", 1, ["a.txt"], {"path": "a.txt"}])
+    def test_invalid_entries_are_rejected(self, entry: object):
+        with pytest.raises(ConfigError, match="path of a card list file"):
+            parse_fixed_cards_file(entry)
+
+    def test_parse_keeps_the_path_only(self):
+        config = parse_config({"fixed_cards": " data/fixed.txt "})
+
+        assert config.fixed_cards_file == "data/fixed.txt"
+        assert config.fixed_cards == frozenset()
 
 
 class TestParse:
@@ -199,6 +263,10 @@ class TestDefaultConfig:
         config = load_config()
 
         assert {"Command Tower", "Arcane Signet", "Jeweled Lotus"} <= config.blocklist
+        # The tracked fixed cards file: the reserved slots, lands twice in the export
+        assert config.fixed_cards_file == "data/fixed_cards.txt"
+        assert {"Sol Ring", "Mox Pearl", "Wasteland", "Wooded Foothills"} <= config.fixed_cards
+        assert len(config.fixed_cards) == 71
         assert config.outcome_categories is not None
         assert config.outcome_categories.catch_all == "other"
         assert config.payoffs is not None

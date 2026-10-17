@@ -335,6 +335,7 @@ async def precache(
     payoffs: PayoffDefinitions | None = None,
     blocklist_queries: Sequence[str] = (),
     enablers: EnablerDefinitions | None = None,
+    fixed_cards: Sequence[str] = (),
 ) -> PrecacheResult:
     """
     Fill the variants, Scryfall template, payoff and enabler query and card attribute
@@ -358,6 +359,8 @@ async def precache(
             which fills their cache entries
         enablers: The enabler table whose queries to resolve, and whose cards to look up the
             attributes of beside the candidate cards (None: no enabler stage)
+        fixed_cards: The fixed cards of the configuration, whose attributes are looked up
+            beside the candidate cards too
 
     Raises BlocklistQueryError for a blocklist query Scryfall rejects, BlocklistFetchError
     for one that could not be fetched (the templates a build needs depend on it).
@@ -433,6 +436,8 @@ async def precache(
             )
             result.enabler_queries = len(enablers.queries)
             card_names = sorted(set(card_names) | set(enabler_cards))
+        # A build looks the fixed cards up with the candidates
+        card_names = sorted(set(card_names) | set(fixed_cards))
         result.cards = len(card_names)
 
         attribute_fetcher = CardAttributeFetcher(
@@ -526,6 +531,7 @@ if __name__ == "__main__":
                 payoffs=payoffs,
                 blocklist_queries=config.blocklist_queries,
                 enablers=enablers,
+                fixed_cards=sorted(config.fixed_cards),
             )
         )
     except BlocklistQueryError as e:
