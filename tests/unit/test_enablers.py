@@ -69,6 +69,8 @@ class TestDefaultTable:
         # named, since a query also finds cards nobody wants in the slot
         fast_mana, ritual, wheel, graveyard, recursion, top_deck = definitions
         assert fast_mana.queries and ritual.queries
+        # Sol Ring costs one, so no fast-mana query finds it; the user wants it in the cube
+        assert fast_mana.require == ("Sol Ring",)
         assert not wheel.queries and not graveyard.queries
         assert wheel.require == ("Wheel of Fortune",)
         assert {"Windfall", "Memory Jar"} <= set(wheel.cards)
@@ -81,6 +83,7 @@ class TestDefaultTable:
         assert top_deck.require == ("Bolas's Citadel", "Sensei's Divining Top")
         assert top_deck.minimum == 0 and top_deck.maximum == 0
         assert definitions.required == {
+            "Sol Ring",
             "Wheel of Fortune",
             "Underworld Breach",
             "Bolas's Citadel",

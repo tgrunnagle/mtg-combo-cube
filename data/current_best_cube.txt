@@ -1,5 +1,7 @@
 Abdel Adrian, Gorion's Ward
 Academy Manufactor
+Activated Sleeper
+Aerie Ouphes
 Aetherflux Reservoir
 Agatha of the Vile Cauldron
 Akroma's Will
@@ -8,22 +10,19 @@ Altar of the Brood
 Animation Module
 Anointed Procession
 Aphetto Alchemist
-Approach of the Second Sun
 Archaeomancer
 Archfiend of Despair
 Arixmethes, Slumbering Isle
 Ashaya, Soul of the Wild
 Ashnod's Altar
-Astarion, the Decadent
 Azorius Chancery
 Badgermole Cub
 Basalt Monolith
-Basri's Lieutenant
-Bastion of Remembrance
+Basking Broodscale
 Biomancer's Familiar
+Biotransference
 Blade of the Bloodchief
 Blasting Station
-Blitzwing, Cruel Tormentor // Blitzwing, Adaptive Assailant
 Blood Artist
 Bloodletter of Aclazotz
 Bloodthirsty Conqueror
@@ -31,42 +30,41 @@ Bloom Tender
 Bolas's Citadel
 Boromir, Warden of the Tower
 Brain Freeze
-Branching Evolution
 Breath of Fury
 Broodhatch Nantuko
-Butcher Ghoul
 Cabal Ritual
+Capture of Jingzhou
+Carnival of Souls
 Carrion Feeder
-Cathars' Crusade
 Cathodion
 Cauldron Familiar
-Cauldron of Essence
 Chatterfang, Squirrel General
 Chromatic Orrery
+Chronomantic Escape
 Clever Impersonator
 Clock of Omens
 Cogwork Assembler
-Combat Celebrant
 Comet Storm
-Conductor of Cacophony
+Concordant Crossroads
 Coretapper
 Corpse Knight
 Crackdown Construct
 Crime Novelist
-Crimson Kobolds
 Cryptic Trilobite
 Cryptolith Rite
+Crystal Shard
 Crystalline Crawler
 Curiosity
 Dark Ritual
 Deadeye Navigator
 Death's Presence
+Deathbringer Thoctar
 Deathrender
 Demonic Consultation
 Derevi, Empyrial Tactician
-Devoted Druid
 Dimir Aqueduct
 Displacer Kitten
+Doomsday
 Doubling Season
 Drafna, Founder of Lat-Nam
 Dramatic Reversal
@@ -74,6 +72,7 @@ Drivnod, Carnage Dominus
 Dross Scorpion
 Dualcaster Mage
 Earthcraft
+Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
 Emiel the Blessed
 Empowered Autogenerator
@@ -84,45 +83,44 @@ Ephemerate
 Eternal Witness
 Exquisite Blood
 Exsanguinate
-Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
+Eyeless Watcher
 Faeburrow Elder
-Faerie Mastermind
-Faithless Looting
+Falkenrath Noble
 Fatestitcher
 Felidar Guardian
 Fiend Hunter
 Finale of Devastation
 First Day of Class
 Forsaken Monument
-Fraying Omnipotence
 Freed from the Real
 Ghave, Guru of Spores
 Glen Elendra Archmage
 Goblin Bombardment
+Goblin Engineer
 Goblin Sharpshooter
 Goblin Welder
 Good-Fortune Unicorn
 Gravecrawler
 Grievous Wound
 Grinding Station
-Gruul Turf
 Gwenna, Eyes of Gaea
-Hardened Scales
 Heartstone
 Helm of the Host
 Herd Baloth
 Horseshoe Crab
 Hullbreaker Horror
 Illusionist's Bracers
+Imotekh the Stormlord
 Incubation Druid
-Infantry Shield
 Infernal Plunge
 Inkmoth Nexus
 Intruder Alarm
+Invasion of Arcavios // Invocation of the Founders
 Irenicus's Vile Duplication
 Isochron Scepter
 Ivy Lane Denizen
 Izzet Boilerworks
+Jace, Wielder of Mysteries
 Jan Jansen, Chaos Crafter
 Jeska's Will
 Junk Diver
@@ -135,6 +133,7 @@ Kodama of the East Tree
 Koll, the Forgemaster
 Krark-Clan Ironworks
 Krenko, Mob Boss
+Laboratory Maniac
 Lesser Masticore
 Leyline of Abundance
 Lightning Greaves
@@ -143,23 +142,20 @@ Lively Dirge
 Lotus Cobra
 Lotus Field
 Lotus Petal
-Lotus Vale
 Luminous Broodmoth
-Machine God's Effigy
 Magistrate's Scepter
 Magus of the Candelabra
 Mana Echoes
 Mana Reflection
 Mana Vault
 Marath, Will of the Wild
-March of the Machines
 Memnite
-Mesmeric Orb
 Metallic Mimic
 Metalworker
 Mikaeus, the Unhallowed
 Mirror Entity
 Mishra's Bauble
+Mnemonic Wall
 Mondrak, Glory Dominus
 Mortuary
 Mox Amber
@@ -171,10 +167,12 @@ Myr Galvanizer
 Myr Retriever
 Myr Turbine
 Myr Welder
+Necrosynthesis
 Nim Deathmantle
 Niv-Mizzet, Parun
 Nuka-Cola Vending Machine
 Nyxbloom Ancient
+Ojer Taq, Deepest Foundation // Temple of Civilization
 Orthion, Hero of Lavabrink
 Palladium Myr
 Paradise Mantle
@@ -182,13 +180,11 @@ Parallel Lives
 Pemmin's Aura
 Pentavus
 Peregrin Took
-Peregrine Drake
 Persistent Constrictor
 Phyrexian Altar
 Phyrexian Triniform
 Pili-Pala
 Pitiless Plunderer
-Plaza of Heroes
 Preston, the Vanisher
 Priest of Urabrask
 Primal Vigor
@@ -200,70 +196,70 @@ Quietus Spike
 Reassembling Skeleton
 Reforge the Soul
 Renata, Called to the Hunt
-Rendclaw Trow
 Retrofitter Foundry
 Reveillark
-Rising of the Day
 Rite of Flame
 Rite of Passage
 River Kelpie
 Roaming Throne
+Rograkh, Son of Rohgahh
 Rosie Cotton of South Lane
+Rousing Refrain
 Sadistic Glee
 Saffi Eriksdotter
+Sai, Master Thopterist
+Sanguinary Priest
 Sanguine Bond
-Saw in Half
 Scourge of the Skyclaves
 Scrap Trawler
 Scurry Oak
-Scytheclaw
-Seeker of Skybreak
 Selvala, Heart of the Wilds
 Sensei's Divining Top
+Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel
 Shard of the Nightbringer
 Simic Growth Chamber
 Sisay, Weatherlight Captain
+Sister Hospitaller
 Skirk Prospector
+Skullclamp
 Slimefoot and Squee
 Sliver Queen
 Smothering Tithe
+Sol Ring
 Solemnity
 Soulfire Grand Master
 Soulherder
-South Wind Avatar
 Spark Double
 Spawning Pit
 Spawnsire of Ulamog
 Splinter Twin
 Springheart Nantuko
 Sprout Swarm
-Stadium Headliner
 Staff of Domination
-Strangleroot Geist
 Stridehangar Automaton
 Summoning Station
-Sun Titan
-Suspended Sentence
-Suture Priest
-Swiftfoot Boots
 Taigam, Master Opportunist
 Tainted Pact
+Tamiyo's Safekeeping
 Tarrian's Soulcleaver
-Teferi, Time Raveler
+Teleportation Circle
 Temporal Manipulation
 Tendrils of Agony
 Teshar, Ancestor's Apostle
 Thassa's Oracle
 Thassa, Deep-Dwelling
-The Enigma Jewel // Locus of Enlightenment
-The Eternity Elevator
+The Fire Crystal
 The Jolly Balloon Man
 The Tenth Doctor
+The Unbeatable Squirrel Girl
 There and Back Again
 Thornbite Staff
+Thought Lash
 Thousand-Year Elixir
+Thran Dynamo
 Thrill of Possibility
 Thunderblust
+Tidewater Minion
 Time Warp
 Timestream Navigator
 Timetwister
@@ -278,23 +274,24 @@ Trazyn the Infinite
 Twilight Shepherd
 Twinflame
 Ulasht, the Hate Seed
+Umbral Collar Zealot
 Umbral Mantle
 Unctus, Grand Metatect
 Underworld Breach
-Urabrask the Hidden
 Urza, Lord High Artificer
 Urza, Prince of Kroog
+Uthros Research Craft
 Utopia Mycon
 Venerated Stormsinger
 Vengeful Bloodwitch
-Venture Forth
+Vigean Graftmage
 Village Bell-Ringer
 Vindictive Vampire
 Virtus the Veiled
 Viscera Seer
 Vito, Thorn of the Dusk Rose
-Vivi Ornitier
 Vizier of Tumbling Sands
+Voice of Victory
 Voltaic Construct
 Voyaging Satyr
 Walking Ballista
@@ -302,9 +299,12 @@ Warlock Class
 Warren Soultrader
 Wheel of Fortune
 Windfall
+Woe Strider
 Woodfall Primus
+Workshop Assistant
 Wound Reflection
-Yawgmoth, Thran Physician
 Young Wolf
+Yurlok of Scorch Thrash
 Zameck Guildmage
 Zulaport Cutthroat
+Zurgo, Thunder's Decree

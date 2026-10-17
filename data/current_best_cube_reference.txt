@@ -37,6 +37,7 @@ Brain Freeze
 Branching Evolution
 Butcher Ghoul
 Cabal Ritual
+Capture of Jingzhou
 Carnival of Souls
 Carrion Feeder
 Cathars' Crusade
@@ -90,7 +91,6 @@ Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
 Faeburrow Elder
 Faerie Mastermind
 Fatestitcher
-Feldon of the Third Path
 Felidar Guardian
 Fiend Hunter
 Finale of Devastation
@@ -102,6 +102,7 @@ Glen Elendra Archmage
 Goblin Bombardment
 Goblin Engineer
 Goblin Sharpshooter
+Goblin Welder
 Good-Fortune Unicorn
 Gravecrawler
 Grievous Wound
@@ -160,6 +161,7 @@ Mikaeus, the Unhallowed
 Mirror Entity
 Mishra's Bauble
 Misty Rainforest
+Mnemonic Wall
 Molten Echoes
 Mondrak, Glory Dominus
 Mortuary
@@ -189,7 +191,6 @@ Parallel Lives
 Pemmin's Aura
 Pentavus
 Peregrin Took
-Peregrine Drake
 Persistent Constrictor
 Phyrexian Altar
 Phyrexian Triniform
@@ -243,7 +244,6 @@ Spawnsire of Ulamog
 Splinter Twin
 Springheart Nantuko
 Sprout Swarm
-Stadium Headliner
 Staff of Domination
 Stimulus Package
 Strangleroot Geist
@@ -258,14 +258,13 @@ Talisman of Dominance
 Talisman of Hierarchy
 Talisman of Indulgence
 Talisman of Progress
+Tamiyo's Safekeeping
 Tarrian's Soulcleaver
 Temporal Manipulation
 Tendrils of Agony
 Teshar, Ancestor's Apostle
 Thassa's Oracle
 Thassa, Deep-Dwelling
-The Enigma Jewel // Locus of Enlightenment
-The Eternity Elevator
 The Jolly Balloon Man
 There and Back Again
 Thornbite Staff
@@ -290,7 +289,6 @@ Twilight Shepherd
 Twinflame
 Ulasht, the Hate Seed
 Umbral Mantle
-Unbreakable Formation
 Unctus, Grand Metatect
 Underworld Breach
 Unmarked Grave
@@ -298,8 +296,8 @@ Urtet, Remnant of Memnarch
 Urza, Lord High Artificer
 Urza, Prince of Kroog
 Utopia Mycon
+Vein Ripper
 Venerated Stormsinger
-Vengeful Bloodwitch
 Venture Forth
 Verdant Catacombs
 Vigean Graftmage
@@ -309,6 +307,7 @@ Virtus the Veiled
 Viscera Seer
 Vito, Thorn of the Dusk Rose
 Vizier of Tumbling Sands
+Voice of Victory
 Voltaic Construct
 Voyaging Satyr
 Walking Ballista
@@ -318,6 +317,7 @@ Wheel of Fortune
 Windfall
 Windswept Heath
 Witch's Oven
+Woe Strider
 Wooded Foothills
 Woodfall Primus
 Workshop Assistant
@@ -326,6 +326,5 @@ Wrath of God
 Xavier Sal, Infested Captain
 Yawgmoth, Thran Physician
 Young Wolf
-Yurlok of Scorch Thrash
 Zulaport Cutthroat
 Zurgo, Thunder's Decree

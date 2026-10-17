@@ -265,8 +265,9 @@ class TestDefaultConfig:
         assert {"Command Tower", "Arcane Signet", "Jeweled Lotus"} <= config.blocklist
         # The tracked fixed cards file: the reserved slots, lands twice in the export
         assert config.fixed_cards_file == "data/fixed_cards.txt"
-        assert {"Sol Ring", "Mox Pearl", "Wasteland", "Wooded Foothills"} <= config.fixed_cards
-        assert len(config.fixed_cards) == 71
+        assert {"Mox Pearl", "Wasteland", "Wooded Foothills"} <= config.fixed_cards
+        assert "Sol Ring" not in config.fixed_cards  # a required enabler of the 310 instead
+        assert len(config.fixed_cards) == 70
         assert config.outcome_categories is not None
         assert config.outcome_categories.catch_all == "other"
         assert config.payoffs is not None

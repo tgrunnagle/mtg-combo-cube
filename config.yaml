@@ -193,6 +193,10 @@ enablers:
       - Sol Talisman  # suspend
       - Mox Tantalite  # suspend
       - Mox Jasper  # needs a dragon
+    require:
+      # Costs one, so no query finds it; the user wants it in the cube's 310 rather than
+      # among the fixed cards (16 October 2026)
+      - Sol Ring
   ritual:
     # Instants and sorceries that add two or more mana at once
     queries:
@@ -243,7 +247,7 @@ enablers:
     # Casting combo pieces from the top of the library: Bolas's Citadel and Sensei's Divining
     # Top are required and are the whole category, with no floor of its own like the recursion
     # engine. Citadel is a lifegain payoff card too, and stays one; the user wants both in the
-    # cube (16 October 2026), the Top as the last must-include with Sol Ring (a fixed card)
+    # cube (16 October 2026), the Top as the last must-include with Sol Ring (fast mana)
     min_enablers: 0
     max_enablers: 0
     require:

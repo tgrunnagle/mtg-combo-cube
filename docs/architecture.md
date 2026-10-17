@@ -204,8 +204,9 @@ the same cache as the payoff queries. There is no inference: nothing in the Spel
 marks a card as an enabler; a ritual or a wheel appears in a variant only when it is a piece.
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
-wants in the slot, which a build then used to meet the floor. Wheel of Fortune, Underworld
-Breach, Bolas's Citadel and Sensei's Divining Top are required; the recursion and top_deck
+wants in the slot, which a build then used to meet the floor. Sol Ring (fast mana that costs one,
+which no query finds), Wheel of Fortune, Underworld Breach, Bolas's Citadel and Sensei's
+Divining Top are required; the recursion and top_deck
 categories hold only required cards (Underworld Breach; Bolas's Citadel and Sensei's
 Divining Top), each with a floor of 0 (`min_enablers` and `max_enablers` 0), so the
 enabler share is split among the other four.
@@ -521,12 +522,14 @@ is built, both in the small Phase 1 model with the cube rules added:
    time limit. The combo score of the result is the reference the window is measured from.
    It is the best cube found in that time, not a proven maximum. If the Phase 1 cube already
    satisfies every rule, it is the reference. With `--warm-start` (a cube list from an
-   earlier build), the solve is hinted with that cube instead when it is a whole cube of
-   candidate cards, the fixed cards apart (`_reference_hint`). When it also satisfies the
-   rules, a feasible hint is a floor on what the solve returns, and if it returns nothing
-   better the warm-start cube is the reference outright; when it breaks a rule (one added
-   since it was built, such as the staples) it still hints the solve, being closer to a
-   cube under this run's rules than the Phase 1 cube, but cannot be the reference. The
+   earlier build), the solve is hinted with that cube instead when it names any candidate
+   card (`_reference_hint`). When it is a whole cube of candidate cards, the fixed cards
+   apart, that satisfies the rules, a feasible hint is a floor on what the solve returns,
+   and if it returns nothing better the warm-start cube is the reference outright; when it
+   breaks a rule (one added since it was built, such as the staples) or is a card over or
+   under the cube size (a card moved between the fixed list and the candidates) it still
+   hints the solve, being closer to a cube under this run's rules than the Phase 1 cube,
+   but cannot be the reference. The
    reference cube is written beside the output as
    `<output>_reference.txt`, which is the natural warm start for the next build: the
    reference solve stops at the time limit, and at full size its weighted combo count moved

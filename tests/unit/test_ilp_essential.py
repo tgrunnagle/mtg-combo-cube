@@ -469,16 +469,32 @@ class TestWarmStartCube:
         assert reference.cards == set(phase1.get_selected_card_names())
         assert "measuring the combo window from the Phase 1 count" in caplog.text
 
-    def test_a_partial_cube_is_not_the_hint(self, caplog: pytest.LogCaptureFixture):
+    def test_a_cube_of_the_wrong_size_is_the_hint_but_not_the_reference(
+        self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+    ):
         probe = self.coverage_optimizer()
+        phase1 = probe.solve()
         best, _ = self.best_with_coverage(probe)
-        optimizer = self.coverage_optimizer(warm_start_cards=sorted(best)[:5])
-        phase1 = optimizer.solve()
+        # A card moved between the fixed list and the candidates leaves last build's cube a
+        # card short: it still hints (the solver repairs it), but cannot be the reference
+        partial = set(sorted(best)[:5])
+        optimizer = self.coverage_optimizer(warm_start_cards=partial)
+        hints: list[set[str]] = []
 
+        def recording(self: ILPOptimizer, hint: _WarmStart) -> tuple[_WarmStart | None, str]:
+            hints.append(set(hint.cards))
+            return None, "TIMEOUT"  # the solve finds nothing: no cube may fall back on it
+
+        monkeypatch.setattr(ILPOptimizer, "_best_constrained_cube", recording)
         with caplog.at_level(logging.WARNING):
-            optimizer._build_warm_start(phase1, None)
+            _, reference, _ = optimizer._build_warm_start(phase1, None)
 
-        assert "the warm-start cube has 5 candidate cards, not 8" in caplog.text
+        assert hints == [partial]
+        assert (
+            "the warm-start cube has 5 candidate cards, not 8; it hints the reference solve "
+            "but cannot be the reference"
+        ) in caplog.text
+        assert reference.cards == set(phase1.get_selected_card_names())
 
     def test_the_warm_start_cube_is_the_reference_when_the_solve_finds_nothing_better(
         self, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
