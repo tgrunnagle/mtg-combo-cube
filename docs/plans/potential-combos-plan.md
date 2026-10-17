@@ -510,4 +510,6 @@ Warp; out go Altar of the Brood, Suture Priest, Peregrine Drake, Thran Dynamo, G
 Umbral Collar Zealot and Poison-Tip Archer among others. The report is headed by Forsaken
 Miner (9 variants, 5 new combos), Marauding Blight-Priest (2, 0), Restoration Angel (6, 1),
 Rhythm of the Wild (16, 4), Nissa, Resurgent Animist (4, 0) and Peregrine Drake (12, 6). This
-build is the tracked cube (`data/current_best_cube*`).
+build is the tracked cube (`data/current_best_cube*`). It was replaced the same day, after this plan merged, by
+the build with Sensei's Divining Top required in the `top_deck` category too (1,496 /
+1,021 / 1,068.5, 40 cards changed, the Top in and all 23 staples still completed).

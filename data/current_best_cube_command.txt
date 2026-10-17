@@ -1,30 +1,29 @@
 # data/current_best_cube.txt, data/current_best_cube_stats.json,
 # data/current_best_cube_card_data.json, data/current_best_cube_potential_combos.json and
-# data/current_best_cube_reference.txt: copied from the data/cube_310_staples_all.txt,
-# _stats.json, _card_data.json, _potential_combos.json and _reference.txt this command wrote
-# on 16 October 2026 on branch potential-combos (commit 93afacc plus the `top_deck` enabler
-# category requiring Bolas's Citadel and `--min-staple-combos 25`, which became the default;
-# Step 4 of docs/plans/potential-combos-plan.md). 310 combo cards for a 400-card cube whose
-# other 90 slots are the fixed cards of data/fixed_cards.txt (lands, the Moxen, Sol Ring,
-# interaction). All settings at their defaults (the `essential` Phase 2 objective, payoff
-# share 0.15, --min-payoffs 2, enabler share 0.05, --min-enablers 2, --staple-combos 25,
-# --min-staple-combos 25 (every staple of the top 25, 23 of them), the triggers and other
-# outcome categories, the Un-set blocklist queries, the payoff table of config.yaml with its
-# six required mana payoffs at a floor of 8 and its two required storm spells, the enabler
-# table with its named wheels and graveyard fillers and its three required cards Wheel of
-# Fortune, Underworld Breach and Bolas's Citadel), warm Scryfall and Spellbook caches from
-# `task precache`. The reference solve was hinted with the previous tracked cube's reference
-# (the 25 / 20 build of the same day, which breaks the new required card and three staples,
-# so it could hint but not be the reference) and reached 1,149 distinct combos (1,195.4
-# weighted); the next build can warm-start from the new data/current_best_cube_reference.txt
-# (which lists the 21 fixed candidate cards after the 310). The warm-start preparation before
-# Phase 2 (the reference solve and the floor repair) runs outside the Phase 2 time limit, each
-# with the whole 360 s, so the build took about 19 minutes. 310 is the default CUBE_SIZE and
-# 25 / 25 the default staples settings, so
+# data/current_best_cube_reference.txt: copied from the data/cube_310_top.txt, _stats.json,
+# _card_data.json, _potential_combos.json and _reference.txt this command wrote on
+# 16 October 2026 on branch require-top (main at f802e4b, PR 36 merged, plus Sensei's Divining
+# Top required in the `top_deck` enabler category beside Bolas's Citadel). 310 combo cards for
+# a 400-card cube whose other 90 slots are the fixed cards of data/fixed_cards.txt (lands, the
+# Moxen, Sol Ring, interaction). All settings at their defaults (the `essential` Phase 2
+# objective, payoff share 0.15, --min-payoffs 2, enabler share 0.05, --min-enablers 2,
+# --staple-combos 25, --min-staple-combos 25 (every staple of the top 25, 23 of them), the
+# triggers and other outcome categories, the Un-set blocklist queries, the payoff table of
+# config.yaml with its six required mana payoffs at a floor of 8 and its two required storm
+# spells, the enabler table with its named wheels and graveyard fillers and its four required
+# cards Wheel of Fortune, Underworld Breach, Bolas's Citadel and Sensei's Divining Top), warm
+# Scryfall and Spellbook caches from `task precache`. The reference solve was hinted with the
+# previous tracked cube's reference (the build of the same day before the Top was required,
+# which breaks the new required card, so it could hint but not be the reference) and reached
+# 1,140 distinct combos (1,187.7 weighted); the next build can warm-start from the new
+# data/current_best_cube_reference.txt (which lists the 21 fixed candidate cards among the
+# 310). The warm-start preparation before Phase 2 (the reference solve and the floor repair)
+# runs outside the Phase 2 time limit, each with the whole 360 s, so the build took about
+# 18 minutes. Every setting is a default, so
 # `task build:ilp -- --warm-start data/current_best_cube_reference.txt` builds the same.
 
-task build:ilp OUTPUT=data/cube_310_staples_all.txt -- --warm-start data/current_best_cube_reference.txt --min-staple-combos 25
+task build:ilp OUTPUT=data/cube_310_top.txt -- --warm-start data/current_best_cube_reference.txt
 
 # which runs:
 
-uv run python -m src.mtg_combo_cube -c 310 -o data/cube_310_staples_all.txt -t 360 -n 20000 --profile --read-api-cache --workers 8 --warm-start data/current_best_cube_reference.txt --min-staple-combos 25
+uv run python -m src.mtg_combo_cube -c 310 -o data/cube_310_top.txt -t 360 -n 20000 --profile --read-api-cache --workers 8 --warm-start data/current_best_cube_reference.txt

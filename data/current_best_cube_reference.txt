@@ -69,6 +69,7 @@ Devoted Druid
 Dimir Aqueduct
 Displacer Kitten
 Doubling Season
+Drafna, Founder of Lat-Nam
 Dramatic Reversal
 Drivnod, Carnage Dominus
 Dross Scorpion
@@ -77,6 +78,7 @@ Earthcraft
 Elas il-Kor, Sadistic Pilgrim
 Eldrazi Displacer
 Emiel the Blessed
+Empowered Autogenerator
 Emry, Lurker of the Loch
 Enduring Renewal
 Enduring Tenacity
@@ -87,7 +89,6 @@ Exsanguinate
 Fable of the Mirror-Breaker // Reflection of Kiki-Jiki
 Faeburrow Elder
 Faerie Mastermind
-Faithless Looting
 Fatestitcher
 Feldon of the Third Path
 Felidar Guardian
@@ -176,8 +177,6 @@ Myr Galvanizer
 Myr Retriever
 Myr Turbine
 Myr Welder
-Najeela, the Blade-Blossom
-Necrosynthesis
 Nim Deathmantle
 Niv-Mizzet, Parun
 Nuka-Cola Vending Machine
@@ -209,7 +208,6 @@ Reforge the Soul
 Renata, Called to the Hunt
 Retrofitter Foundry
 Reveillark
-Rings of Brighthearth
 Rite of Passage
 River Kelpie
 Roaming Throne
@@ -222,9 +220,9 @@ Sanguine Bond
 Scourge of the Skyclaves
 Scrap Trawler
 Scurry Oak
-Seeker of Skybreak
 Seething Song
 Selvala, Heart of the Wilds
+Sensei's Divining Top
 Sephiroth, Fabled SOLDIER // Sephiroth, One-Winged Angel
 Shard of the Nightbringer
 Simic Ascendancy
@@ -276,6 +274,7 @@ Thunderblust
 Tidewater Minion
 Time Warp
 Timestream Navigator
+Timetwister
 Tireless Provisioner
 Toph, the First Metalbender
 Torgaar, Famine Incarnate
@@ -285,6 +284,7 @@ Toxic Deluge
 Training Grounds
 Transmutation Font
 Trazyn the Infinite
+Tribute to the World Tree
 Triskelavus
 Twilight Shepherd
 Twinflame
@@ -293,6 +293,7 @@ Umbral Mantle
 Unbreakable Formation
 Unctus, Grand Metatect
 Underworld Breach
+Unmarked Grave
 Urtet, Remnant of Memnarch
 Urza, Lord High Artificer
 Urza, Prince of Kroog
@@ -308,24 +309,23 @@ Virtus the Veiled
 Viscera Seer
 Vito, Thorn of the Dusk Rose
 Vizier of Tumbling Sands
-Voice of Victory
 Voltaic Construct
 Voyaging Satyr
 Walking Ballista
 Warlock Class
 Warren Soultrader
 Wheel of Fortune
-Wheel of Misfortune
 Windfall
 Windswept Heath
 Witch's Oven
 Wooded Foothills
 Woodfall Primus
-Workhorse
 Workshop Assistant
 Wound Reflection
 Wrath of God
 Xavier Sal, Infested Captain
 Yawgmoth, Thran Physician
 Young Wolf
+Yurlok of Scorch Thrash
 Zulaport Cutthroat
+Zurgo, Thunder's Decree

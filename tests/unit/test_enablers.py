@@ -76,10 +76,16 @@ class TestDefaultTable:
         # The recursion engine is required and is the whole category, with no floor of its own
         assert recursion.require == ("Underworld Breach",)
         assert recursion.minimum == 0 and recursion.maximum == 0
-        # So is Bolas's Citadel, the top-of-library engine the user wants in the cube
-        assert top_deck.require == ("Bolas's Citadel",)
+        # So are Bolas's Citadel and Sensei's Divining Top, the top-of-library engines the user
+        # wants in the cube
+        assert top_deck.require == ("Bolas's Citadel", "Sensei's Divining Top")
         assert top_deck.minimum == 0 and top_deck.maximum == 0
-        assert definitions.required == {"Wheel of Fortune", "Underworld Breach", "Bolas's Citadel"}
+        assert definitions.required == {
+            "Wheel of Fortune",
+            "Underworld Breach",
+            "Bolas's Citadel",
+            "Sensei's Divining Top",
+        }
         # The suspend rocks and the double-faced reprint are excluded, not re-queried
         assert {"Sol Talisman", "Mox Tantalite"} <= fast_mana.exclude
         assert "Blazing Firesinger // Seething Song" in ritual.exclude

@@ -193,8 +193,9 @@ table that does not fit the outcome table is an error on load, whatever the sett
 
 `ilp/enablers.py` turns the enabler table (the `enablers` section of `config.yaml`) into the
 `EnablerTable` of a run: for each category (fast mana, rituals, wheels, graveyard fillers and
-the recursion engine Underworld Breach and the top-of-library engine Bolas's Citadel by
-default; the names are free, not tied to the outcome table), the cards that set combos up,
+the recursion engine Underworld Breach and the top-of-library engines Bolas's Citadel and
+Sensei's Divining Top by default; the names are free, not tied to the outcome table), the
+cards that set combos up,
 each with its sources. The table has the shape of the payoff table and is parsed and resolved
 by the same code (`ilp/card_table.py`: `parse_card_table`, `resolve_sources`, with
 `min_enablers` / `max_enablers` as the bound keys and `EnablerTableError` as the error), with
@@ -204,9 +205,10 @@ marks a card as an enabler; a ritual or a wheel appears in a variant only when i
 The default fast mana and rituals are queried; the wheels and graveyard fillers are named,
 because the floor treats every card of a category alike and a query also finds cards nobody
 wants in the slot, which a build then used to meet the floor. Wheel of Fortune, Underworld
-Breach and Bolas's Citadel are required; the recursion and top_deck categories hold
-Underworld Breach and Bolas's Citadel alone, each with a floor of 0 (`min_enablers` and
-`max_enablers` 0), so the enabler share is split among the other four.
+Breach, Bolas's Citadel and Sensei's Divining Top are required; the recursion and top_deck
+categories hold only required cards (Underworld Breach; Bolas's Citadel and Sensei's
+Divining Top), each with a floor of 0 (`min_enablers` and `max_enablers` 0), so the
+enabler share is split among the other four.
 
 `build_cube_ilp` resolves the enabler table after the payoff table and, with the enabler
 floor on, adds every enabler card the pool lacks to the candidate cards as a `CandidateCard`
