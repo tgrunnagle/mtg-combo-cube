@@ -3084,13 +3084,15 @@ class ILPOptimizer:
           becomes the reference. If none is found, the Phase 1 count is kept.
 
         The reference solve is hinted with the Phase 1 cube, or with the warm-start cube
-        (warm_start_cards, a cube from an earlier build) when that is a whole cube
-        (_reference_hint). When the warm-start cube satisfies the cube rules a feasible
-        hint is a floor on what the solve returns, so a reference that satisfied the rules
-        last time is not lost to the time limit this time, and the warm-start cube is the
-        reference outright if the solve finds nothing better; when it breaks a rule (one
-        added since) it is still the hint, being closer to a cube under this run's rules
-        than the Phase 1 cube is, but cannot be the reference.
+        (warm_start_cards, a cube from an earlier build) when that names a candidate card
+        (_reference_hint). When the warm-start cube is a whole cube satisfying the cube
+        rules, a feasible hint is a floor on what the solve returns, so a reference that
+        satisfied the rules last time is not lost to the time limit this time, and the
+        warm-start cube is the reference outright if the solve finds nothing better; when
+        it breaks a rule (one added since) or is a card over or under the cube size (a
+        card moved between the fixed list and the candidates) it is still the hint, being
+        closer to a cube under this run's rules than the Phase 1 cube is, but cannot be the
+        reference.
 
         The hint is the reference cube when it also satisfies the combo window and the
         utilization floor. Otherwise CP-SAT would first have to repair the hint inside the
@@ -3182,25 +3184,28 @@ class ILPOptimizer:
 
     def _reference_hint(self, phase1_start: _WarmStart) -> tuple[_WarmStart, _WarmStart | None]:
         """
-        The cube the reference solve is hinted with: the warm-start cube when it is a whole
-        cube of candidate cards (the fixed cards apart), otherwise the Phase 1 cube. Returns
-        (the hint, the warm-start cube when it also satisfies the cube rules and so may be
-        the reference, else None).
+        The cube the reference solve is hinted with: the warm-start cube when it names any
+        candidate card (the constructor drops unknown and fixed cards), otherwise the Phase 1
+        cube. Returns (the hint, the warm-start cube when it is a whole cube of candidate
+        cards (the fixed cards apart) that satisfies the cube rules and so may be the
+        reference, else None).
         """
         if not self.warm_start_cards:
             return phase1_start, None
         given = self._warm_start_for(set(self.warm_start_cards))
         free_given = len(given.cards - self.fixed_cards)  # the fixed cards take no slot
+        # A hint need not be feasible: the Phase 1 cube breaks rules too, and a cube that
+        # satisfied last build's rules is closer to this build's than it is (a new rule, the
+        # staples, breaks it by a few cards; a card moved between the fixed list and the
+        # candidates leaves it a card over or under the cube size). The solver repairs the
+        # hint. Such a cube cannot be the reference.
         if free_given != self.cube_size:
             logger.warning(
                 f"Phase 2: the warm-start cube has {free_given} candidate cards, not "
-                f"{self.cube_size}; the reference solve is hinted with the Phase 1 cube"
+                f"{self.cube_size}; it hints the reference solve but cannot be the reference"
             )
-            return phase1_start, None
+            return given, None
         if broken := self._describe_broken_rules(given.cards):
-            # A hint need not be feasible: the Phase 1 cube breaks rules too, and a cube
-            # that satisfied last build's rules is closer to this build's than it is (a new
-            # rule, the staples, breaks it by a few cards). It cannot be the reference.
             logger.warning(
                 f"Phase 2: the warm-start cube breaks {broken} constraints; it hints the "
                 f"reference solve but cannot be the reference"

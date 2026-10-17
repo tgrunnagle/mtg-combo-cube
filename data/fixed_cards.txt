@@ -1,7 +1,7 @@
 # The cards of the cube outside the slots the optimizer fills (the 90 reserved slots:
 # lands, ramp and interaction), one per line; a card listed twice is held twice. Named by
 # the fixed_cards key of config.yaml; see the README. Exported from Cube Cobra on
-# 16 October 2026, plus Sol Ring (ramp, so a card for these slots rather than the 310).
+# 16 October 2026 (Sol Ring is a required enabler of the 310 instead; see config.yaml).
 Path to Exile
 Swords to Plowshares
 Fateful Absence
@@ -92,4 +92,3 @@ Windswept Heath
 Windswept Heath
 Wooded Foothills
 Wooded Foothills
-Sol Ring
